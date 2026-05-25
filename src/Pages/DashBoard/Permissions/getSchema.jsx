@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { UserContext } from "../../../Context/dataCont";
 import Title from "../../../Components/Title";
 
-const API_URL = import.meta.env.VITE_API_URL;
+const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
 // Mapping des statuts en français
 const statusLabels = {
@@ -21,23 +21,22 @@ const statusColors = {
 };
 
 export default function PermissionDetails() {
-  const { model, version } = useParams();
+  const { model, versionId } = useParams();
   const navigate = useNavigate();
   const { authData } = useContext(UserContext);
   const [schema, setSchema] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState("fields");
-
   useEffect(() => {
     const fetchSchema = async () => {
       try {
-        const res = await fetch(`${API_URL}/permissions/schemas?model=${model}`, {
+        const res = await fetch(`${NEST_API_URL}/permissions/schemas/${versionId}`, {
           headers: { Authorization: `Bearer ${authData.token}` }
         });
         const data = await res.json();
         if (res.ok) {
-          const found = data.schemas.find(s => s.version === parseInt(version));
+          const found = data.version
           if (found) {
             setSchema(found);
           } else {
@@ -53,13 +52,13 @@ export default function PermissionDetails() {
       }
     };
     if (authData?.token) fetchSchema();
-  }, [model, version, authData]);
+  }, [model, versionId, authData]);
 
   const handleRestore = async () => {
     try {
-      const url = `${API_URL}/permissions/reactivateVersion/${schema._id}?model=${model}`;
+      const url = `${NEST_API_URL}/permissions/reactivate/${schema.id}?model=${model}`;
       const res = await fetch(url, {
-        method: "GET",
+        method: "POST",
         headers: { Authorization: `Bearer ${authData.token}` }
       });
       const data = await res.json();
@@ -74,7 +73,7 @@ export default function PermissionDetails() {
   };
 
   const handleEdit = () => {
-    navigate(`/dash/permissions/edit/${schema._id}`);
+    navigate(`/dash/permissions/edit/${schema.id}`);
   };
 
   if (loading) return <div className="text-yellow-300">Chargement...</div>;

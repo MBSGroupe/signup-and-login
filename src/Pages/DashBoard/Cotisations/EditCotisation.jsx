@@ -1,11 +1,10 @@
-// pages/DashBoard/Cotisations/EditCotisation.jsx
 import { useState, useContext, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { UserContext } from "../../../Context/dataCont";
 import { fetchWithRefresh } from "../../../Components/api";
 import Title from "../../../Components/Title";
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_NEST_API_URL;
 
 export default function EditCotisation() {
   const { id } = useParams();
@@ -25,24 +24,24 @@ export default function EditCotisation() {
       try {
         setLoading(true);
         // 1. Récupérer la cotisation
-        const cotRes = await fetch(`${API_URL}/fee/${id}`, {
+        const cotRes = await fetch(`${API_URL}/fees/${id}`, {
           headers: { Authorization: `Bearer ${authData.token}` }
         });
         const cotData = await cotRes.json();
         if (!cotRes.ok) throw new Error(cotData.message || "Erreur lors du chargement");
 
-        const cotisation = cotData.cotisation; // le backend renvoie { cotisation: ... }
-
+        const cotisation = cotData;
         // 2. Récupérer l'ID du propriétaire (l'utilisateur concerné)
-        const ownerId = cotisation.user?._id || cotisation.user;
+        const ownerId = cotisation.userId;
         if (!ownerId) throw new Error("Propriétaire de la cotisation introuvable");
 
         // 3. Récupérer les permissions pour le modèle Fee
         const permRes = await fetch(
-          `${API_URL}/permissions/user/${ownerId}/fields?model=Fee`,
+          `${API_URL}/permissions/user/${ownerId}/editable-fields?model=Fee`,
           { headers: { Authorization: `Bearer ${authData.token}` } }
         );
         const permData = await permRes.json();
+
         if (!permRes.ok) throw new Error(permData.message || "Erreur de permissions");
 
         setPermissions({
@@ -84,7 +83,7 @@ export default function EditCotisation() {
 
     try {
       const response = await fetchWithRefresh(
-        `${API_URL}/fee/${id}`,
+        `${API_URL}/fees/${id}`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -97,7 +96,7 @@ export default function EditCotisation() {
       const data = await response.json();
       if (response.ok) {
         setMessage("✅ Cotisation mise à jour !");
-        setTimeout(() => navigate("/dash/allCotisations"), 2000);
+        setTimeout(() => navigate(-1), 2000);
       } else {
         setMessage(data.message || "❌ Échec de la mise à jour");
       }

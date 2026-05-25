@@ -2,6 +2,7 @@ import { useEffect, useState, useContext } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import ProfilePage from "../../../ProfilePage";
 const API_URL = import.meta.env.VITE_API_URL;
+const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 import { UserContext } from "../../../../Context/dataCont";
 export default function AdminUserView() {
   const { id } = useParams();
@@ -16,7 +17,7 @@ export default function AdminUserView() {
   useEffect(() => {
     const getUser = async () => {
       try {
-        const res = await fetch(`${API_URL}/user/${id}`, {
+        const res = await fetch(`${NEST_API_URL}/users/${id}`, {
           headers: { "Content-Type": "application/json", 
             Authorization: `Bearer ${authData.token}`,
           },
@@ -24,7 +25,6 @@ export default function AdminUserView() {
           method: "GET"
         });
         const data = await res.json();
-        
         setUser(data.user);
         setMessage(data.message)
       } catch (err) {
@@ -73,8 +73,6 @@ export default function AdminUserView() {
       <div className="max-w-5xl mx-auto">
         <ProfilePage user={user} />
       </div>
-
-      {/* ADMIN ACTIONS */}
 
 
       {/* POPUP MESSAGE */}

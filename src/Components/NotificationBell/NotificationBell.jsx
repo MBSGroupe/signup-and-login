@@ -26,12 +26,12 @@ const NotificationBell = () => {
     }
   };
 
-  useEffect(() => {
-    if (!authData?.token) return;
-    fetchUnreadCount();
-    const interval = setInterval(fetchUnreadCount, 30000);
-    return () => clearInterval(interval);
-  }, [authData?.token]);
+  // useEffect(() => {
+  //   if (!authData?.token) return;
+  //   fetchUnreadCount();
+  //   const interval = setInterval(fetchUnreadCount, 30000);
+  //   return () => clearInterval(interval);
+  // }, [authData?.token]);
 
   const toggleDropdown = () => setShowDropdown(!showDropdown);
 

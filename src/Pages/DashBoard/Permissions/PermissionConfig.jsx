@@ -4,7 +4,7 @@ import Title from "../../../Components/Title";
 import { useNavigate } from "react-router-dom";
 
 
-const API_URL = import.meta.env.VITE_API_URL;
+const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
 export default function PermissionManager() {
   const { authData } = useContext(UserContext);
@@ -19,7 +19,7 @@ export default function PermissionManager() {
 
   const fetchSchemas = async () => {
     try {
-      const res = await fetch(`${API_URL}/permissions/schemas`, {
+      const res = await fetch(`${NEST_API_URL}/permissions/schemas`, {
         headers: { Authorization: `Bearer ${authData.token}` }
       });
       const data = await res.json();
@@ -47,9 +47,9 @@ export default function PermissionManager() {
   const confirmRollback = async (model) => {
     if (!window.confirm(`Voulez‑vous effectuer un rollback pour le modèle ${model} ?`)) return;
     try {
-      const url = `${API_URL}/permissions/rollbackVersion?model=${model}`;
+      const url = `${NEST_API_URL}/permissions/rollback?model=${model}`;
       const res = await fetch(url, {
-        method: "GET",
+        method: "POST",
         headers: { Authorization: `Bearer ${authData.token}` }
       });
       const data = await res.json();
@@ -106,7 +106,7 @@ export default function PermissionManager() {
                 </thead>
                 <tbody>
                   {versions.sort((a, b) => b.version - a.version).map((ver) => (
-                    <tr key={ver._id} className="border-b border-gray-700/50 hover:bg-gray-700/30">
+                    <tr key={ver.id} className="border-b border-gray-700/50 hover:bg-gray-700/30">
                       <td className="py-3 font-mono">v{ver.version}</td>
                       <td className="py-3">
                         {ver.isActive ? (
@@ -126,7 +126,7 @@ export default function PermissionManager() {
                       </td>
                       <td className="py-3">
                         <button
-                          onClick={() => navigate(`/dash/permissions/${model}/${ver.version}`)}
+                          onClick={() => navigate(`/dash/permissions/${model}/${ver.id}`)}
                           className="text-yellow-300 hover:text-yellow-400"
                         >
                           Détails

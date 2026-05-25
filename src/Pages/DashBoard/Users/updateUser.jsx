@@ -6,7 +6,7 @@ import { useParams } from "react-router-dom";
 // Import your wilaya data
 import wilayasData from "../../../assets/data/wilayas.json"; // Adjust path as needed
 
-const API_URL = import.meta.env.VITE_API_URL;
+const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
 export default function UpdateUser() {
   const { authData, setAuthData } = useContext(UserContext);
@@ -27,7 +27,7 @@ export default function UpdateUser() {
         setLoading(true);
         
         // 1. Fetch user data
-        const userRes = await fetch(`${API_URL}/user/${id}`, {
+        const userRes = await fetch(`${NEST_API_URL}/users/${id}`, {
           method : "GET",
           headers: { Authorization: `Bearer ${authData.token}` }
         });
@@ -35,7 +35,7 @@ export default function UpdateUser() {
         setUserData(userData.user);
         
         // 2. Fetch permissions for this user
-        const permRes = await fetch(`${API_URL}/permissions/user/${id}/fields?model=User`, {
+        const permRes = await fetch(`${NEST_API_URL}/permissions/user/${id}/editable-fields?model=User`, {
           method : "GET",
           headers: { Authorization: `Bearer ${authData.token}` }
         });
@@ -83,7 +83,7 @@ export default function UpdateUser() {
     };
     
     try {
-      const response = await fetch(`${API_URL}/user/${id}`, {
+      const response = await fetch(`${NEST_API_URL}/users/${id}`, {
         method: "PATCH",
         headers: {
           Authorization: `Bearer ${authData.token}`,
@@ -126,7 +126,7 @@ export default function UpdateUser() {
     uploadData.append("folder", "profile");
     
     try {
-      const response = await fetch(`${API_URL}/upload/${id}`, {
+      const response = await fetch(`${NEST_API_URL}/files/${id}`, {
         method: "POST",
         headers: { Authorization: `Bearer ${authData.token}` },
         body: uploadData,

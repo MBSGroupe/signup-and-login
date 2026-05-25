@@ -6,6 +6,8 @@ import { fetchWithRefresh } from "../../../Components/api";
 import VersionForm from "../../../Components/Forms/VersionForm";
 
 const API_URL = import.meta.env.VITE_API_URL;
+const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
+
 
 export default function EditVersion() {
   const { versionId } = useParams();
@@ -19,15 +21,15 @@ export default function EditVersion() {
   useEffect(() => {
     const fetchVersion = async () => {
       try {
-        const res = await fetch(`${API_URL}/permissions/schemas`, {
+        const res = await fetch(`${NEST_API_URL}/permissions/schemas/${versionId}`, {
           headers: { Authorization: `Bearer ${authData.token}` }
         });
         const data = await res.json();
         if (res.ok) {
-          const found = data.schemas.find(s => s._id === versionId);
-          if (found) {
-            setSchema({ fields: found.fields || [], operations: found.operations || [] });
-            setInitialStatus(found.status || "active");
+          
+          if (data.version) {
+            setSchema({ fields: data.version.fields || [], operations: data.version.operations || [] });
+            setInitialStatus(data.version.status || "active");
           } else {
             alert("Version non trouvée");
             navigate(-1);
@@ -46,10 +48,11 @@ export default function EditVersion() {
   }, [versionId, authData, navigate]);
 
   const handleSubmit = async (updatedSchema, status) => {
+    console.log(updatedSchema)
     setSaving(true);
     try {
       const res = await fetchWithRefresh(
-        `${API_URL}/permissions/versions/${versionId}`,
+        `${NEST_API_URL}/permissions/versions/${versionId}`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },

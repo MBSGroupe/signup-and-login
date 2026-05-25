@@ -2,8 +2,8 @@
 import { useContext, useEffect, useState } from "react";
 import { UserContext } from "../../Context/dataCont";
 import { fetchWithRefresh } from "../../Components/api";
-
-const API_URL = import.meta.env.VITE_API_URL;
+import { transformDates } from "../../Utils/transformPayload";
+const API_URL = import.meta.env.VITE_NEST_API_URL;
 
 export default function EditFeeDefinitionModal({ definition, onClose, onUpdated }) {
   const { authData, setAuthData } = useContext(UserContext);
@@ -24,7 +24,7 @@ export default function EditFeeDefinitionModal({ definition, onClose, onUpdated 
     const fetchEditableFields = async () => {
       try {
         const res = await fetchWithRefresh(
-          `${API_URL}/permissions/user/${viewerId}/fields?model=FeeDefinition`,
+          `${API_URL}/permissions/user/${viewerId}/editable-fields?model=FeeDefinition`,
           { method: "GET" },
           authData.token,
           setAuthData
@@ -76,7 +76,7 @@ export default function EditFeeDefinitionModal({ definition, onClose, onUpdated 
     setLoading(true);
     try {
       // Build updates object with only editable fields (excluding penaltyConfig)
-      const updates = {};
+      let updates = {};
       for (const field of editableFields) {
         if (field === "penaltyConfig") continue;
         if (formData[field] !== undefined) {
@@ -109,11 +109,12 @@ export default function EditFeeDefinitionModal({ definition, onClose, onUpdated 
         }
       }
 
-      const url = `${API_URL}/fee/definitions/${definition._id}?propagate=${propagate}`;
+      updates = transformDates(updates, ['dueDate']);
+      const url = `${API_URL}/fees/definitions/${definition.id}?propagate=${propagate}`;
       const res = await fetchWithRefresh(
         url,
         {
-          method: "PUT",
+          method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(updates),
         },

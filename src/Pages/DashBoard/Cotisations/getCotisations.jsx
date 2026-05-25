@@ -6,7 +6,7 @@ import { IoSearchOutline } from "react-icons/io5";
 import { fetchWithRefresh } from "../../../Components/api";
 import EditFeeDefinitionModal from "../../../Components/Modals/EditFeeDefinitionModal";
 
-const API_URL = import.meta.env.VITE_API_URL;
+const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
 export default function GetCotisations() {
   const { authData, setAuthData } = useContext(UserContext);
@@ -22,7 +22,7 @@ export default function GetCotisations() {
     try {
       setLoading(true);
       const res = await fetchWithRefresh(
-        `${API_URL}/fee/definitions`,
+        `${NEST_API_URL}/fees/definitions`,
         { method: "GET" },
         authData.token,
         setAuthData
@@ -55,7 +55,7 @@ export default function GetCotisations() {
   const handleDelete = async (defId) => {
     try {
       const res = await fetchWithRefresh(
-        `${API_URL}/fee/definitions/${defId}`,
+        `${NEST_API_URL}/fee/definitions/${defId}`,
         { method: "DELETE" },
         authData.token,
         setAuthData

@@ -4,10 +4,12 @@ import { UserContext } from "../../Context/dataCont";
 import MarkFeePaidModal from "../Modals/PayFee";
 
 const API_URL = import.meta.env.VITE_API_URL;
+const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
+
 
 export default function CotisationCard({ cotisation, onCotisationUpdated, isOwner }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [showPaidModal, setShowPaidModal] = useState(false);
+
   const { authData, setAuthData } = useContext(UserContext);
   const menuRef = useRef(null);
   const navigate = useNavigate();
@@ -52,14 +54,14 @@ export default function CotisationCard({ cotisation, onCotisationUpdated, isOwne
   };
 
   const handleEdit = () => {
-    navigate(`/auth/edit/fee/${cotisation._id}`);
+    navigate(`/auth/edit/fee/${cotisation.id}`);
     setMenuOpen(false);
   };
 
   const handleCancel = async () => {
     try {
-      const response = await fetch(`${API_URL}/fee/cancel/${cotisation._id}`, {
-        method: "PATCH",
+      const response = await fetch(`${NEST_API_URL}/fees/${cotisation.id}/cancel`, {
+        method: "POST",
         headers: { Authorization: `Bearer ${authData.token}` },
       });
       if (response.ok) {
@@ -76,8 +78,8 @@ export default function CotisationCard({ cotisation, onCotisationUpdated, isOwne
 
   const handleReactivate = async () => {
     try {
-      const response = await fetch(`${API_URL}/fee/reactivate/${cotisation._id}`, {
-        method: "PATCH",
+      const response = await fetch(`${NEST_API_URL}/fees/${cotisation.id}/reactivate`, {
+        method: "POST",
         headers: { Authorization: `Bearer ${authData.token}` },
       });
       if (response.ok) {
@@ -219,18 +221,6 @@ export default function CotisationCard({ cotisation, onCotisationUpdated, isOwne
         </div>
       )}
 
-      {showPaidModal && (
-        <MarkFeePaidModal
-          cotisation={cotisation}
-          onClose={() => setShowPaidModal(false)}
-          onSuccess={() => {
-            setShowPaidModal(false);
-            if (onCotisationUpdated) onCotisationUpdated();
-          }}
-          authData={authData}
-          setAuthData={setAuthData}
-        />
-      )}
     </div>
   );
 }

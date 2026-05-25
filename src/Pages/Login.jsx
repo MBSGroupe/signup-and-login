@@ -4,6 +4,8 @@ import { UserContext } from "../Context/dataCont";
 import SectionTitle from "../Components/Title";
 
 const API_URL = import.meta.env.VITE_API_URL;
+const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
+
 
 const LoginForm = () => {
   const { authData, setAuthData } = useContext(UserContext);
@@ -60,7 +62,7 @@ const LoginForm = () => {
     setMessage("");
     setFormData((prev) => ({ ...prev, password: "" }));
     try {
-      const response = await fetch(`${API_URL}/auth/login`, {
+      const response = await fetch(`${NEST_API_URL}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),

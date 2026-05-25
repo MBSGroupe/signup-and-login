@@ -4,8 +4,9 @@ import { UserContext } from '../../../Context/dataCont';
 import Title from '../../../Components/Title';
 import { fetchWithRefresh } from '../../../Components/api';
 import wilayasData from '../../../assets/data/wilayas.json';
+import { transformDates } from '../../../Utils/transformPayload';
+const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
-const API_URL = import.meta.env.VITE_API_URL;
 
 export default function CreateBulkCotisation() {
   const { authData, setAuthData } = useContext(UserContext);
@@ -30,7 +31,7 @@ export default function CreateBulkCotisation() {
       try {
         const viewerId = authData.user?._id || authData.user?.id;
         const response = await fetch(
-          `${API_URL}/permissions/user/${viewerId}/crFields?model=Fee`,
+          `${NEST_API_URL}/permissions/user/${viewerId}/creatable-fields?model=Fee`,
           { headers: { Authorization: `Bearer ${authData.token}` } }
         );
         const data = await response.json();
@@ -41,6 +42,7 @@ export default function CreateBulkCotisation() {
           data.fields.forEach(field => {
             if (field === 'year') initial[field] = new Date().getFullYear();
             else if (field === 'dueDate') initial[field] = '';
+            else if (field === 'amount') initial[field] = 0;
             else if (field === 'penaltyConfig.type') initial[field] = 'none';
             else if (field === 'penaltyConfig.rate') initial[field] = 0;
             else if (field === 'penaltyConfig.frequency') initial[field] = 'once';
@@ -77,8 +79,12 @@ export default function CreateBulkCotisation() {
   };
 
   const handleCotisationFieldChange = (e) => {
-    const { name, value } = e.target;
-    setCotisationFields(prev => ({ ...prev, [name]: value }));
+    const { name, value, type } = e.target;
+    let parsedValue = value;
+    if (type === 'number') {
+      parsedValue = value === '' ? '' : Number(value);
+    }
+    setCotisationFields(prev => ({ ...prev, [name]: parsedValue }));
   };
 
   const handleSubmit = async (e) => {
@@ -102,23 +108,23 @@ export default function CreateBulkCotisation() {
       }
     });
 
-    const payload = {
+    let payload = {
       ...filters,
       ...nested,
     };
-
+    payload = transformDates(payload, ['dueDate']);
     try {
       const response = await fetchWithRefresh(
-        `${API_URL}/fee/bulk-create`,
+        `${NEST_API_URL}/fees/bulk`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         },
+        
         authData.token,
         setAuthData
       );
-
       const data = await response.json();
       if (response.ok) {
         setResult(data);

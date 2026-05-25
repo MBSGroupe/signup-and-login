@@ -11,6 +11,7 @@ import CreditTransactionCard from '../Components/Cards/CreditTransactionCard';
 import PaymentCard from '../Components/Cards/PayementCard';
 
 const API_URL = import.meta.env.VITE_API_URL;
+const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
 export default function ProfilePage({ user }) {
   const { authData, setAuthData } = useContext(UserContext);
@@ -37,8 +38,8 @@ export default function ProfilePage({ user }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
 
-  const targetUserId = user?._id || id || authData.user?._id;
-  const isOwner = authData.user?._id === targetUserId;
+  const targetUserId = user?.id || id || authData.user?.id;
+  const isOwner = authData.user?.id === targetUserId;
   const isAdmin = authData.user?.role === 'admin' || authData.user?.role === 'super_admin';
 
   // Close menu when clicking outside
@@ -64,12 +65,13 @@ export default function ProfilePage({ user }) {
       const uploadData = new FormData();
       uploadData.append("file", file);
       uploadData.append("folder", "uploads");
-      const response = await fetch(`${API_URL}/upload/${displayUser._id}`, {
+      const response = await fetch(`${NEST_API_URL}/files/${displayUser.id}`, {
         method: "POST",
         headers: { Authorization: `Bearer ${authData.token}` },
         body: uploadData,
       });
       const data = await response.json();
+      console.log(data)
       if (response.status === 413) {
         handlePopup("error", data.message || "File is too large");
         return;
@@ -95,12 +97,13 @@ export default function ProfilePage({ user }) {
       const uploadData = new FormData();
       uploadData.append("file", newFile);
       uploadData.append("folder", "uploads");
-      const response = await fetch(`${API_URL}/upload/${file._id}`, {
+      const response = await fetch(`${NEST_API_URL}/files/${file.id}`, {
         method: "PATCH",
         headers: { Authorization: `Bearer ${authData.token}` },
         body: uploadData,
       });
       const data = await response.json();
+      console.log(data)
       if (response.status === 413) {
         handlePopup("error", data.message || "File is too large");
         return;
@@ -123,7 +126,7 @@ export default function ProfilePage({ user }) {
   const handleDelete = async (file) => {
     try {
       setIsUploading(true);
-      const response = await fetch(`${API_URL}/upload/${file._id}`, {
+      const response = await fetch(`${NEST_API_URL}/files/${file.id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${authData.token}` },
       });
@@ -180,7 +183,7 @@ export default function ProfilePage({ user }) {
 
   const fetchCreditTransactions = async () => {
     try {
-      const res = await fetch(`${API_URL}/credit/user/${targetUserId}`, {
+      const res = await fetch(`${NEST_API_URL}/fees/credit/user/${targetUserId}`, {
         headers: { Authorization: `Bearer ${authData.token}` }
       });
       if (res.ok) {
@@ -198,7 +201,7 @@ export default function ProfilePage({ user }) {
   const handleTransaction = async (amount, method, notes, type) => {
     const finalAmount = type === 'deposit' ? Math.abs(amount) : -Math.abs(amount);
     try {
-      const res = await fetch(`${API_URL}/fee/versement`, {
+      const res = await fetch(`${NEST_API_URL}/fees/versement`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authData.token}` },
         body: JSON.stringify({ userId: targetUserId, amount: finalAmount, paymentMethod: method, notes })
@@ -226,12 +229,12 @@ export default function ProfilePage({ user }) {
 
   // ---------- User actions ---------- 
   const handleEditUser = () => {
-    navigate(`/auth/update/${targetUserId}`); // adjust route as needed
+    navigate(`/auth/update/${targetUserId}`); 
   };
 
   const handleValidateUser = async () => {
     try {
-      const response = await fetch(`${API_URL}/user/validate/${targetUserId}`, {
+      const response = await fetch(`${NEST_API_URL}/user/validate/${targetUserId}`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${authData.token}` }
       });
@@ -255,7 +258,7 @@ export default function ProfilePage({ user }) {
         setLoading(true);
         let userData = user;
         if (!userData && id) {
-          const userRes = await fetch(`${API_URL}/user/${id}`, {
+          const userRes = await fetch(`${NEST_API_URL}/users/${id}`, {
             headers: { Authorization: `Bearer ${authData.token}` }
           });
           const result = await userRes.json();
@@ -263,13 +266,13 @@ export default function ProfilePage({ user }) {
         }
         setDisplayUser(userData || authData.user);
 
-        const permRes = await fetch(`${API_URL}/permissions/user/${targetUserId}/vwFields?model=User`, {
+        const permRes = await fetch(`${NEST_API_URL}/permissions/user/${targetUserId}/viewable-fields?model=User`, {
           headers: { Authorization: `Bearer ${authData.token}` }
         });
         const permData = await permRes.json();
         setPermissions(permData);
 
-        const opRes = await fetch(`${API_URL}/permissions/${targetUserId}/check-operation`, {
+        const opRes = await fetch(`${NEST_API_URL}/permissions/${targetUserId}/check-operation`, {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${authData.token}`,
@@ -280,7 +283,16 @@ export default function ProfilePage({ user }) {
         const opData = await opRes.json();
         setPerform(opData.canPerform);
 
-        const paymentsRes = await fetch(`${API_URL}/payement/user/${targetUserId}`, {
+
+        const feesRes = await fetch(`${NEST_API_URL}/fees/user/${targetUserId}`, {
+          headers: { Authorization: `Bearer ${authData.token}` }
+        });
+        if (feesRes.ok) {
+          const feesData = await feesRes.json();
+          setUserFees(feesData);
+        }
+
+        const paymentsRes = await fetch(`${NEST_API_URL}/fees/payements/user/${targetUserId}`, {
           headers: { Authorization: `Bearer ${authData.token}` }
         });
         if (paymentsRes.ok) {
@@ -288,13 +300,7 @@ export default function ProfilePage({ user }) {
           setPayments(paymentsData);
         }
 
-        const feesRes = await fetch(`${API_URL}/fee/user/${targetUserId}`, {
-          headers: { Authorization: `Bearer ${authData.token}` }
-        });
-        if (feesRes.ok) {
-          const feesData = await feesRes.json();
-          setUserFees(feesData.cotisations);
-        }
+
 
         await fetchCreditTransactions();
       } catch (error) {
@@ -450,7 +456,7 @@ export default function ProfilePage({ user }) {
             </div>
           )}
 
-          {/* Credit & Debt Card (without the two buttons) */}
+          {/* Credit & Debt Card  */}
           <div className="w-2/4 mx-auto mt-6 bg-blue-900/30 border border-blue-400/30 rounded-xl p-4">
             <div className="flex justify-between items-center">
               <span className="text-blue-300 font-medium">Crédit disponible :</span>
@@ -495,7 +501,7 @@ export default function ProfilePage({ user }) {
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6">
             {files.filter(file => file.folder !== "profile").map((file, idx) => (
-              <FileCard key={file._id} file={file} handleDelete={handleDelete} handleReplace={handleReplace} />
+              <FileCard key={file.id} file={file} handleDelete={handleDelete} handleReplace={handleReplace} />
             ))}
             {perform && <AddFileCard onUpload={handleUpload} />}
           </div>
@@ -510,7 +516,7 @@ export default function ProfilePage({ user }) {
             {userFees && userFees.length > 0 ? (
               userFees.map((fee) => (
                 <CotisationCard
-                  key={fee._id}
+                  key={fee.id}
                   cotisation={fee}
                   isOwner={isOwner}
                   onCotisationUpdated={refreshUserFees}
@@ -530,7 +536,7 @@ export default function ProfilePage({ user }) {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
             {payments.length > 0 ? (
               payments.map((payment) => (
-                <PaymentCard key={payment._id} payment={payment} handlePopup={handlePopup} />
+                <PaymentCard key={payment.id} payment={payment} handlePopup={handlePopup} />
               ))
             ) : (
               <p className="text-gray-400 col-span-full text-center py-8">Aucun paiement enregistré.</p>
@@ -546,7 +552,7 @@ export default function ProfilePage({ user }) {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
             {creditTransactions.length > 0 ? (
               creditTransactions.map((tx) => (
-                <CreditTransactionCard key={tx._id} transaction={tx} handlePopup={handlePopup} />
+                <CreditTransactionCard key={tx.id} transaction={tx} handlePopup={handlePopup} />
               ))
             ) : (
               <p className="text-gray-400 col-span-full text-center py-8">Aucune transaction de crédit trouvée.</p>

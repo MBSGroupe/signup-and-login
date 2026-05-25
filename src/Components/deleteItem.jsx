@@ -5,7 +5,7 @@ import { UserContext } from '../Context/dataCont';
 import { fetchWithRefresh } from './api';
 
 export default function DeleteItem({ mode }) { // mode = "user" ou "cotisation"
-  const API_URL = import.meta.env.VITE_API_URL;
+  const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
   const { authData, setAuthData } = useContext(UserContext);
   const { id } = useParams();
   const navigate = useNavigate();
@@ -16,7 +16,7 @@ export default function DeleteItem({ mode }) { // mode = "user" ou "cotisation"
   // Définir l'URL et les libellés selon le mode
   const config = {
     user: {
-      endpoint: `${API_URL}/user/${id}`,
+      endpoint: `${NEST_API_URL}/users/${id}`,
       method : 'DELETE',
       redirect: "/dash/allUsers",
       successMsg: "✅ Utilisateur supprimé avec succès.",
@@ -24,7 +24,7 @@ export default function DeleteItem({ mode }) { // mode = "user" ou "cotisation"
       title: "Suppression d'utilisateur"
     },
     cotisation: {
-      endpoint: `${API_URL}/fee/cancel/${id}`,
+      endpoint: `${NEST_API_URL}/fee/cancel/${id}`,
       method : 'PATCH',
       redirect: "/dash/allCotisations",
       successMsg: "✅ Cotisation annulée avec succès.",

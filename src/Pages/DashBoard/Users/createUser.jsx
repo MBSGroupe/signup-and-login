@@ -4,7 +4,7 @@ import Title from "../../../Components/Title";
 import { fetchWithRefresh } from "../../../Components/api";
 import wilayasData from "../../../assets/data/wilayas.json";
 
-const API_URL = import.meta.env.VITE_API_URL;
+const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
 export default function CreateUser() {
   const [message, setMessage] = useState("");
@@ -26,7 +26,7 @@ export default function CreateUser() {
     const fetchCreatableFields = async () => {
       try {
         // 1. First check if user can create
-        const canCreateRes = await fetch(`${API_URL}/permissions/${viewerId}/check-operation`, {
+        const canCreateRes = await fetch(`${NEST_API_URL}/permissions/${viewerId}/check-operation`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -49,7 +49,7 @@ export default function CreateUser() {
         }
 
         // 2. Fetch creatable fields using the correct route
-        const fieldsRes = await fetch(`${API_URL}/permissions/user/${viewerId}/crFields?model=User`, {
+        const fieldsRes = await fetch(`${NEST_API_URL}/permissions/user/${viewerId}/creatable-fields?model=User`, {
           headers: { Authorization: `Bearer ${authData.token}` }
         });
         
@@ -92,7 +92,7 @@ export default function CreateUser() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Validate required fields based on schema validation
+    
     const requiredFields = creatableFields.filter(field => 
       fieldConfigs[field]?.validation?.required
     );
@@ -125,10 +125,20 @@ export default function CreateUser() {
         payload[field] = formData[field];
       }
     });
-    payload.password = formData.password; // Ensure password is included
+    const dateFields = ['startDate', 'dateOfBirth', 'activityStartDate', 'actvityStartDate'];
+      dateFields.forEach(field => {
+        if (payload[field]) {
+          let val = payload[field];
+          // If value is a YYYY-MM-DD string, append time part
+          if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(val)) {
+            payload[field] = `${val}T00:00:00.000Z`;
+          }
+        }
+      });
+    payload.password = formData.password; 
 
     try {
-      const response = await fetchWithRefresh(`${API_URL}/user`, {
+      const response = await fetchWithRefresh(`${NEST_API_URL}/users`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -157,8 +167,6 @@ export default function CreateUser() {
     }
   };
 
-  // Render field based on type
-// Render field based on type
 const renderField = (fieldName) => {
   const config = fieldConfigs[fieldName] || {};
   const value = formData[fieldName] || "";

@@ -6,6 +6,8 @@ import { fetchWithRefresh } from "../../../Components/api";
 import VersionForm from "../../../Components/Forms/VersionForm";
 
 const API_URL = import.meta.env.VITE_API_URL;
+const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
+
 
 export default function NewVersion() {
   const { model } = useParams();
@@ -18,7 +20,7 @@ export default function NewVersion() {
   useEffect(() => {
     const fetchCurrentSchema = async () => {
       try {
-        const res = await fetch(`${API_URL}/permissions/schemas?model=${model}`, {
+        const res = await fetch(`${NEST_API_URL}/permissions/schemas?model=${model}`, {
           headers: { Authorization: `Bearer ${authData.token}` }
         });
         const data = await res.json();
@@ -42,14 +44,15 @@ export default function NewVersion() {
   }, [model, authData]);
 
   const handleSubmit = async (schema, status) => {
+    console.log(schema, status)
     setSaving(true);
     try {
       const res = await fetchWithRefresh(
-        `${API_URL}/permissions/versions/${model}`,
+        `${NEST_API_URL}/permissions/versions/${model}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ schema, status }) // send the chosen status
+          body: JSON.stringify({ schema, status }) 
         },
         authData.token,
         setAuthData

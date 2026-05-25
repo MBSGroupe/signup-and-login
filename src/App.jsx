@@ -85,7 +85,7 @@ export default function App() {
 
 
         <Route path="permissions" element={<PermissionManager />} />
-        <Route path="permissions/:model/:version" element={<PermissionDetails />} />
+        <Route path="permissions/:model/:versionId" element={<PermissionDetails />} />
         <Route path="permissions/new/:model" element={<NewVersion />} />
         <Route path="permissions/edit/:versionId" element={<EditVersion />} />
 

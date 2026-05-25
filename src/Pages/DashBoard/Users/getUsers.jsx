@@ -9,6 +9,7 @@ import { fetchWithRefresh } from '../../../Components/api';
 
 export default function GetUsers({ mode }) { // mode: "membres" or "users"
   const API_URL = import.meta.env.VITE_API_URL;
+  const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
   const { data, setData } = useContext(UserDataContext);
   const { authData, setAuthData } = useContext(UserContext);
   const { keyWord, handleChange } = useContext(SearchBarContext);
@@ -19,26 +20,51 @@ export default function GetUsers({ mode }) { // mode: "membres" or "users"
   const [selectedProfession, setSelectedProfession] = useState("all");
   const [selectedRole, setSelectedRole] = useState("all");
   const [selectedRegion, setSelectedRegion] = useState("all");
+  // useEffect(() => {
+  //   if (!authData?.token) return;
+
+  //   const getElements = async () => {
+  //     try {
+  //       const response = await fetchWithRefresh(
+  //         `${NEST_API_URL}/users/`,
+  //         { method: "GET" },
+  //         authData.token,
+  //         setAuthData
+  //       );
+  //       const results = await response.json();
+  //       console.log(results)
+  //       setData(results);
+  //     } catch (error) {
+  //       console.error("Error fetching users:", error);
+  //     }
+  //   };
+
+  //   getElements();
+  // }, [authData.token, setAuthData]);
+
   useEffect(() => {
-    if (!authData?.token) return;
+  if (!authData?.token) return;
 
-    const getElements = async () => {
-      try {
-        const response = await fetchWithRefresh(
-          `${API_URL}/admin/allUsers`,
-          { method: "GET" },
-          authData.token,
-          setAuthData
-        );
-        const results = await response.json();
-        setData(results);
-      } catch (error) {
-        console.error("Error fetching users:", error);
+  const getElements = async () => {
+    try {
+      const response = await fetch(`${NEST_API_URL}/users/`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${authData.token}`,
+        },
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-    };
+      const results = await response.json();
+      setData(results);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+    }
+  };
 
-    getElements();
-  }, [authData.token, setAuthData]);
+  getElements();
+}, [authData.token]); // setAuthData no longer needed
 
   // Extraire les valeurs uniques pour les filtres
   const users = data?.users || [];
@@ -195,7 +221,7 @@ export default function GetUsers({ mode }) { // mode: "membres" or "users"
       {/* Cartes utilisateur */}
       <div className="CardsContainer grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {displayedUsers.map((item) => (
-          <DataCards key={item._id} userItem={item} />
+          <DataCards key={item._id || item.id } userItem={item} />
         ))}
       </div>
     </div>

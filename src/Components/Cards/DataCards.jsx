@@ -42,12 +42,12 @@ export default function DataCards({ userItem }) {
       {/* Action overlay */}
       {active && (
         <div className="absolute inset-0 flex flex-col justify-center items-center gap-4 bg-black/50 rounded-xl transition-opacity">
-          <Link to={`/dash/adminUser/${userItem._id}`} className="w-36">
+          <Link to={`/dash/adminUser/${userItem._id || userItem.id }`} className="w-36">
             <button className="w-full py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white font-semibold shadow-lg shadow-black/30">
               View
             </button>
           </Link>
-          <Link to={`/dash/delete/${userItem._id}`} className="w-36">
+          <Link to={`/dash/delete/${userItem._id || userItem.id}`} className="w-36">
             <button className="w-full py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white font-semibold shadow-lg shadow-black/30">
               Delete
             </button>
