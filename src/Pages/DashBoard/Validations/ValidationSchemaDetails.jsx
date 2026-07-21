@@ -3,8 +3,11 @@ import { useParams, useNavigate } from "react-router-dom";
 import { UserContext } from "../../../Context/dataCont";
 import Title from "../../../Components/Title";
 import { fetchWithRefresh } from "../../../Components/api";
+import { useApi } from "../../../hooks/useApi";
+import { useModal } from "../../../Context/ModalContext";
+import BackButton from "../../../Components/Buttons/BackButton";
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_NEST_API_URL;
 
 const statusLabels = {
   active: "Actif",
@@ -24,6 +27,8 @@ export default function ValidationSchemaDetails() {
   const { schemaId } = useParams();
   const navigate = useNavigate();
   const { authData, setAuthData } = useContext(UserContext);
+  const { callApi } = useApi();
+  const { confirm, alert } = useModal();
   const [schema, setSchema] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -31,29 +36,33 @@ export default function ValidationSchemaDetails() {
   const [userNamesMap, setUserNamesMap] = useState({});
   const [loadingUsers, setLoadingUsers] = useState(false);
 
+  // Fetch schema data
   useEffect(() => {
     const fetchSchema = async () => {
-      try {
+      setLoading(true);
+      const result = await callApi(async () => {
         const res = await fetchWithRefresh(
           `${API_URL}/validation/schemas/${schemaId}`,
           { method: "GET" },
           authData.token,
           setAuthData
         );
-        const data = await res.json();
-        if (res.ok) {
-          setSchema(data.schema || data);
-        } else {
-          setError(data.message || "Erreur");
-        }
-      } catch (err) {
-        setError("Erreur réseau");
-      } finally {
-        setLoading(false);
+        return res;
+      }, { showSuccessMessage: false });
+
+      if (result) {
+        // result is the unwrapped schema object
+        setSchema(result);
+      } else {
+        // callApi already shows a toast; we set error to show a friendly message
+        setError("Impossible de charger le schéma.");
       }
+      setLoading(false);
     };
+
     if (authData?.token) fetchSchema();
-  }, [schemaId, authData.token]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schemaId, authData.token, setAuthData]);
 
   // Fetch user names for allowedUserIds
   useEffect(() => {
@@ -65,20 +74,21 @@ export default function ValidationSchemaDetails() {
           const uniqueIds = [...new Set(allUserIds.map(id => id.toString()))];
           const results = {};
           for (const id of uniqueIds) {
-            try {
+            const result = await callApi(async () => {
               const res = await fetchWithRefresh(
-                `${API_URL}/user/${id}`,
+                `${API_URL}/users/${id}`,
                 { method: "GET" },
                 authData.token,
                 setAuthData
               );
-              const data = await res.json();
-              if (res.ok && data.user) {
-                results[id] = `${data.user.name} ${data.user.lastname} (${data.user.email})`;
-              } else {
-                results[id] = id;
-              }
-            } catch {
+              return res;
+            }, { showSuccessMessage: false });
+
+            if (result && result.user) {
+              const user = result.user;
+              console.log(user)
+              results[id] = `${user.name} ${user.lastname} (${user.email})`;
+            } else {
               results[id] = id;
             }
           }
@@ -88,52 +98,61 @@ export default function ValidationSchemaDetails() {
         fetchUserNames();
       }
     }
-  }, [schema, authData.token]);
+  }, [schema, authData.token, setAuthData]);
 
   const handleRollback = async () => {
-    if (!confirm("Rollback to this version? It will become active.")) return;
-    try {
+    const confirmed = await confirm({
+      title: "Rollback",
+      message: "Rollback to this version? It will become active."
+    });
+    if (!confirmed) return;
+
+    const result = await callApi(async () => {
       const res = await fetchWithRefresh(
-        `${API_URL}/validation/schemas/${schema._id}/rollback`,
+        `${API_URL}/validation/schemas/${schema.id}/rollback`,
         { method: "POST" },
         authData.token,
         setAuthData
       );
-      if (res.ok) {
-        alert("Rollback successful");
-        window.location.reload();
-      } else {
-        const err = await res.json();
-        alert(err.message || "Rollback failed");
-      }
-    } catch (err) {
-      alert("Network error");
+      return res;
+    }, {
+      showSuccessMessage: true,
+      successMessage: "Rollback successful"
+    });
+
+    if (result) {
+      // Refresh the page to show updated schema
+      window.location.reload();
     }
   };
 
   const handleReactivate = async () => {
-    if (!confirm("Reactivate this version? It will become active.")) return;
-    try {
+    const confirmed = await confirm({
+      title: "Réactivation",
+      message: "Reactivate this version? It will become active."
+    });
+    if (!confirmed) return;
+
+    const result = await callApi(async () => {
       const res = await fetchWithRefresh(
-        `${API_URL}/validation/schemas/${schema._id}/reactivate`,
+        `${API_URL}/validation/schemas/${schema.id}/reactivateVersion`,
         { method: "POST" },
         authData.token,
         setAuthData
       );
-      if (res.ok) {
-        alert("Version reactivated");
-        window.location.reload();
-      } else {
-        const err = await res.json();
-        alert(err.message || "Reactivate failed");
-      }
-    } catch (err) {
-      alert("Network error");
+      return res;
+    }, {
+      showSuccessMessage: true,
+      successMessage: "Version reactivated"
+    });
+
+    if (result) {
+      window.location.reload();
     }
   };
 
   const handleEdit = () => {
-    navigate(`/dash/validation/schemas/${schema._id}/edit`);
+    navigate(`/dash/validation/schemas/${schema.id}/edit`);
   };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center text-yellow-300">Chargement...</div>;
@@ -185,14 +204,9 @@ export default function ValidationSchemaDetails() {
   };
 
   return (
-    <div className="min-h-screen ml-[80px] p-8 bg-gradient-to-br from-gray-900 to-gray-800 text-yellow-400 font-urbanist">
+    <div className="min-h-screen p-8 bg-gradient-to-br from-gray-900 to-gray-800 text-yellow-400 font-urbanist">
       <div className="mb-4">
-        <button
-          onClick={() => navigate(-1)}
-          className="text-yellow-300 hover:text-yellow-400 mb-4 inline-flex items-center"
-        >
-          ← Retour
-        </button>
+        <BackButton />
       </div>
       <Title title={`Schéma ${schema.name} v${schema.version}`} />
 

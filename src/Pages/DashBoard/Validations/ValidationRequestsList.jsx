@@ -3,62 +3,72 @@ import { UserContext } from '../../../Context/dataCont';
 import Title from '../../../Components/Title';
 import { fetchWithRefresh } from '../../../Components/api';
 import { useNavigate } from 'react-router-dom';
+import { useApi } from '../../../hooks/useApi';
+import { useModal } from '../../../Context/ModalContext';
+import BackButton from '../../../Components/Buttons/BackButton';
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_NEST_API_URL;
 
 export default function ValidationRequestsList() {
   const { authData, setAuthData } = useContext(UserContext);
+  const { callApi } = useApi();
+  const { confirm } = useModal(); // centralized modal
   const navigate = useNavigate();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
-  const [popup, setPopup] = useState(null);
-
-  const handlePopup = (type, message) => {
-    setPopup({ type, message });
-    setTimeout(() => setPopup(null), 3000);
-  };
 
   const getTargetDisplay = (targetType, target) => {
     if (!target) return 'N/A';
     switch (targetType) {
       case 'User':
-        return target.fullName || `${target.name || ''} ${target.lastname || ''}`.trim() || target._id;
+        return target.fullName || `${target.name || ''} ${target.lastname || ''}`.trim() || target.id;
       case 'File':
         return target.fileName || target.name || `Document (${target.folder || 'unknown'})`;
       case 'Cotisation':
-        return target.type || target.feeType || `Cotisation ${target.year || ''}` || target._id;
+        return target.type || target.feeType || `Cotisation ${target.year || ''}` || target.id;
       default:
-        return typeof target === 'object' ? target._id : target;
+        return typeof target === 'object' ? target.id : target;
     }
   };
 
   const fetchRequests = async () => {
-    try {
+    setLoading(true);
+    const result = await callApi(async () => {
       const res = await fetchWithRefresh(
         `${API_URL}/validation/requests/approver?status=${filter}`,
         { method: 'GET' },
         authData.token,
         setAuthData
       );
-      const data = await res.json();
-      console.log(data)
-      setRequests(data.requests || []);
-      console.log(requests)
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
+      return res;
+    }, { showSuccessMessage: false }); // no success toast for data fetching
+
+    if (result) {
+      // 'result' is the unwrapped data – expected to contain 'requests'
+      setRequests(result.requests || []);
+    } else {
+      setRequests([]);
     }
+    setLoading(false);
   };
 
   useEffect(() => {
-    if (authData?.token) fetchRequests();
+    if (authData?.token) {
+      fetchRequests();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter, authData?.token]);
 
   const handleCancel = async (requestId) => {
-    if (!confirm('Annuler cette demande de validation ?')) return;
-    try {
+    // Replace native confirm with modal
+    const confirmed = await confirm({
+      title: 'Annuler la demande',
+      message: 'Annuler cette demande de validation ?',
+    });
+    if (!confirmed) return;
+
+    const result = await callApi(async () => {
       const res = await fetchWithRefresh(
         `${API_URL}/validation/requests/${requestId}/cancel`,
         {
@@ -69,16 +79,15 @@ export default function ValidationRequestsList() {
         authData.token,
         setAuthData
       );
-      if (res.ok) {
-        handlePopup('success', 'Demande annulée');
-        fetchRequests(); // refresh list
-      } else {
-        const err = await res.json();
-        handlePopup('error', err.message || 'Erreur');
-      }
-    } catch (err) {
-      console.error(err);
-      handlePopup('error', 'Erreur réseau');
+      return res;
+    }, {
+      showSuccessMessage: true,
+      successMessage: 'Demande annulée avec succès'
+    });
+
+    if (result) {
+      // Refresh the list after successful cancellation
+      fetchRequests();
     }
   };
 
@@ -103,7 +112,10 @@ export default function ValidationRequestsList() {
   }
 
   return (
-    <div className="min-h-screen ml-[80px] p-8 bg-gradient-to-br from-gray-900 to-gray-800 text-yellow-400 font-urbanist">
+    <div className="min-h-screen p-8 bg-gradient-to-br from-gray-900 to-gray-800 text-yellow-400 font-urbanist">
+      <div className="mb-4">
+        <BackButton fallbackPath="/dash" />
+      </div>
       <Title title="Demandes de validation" />
       <div className="mb-6 flex gap-4">
         <select
@@ -120,13 +132,13 @@ export default function ValidationRequestsList() {
         {requests.length === 0 && <p className="text-gray-400">Aucune demande trouvée.</p>}
         {requests.map((req, idx) => (
           <div
-            key={idx}
+            key={req.id || idx}
             className="bg-gray-800/60 backdrop-blur-sm border border-yellow-400/20 rounded-xl p-5 shadow-lg hover:shadow-xl transition"
           >
             <div className="flex justify-between items-start">
               <div
                 className="flex-1 cursor-pointer"
-                onClick={() => navigate(`/dash/validation/requests/${req._id}`)}
+                onClick={() => navigate(`/dash/validation/requests/${req.id}`)}
               >
                 <h3 className="text-lg font-semibold">
                   {req.targetType} – {getTargetDisplay(req.targetType, req.targetId)}
@@ -141,7 +153,7 @@ export default function ValidationRequestsList() {
               <div className="flex gap-2 items-center">
                 {['pending', 'partial'].includes(req.status) && (
                   <button
-                    onClick={() => handleCancel(req._id)}
+                    onClick={() => handleCancel(req.id)}
                     className="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
                   >
                     Annuler
@@ -149,7 +161,7 @@ export default function ValidationRequestsList() {
                 )}
                 <span
                   className="text-gray-400 text-xl cursor-pointer"
-                  onClick={() => navigate(`/dash/validation/requests/${req._id}`)}
+                  onClick={() => navigate(`/dash/validation/requests/${req.id}`)}
                 >
                   →
                 </span>
@@ -158,11 +170,6 @@ export default function ValidationRequestsList() {
           </div>
         ))}
       </div>
-      {popup && (
-        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-gray-800/90 text-yellow-300 px-6 py-4 rounded-xl shadow-lg border border-yellow-400/30 z-50">
-          {popup.message}
-        </div>
-      )}
     </div>
   );
 }

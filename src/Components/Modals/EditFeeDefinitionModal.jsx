@@ -3,6 +3,7 @@ import { useContext, useEffect, useState } from "react";
 import { UserContext } from "../../Context/dataCont";
 import { fetchWithRefresh } from "../../Components/api";
 import { transformDates } from "../../Utils/transformPayload";
+
 const API_URL = import.meta.env.VITE_NEST_API_URL;
 
 export default function EditFeeDefinitionModal({ definition, onClose, onUpdated }) {
@@ -19,7 +20,6 @@ export default function EditFeeDefinitionModal({ definition, onClose, onUpdated 
   const [penaltyRate, setPenaltyRate] = useState(definition.penaltyConfig?.rate || 0);
   const [penaltyFrequency, setPenaltyFrequency] = useState(definition.penaltyConfig?.frequency || "none");
 
-  // Fetch editable fields from permission system
   useEffect(() => {
     const fetchEditableFields = async () => {
       try {
@@ -29,8 +29,10 @@ export default function EditFeeDefinitionModal({ definition, onClose, onUpdated 
           authData.token,
           setAuthData
         );
-        const data = await res.json();
-        if (res.ok) {
+        const responseData = await res.json();
+        // Extract from wrapper: { success: true, data: { fields: [], configs: {} } }
+        const data = responseData.data || responseData;
+        if (res.ok && responseData.success !== false) {
           const fields = data.fields || [];
           const configs = data.configs || {};
           setEditableFields(fields);
@@ -66,7 +68,6 @@ export default function EditFeeDefinitionModal({ definition, onClose, onUpdated 
     }));
   };
 
-  // Handle penalty config changes
   const handlePenaltyTypeChange = (e) => setPenaltyType(e.target.value);
   const handlePenaltyRateChange = (e) => setPenaltyRate(Number(e.target.value));
   const handlePenaltyFrequencyChange = (e) => setPenaltyFrequency(e.target.value);
@@ -75,7 +76,6 @@ export default function EditFeeDefinitionModal({ definition, onClose, onUpdated 
     e.preventDefault();
     setLoading(true);
     try {
-      // Build updates object with only editable fields (excluding penaltyConfig)
       let updates = {};
       for (const field of editableFields) {
         if (field === "penaltyConfig") continue;
@@ -91,7 +91,6 @@ export default function EditFeeDefinitionModal({ definition, onClose, onUpdated 
         }
       }
 
-      // Add penaltyConfig if it is editable
       if (editableFields.includes("penaltyConfig")) {
         if (penaltyType !== "none") {
           updates.penaltyConfig = {
@@ -100,7 +99,6 @@ export default function EditFeeDefinitionModal({ definition, onClose, onUpdated 
             frequency: penaltyFrequency
           };
         } else {
-          // When type is "none", send a valid config with zero penalty
           updates.penaltyConfig = {
             type: "none",
             rate: 0,
@@ -121,12 +119,12 @@ export default function EditFeeDefinitionModal({ definition, onClose, onUpdated 
         authData.token,
         setAuthData
       );
-      if (res.ok) {
+      const responseData = await res.json();
+      if (res.ok && responseData.success !== false) {
         if (onUpdated) onUpdated();
         onClose();
       } else {
-        const err = await res.json();
-        alert(err.message || "Erreur lors de la modification");
+        alert(responseData.message || responseData.data?.message || "Erreur lors de la modification");
       }
     } catch (error) {
       console.error(error);
@@ -311,13 +309,9 @@ export default function EditFeeDefinitionModal({ definition, onClose, onUpdated 
       <div className="bg-gray-800 rounded-xl p-6 w-96 max-h-[90vh] overflow-y-auto border border-yellow-400/30 shadow-2xl">
         <h3 className="text-xl font-bold text-yellow-300 mb-4">Modifier la campagne</h3>
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Render standard editable fields (excluding penaltyConfig) */}
           {editableFields.filter(f => f !== "penaltyConfig").map(fieldName => renderField(fieldName))}
-
-          {/* Render penalty config section */}
           {renderPenaltyConfig()}
-
-          {/* Propagate checkbox */}
+          
           <div className="flex items-center gap-2">
             <input
               type="checkbox"

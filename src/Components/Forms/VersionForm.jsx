@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Title from "../../Components/Title";
+import BackButton from "../../Components/Buttons/BackButton";
 import FieldEditor from "../FieldEditor";
 import RuleListEditor from "../RuleListEditor";
 
@@ -13,12 +15,14 @@ const STATUS_OPTIONS = [
 
 export default function VersionForm({
   initialSchema = { fields: [], operations: [] },
-  initialStatus = "active",   // default status for new versions
+  initialStatus = "active",
   onSubmit,
   submitLabel = "Enregistrer",
   title = "Version",
-  loading = false
+  loading = false,
+  backPath = "/dash/validation/schemas" // fallback for BackButton
 }) {
+  const navigate = useNavigate();
   const [schema, setSchema] = useState(initialSchema);
   const [status, setStatus] = useState(initialStatus);
 
@@ -69,11 +73,18 @@ export default function VersionForm({
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSubmit(schema, status); // pass both schema and status
+    onSubmit(schema, status);
+  };
+
+  const handleCancel = () => {
+    navigate(-1);
   };
 
   return (
     <div className="min-h-screen ml-[80px] p-8 bg-gradient-to-br from-gray-900 to-gray-800 text-yellow-400 font-urbanist">
+      <div className="mb-4">
+        <BackButton fallbackPath={backPath} />
+      </div>
       <Title title={title} />
       <div className="mt-6 bg-gray-800/60 backdrop-blur-sm border border-yellow-400/20 rounded-xl p-6">
         <form onSubmit={handleSubmit}>
@@ -147,7 +158,7 @@ export default function VersionForm({
           <div className="flex justify-end gap-3 mt-4">
             <button
               type="button"
-              onClick={() => window.history.back()}
+              onClick={handleCancel}
               className="px-4 py-2 bg-gray-700 text-gray-200 rounded hover:bg-gray-600"
             >
               Annuler

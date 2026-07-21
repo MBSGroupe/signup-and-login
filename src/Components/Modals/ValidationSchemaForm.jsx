@@ -1,9 +1,10 @@
 import { useState, useContext, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UserContext } from '../../Context/dataCont';
-import { fetchWithRefresh } from '../../Components/api';
+import { useApi } from '../../hooks/useApi';
+import { useModal } from '../../Context/ModalContext';
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_NEST_API_URL;
 
 const STEP_ROLES = ['user', 'moderator', 'admin', 'super_admin'];
 const REJECT_ACTIONS = ['reject_request', 'escalate', 'skip_step', 'notify_only', 'wait_for_another', 'cancel_request', 'go_back'];
@@ -88,6 +89,8 @@ function MultiSelect({ options, value = [], onChange, placeholder }) {
 
 export default function ValidationSchemaForm({ initialData, schemaId, onSuccess, allowedFields = null, fieldConfigs = {} }) {
   const { authData, setAuthData } = useContext(UserContext);
+  const { callApi } = useApi();  // <-- centralized API
+  const { confirm } = useModal();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(false);
@@ -120,21 +123,27 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
     setRejectionArgsText(JSON.stringify(formData.onRejection.params.args || []));
   }, [formData.onRejection.params.args]);
 
+  // --- Fetch users by role using callApi ---
   const fetchUsersByRole = async (role) => {
     if (usersByRole[role]) return usersByRole[role];
     setLoadingUsers(true);
-    try {
-      const res = await fetchWithRefresh(`${API_URL}/user/role/${role}`, { method: 'GET' }, authData.token, setAuthData);
-      const data = await res.json();
-      const users = data.Users || [];
+    const result = await callApi(async () => {
+      const res = await fetch(`${API_URL}/users/role/${role}`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${authData.token}` },
+      });
+      return res;
+    }, { showSuccessMessage: false });
+
+    if (result) {
+      // result is the unwrapped data – expected to be an array of users
+      const users = result || [];
       setUsersByRole(prev => ({ ...prev, [role]: users }));
-      return users;
-    } catch (err) {
-      console.error(err);
-      return [];
-    } finally {
       setLoadingUsers(false);
+      return users;
     }
+    setLoadingUsers(false);
+    return [];
   };
 
   const addStep = () => {
@@ -331,25 +340,46 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
     } catch (e) { console.warn('Invalid JSON, keeping previous args'); }
   };
 
+  // --- Submit with callApi ---
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    try {
-      const method = initialData ? 'PUT' : 'POST';
-      const url = initialData ? `${API_URL}/validation/schemas/${schemaId}` : `${API_URL}/validation/schemas`;
-      await fetchWithRefresh(
-        url,
-        { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData) },
-        authData.token,
-        setAuthData
-      );
+
+    const method = initialData ? 'PUT' : 'POST';
+    const url = initialData ? `${API_URL}/validation/schemas/${schemaId}` : `${API_URL}/validation/schemas`;
+
+    const result = await callApi(async () => {
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authData.token}` },
+        body: JSON.stringify(formData),
+      });
+      return res;
+    }, {
+      showSuccessMessage: true,
+      successMessage: initialData ? 'Schéma mis à jour avec succès' : 'Schéma créé avec succès',
+    });
+
+    if (result) {
+      // Success – call onSuccess and navigate
       onSuccess?.();
       navigate('/dash/validation/schemas');
-    } catch (err) {
-      console.error(err);
-      alert('Erreur lors de l’enregistrement');
-    } finally {
-      setLoading(false);
+    }
+    setLoading(false);
+  };
+
+  // Centralised cancel handler
+  const handleCancel = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const confirmed = await confirm({
+      title: 'Annuler',
+      message: 'Êtes-vous sûr de vouloir annuler ? Les modifications seront perdues.',
+    });
+
+    if (confirmed) {
+      navigate('/dash/validation/schemas');
     }
   };
 
@@ -368,12 +398,10 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
     return allowedFields === null || allowedFields.includes(fieldName);
   };
 
-  // Get field config (label) for a field
   const getFieldLabel = (fieldName, defaultLabel) => {
     return fieldConfigs[fieldName]?.label || defaultLabel;
   };
 
-  // Render a simple input based on field type from config (if available)
   const renderSimpleField = (fieldName, type, value, onChange, config = {}) => {
     const label = getFieldLabel(fieldName, fieldName);
     const required = config.validation?.required || false;
@@ -437,7 +465,7 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
         </h2>
 
         <form onSubmit={handleSubmit} className="space-y-8">
-          {/* --- General info fields (dynamic) --- */}
+          {/* --- General info fields --- */}
           {(isFieldAllowed('name') || isFieldAllowed('targetType') || isFieldAllowed('description')) && (
             <div className="bg-gray-900/40 border border-yellow-400/10 rounded-lg p-5 space-y-4">
               <h3 className="text-lg font-semibold text-yellow-300">Informations générales</h3>
@@ -461,7 +489,7 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
             </div>
           )}
 
-          {/* --- Steps (custom editor) --- */}
+          {/* --- Steps --- */}
           {isFieldAllowed('steps') && (
             <div className="bg-gray-900/40 border border-yellow-400/10 rounded-lg p-5">
               <div className="flex justify-between items-center mb-4">
@@ -476,7 +504,7 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
               {formData.steps.map((step, idx) => {
                 const usersForRole = usersByRole[step.requiredRole] || [];
                 const userOptions = usersForRole.map(u => ({
-                  value: u._id,
+                  value: u.id,
                   label: `${u.name} ${u.lastname} (${u.email})`
                 }));
                 return (
@@ -650,91 +678,84 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
           )}
 
           {/* --- Notification configuration --- */}
-{isFieldAllowed('notificationConfig') && (
-  <div className="bg-gray-900/40 border border-yellow-400/10 rounded-lg p-5">
-    <h3 className="text-lg font-semibold text-yellow-300 mb-4">Configuration des notifications</h3>
-    
-    <div className="space-y-4">
-      {/* Email toggle */}
-      <div className="flex items-center justify-between">
-        <div>
-          <span className="text-gray-200 font-medium">Notifications par email</span>
-          <p className="text-xs text-gray-400">Envoyer un email lorsque cette étape devient active</p>
-        </div>
-        <label className="relative inline-flex items-center cursor-pointer">
-          <input
-            type="checkbox"
-            className="sr-only peer"
-            checked={formData.notificationConfig?.methods?.email === true}
-            onChange={(e) => setFormData(prev => ({
-              ...prev,
-              notificationConfig: {
-                ...prev.notificationConfig,
-                methods: {
-                  ...prev.notificationConfig?.methods,
-                  email: e.target.checked
-                }
-              }
-            }))}
-          />
-          <div className="w-11 h-6 bg-gray-600 rounded-full peer peer-checked:bg-yellow-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"></div>
-        </label>
-      </div>
-
-      {/* System (in-app) toggle */}
-      <div className="flex items-center justify-between">
-        <div>
-          <span className="text-gray-200 font-medium">Notifications internes (cloche)</span>
-          <p className="text-xs text-gray-400">Afficher dans le centre de notifications de l'application</p>
-        </div>
-        <label className="relative inline-flex items-center cursor-pointer">
-          <input
-            type="checkbox"
-            className="sr-only peer"
-            checked={formData.notificationConfig?.methods?.system === true}
-            onChange={(e) => setFormData(prev => ({
-              ...prev,
-              notificationConfig: {
-                ...prev.notificationConfig,
-                methods: {
-                  ...prev.notificationConfig?.methods,
-                  system: e.target.checked
-                }
-              }
-            }))}
-          />
-          <div className="w-11 h-6 bg-gray-600 rounded-full peer peer-checked:bg-yellow-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"></div>
-        </label>
-      </div>
-
-      {/* Email template – optional, only shows if email is checked (or always) */}
-          <div>
-            <label className="block text-sm text-gray-300 mb-1">Modèle d'email (optionnel)</label>
-            <input
-              type="text"
-              value={formData.notificationConfig?.emailTemplate || ''}
-              onChange={(e) => setFormData(prev => ({
-                ...prev,
-                notificationConfig: {
-                  ...prev.notificationConfig,
-                  emailTemplate: e.target.value
-                }
-              }))}
-              placeholder="Laissez vide pour utiliser le modèle par défaut"
-              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-200"
-            />
-            <p className="text-xs text-gray-400 mt-1">Permet de personnaliser le contenu des emails pour ce schéma.</p>
-          </div>
-        </div>
-      </div>
-    )}
+          {isFieldAllowed('notificationConfig') && (
+            <div className="bg-gray-900/40 border border-yellow-400/10 rounded-lg p-5">
+              <h3 className="text-lg font-semibold text-yellow-300 mb-4">Configuration des notifications</h3>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-gray-200 font-medium">Notifications par email</span>
+                    <p className="text-xs text-gray-400">Envoyer un email lorsque cette étape devient active</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={formData.notificationConfig?.methods?.email === true}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        notificationConfig: {
+                          ...prev.notificationConfig,
+                          methods: {
+                            ...prev.notificationConfig?.methods,
+                            email: e.target.checked
+                          }
+                        }
+                      }))}
+                    />
+                    <div className="w-11 h-6 bg-gray-600 rounded-full peer peer-checked:bg-yellow-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"></div>
+                  </label>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-gray-200 font-medium">Notifications internes (cloche)</span>
+                    <p className="text-xs text-gray-400">Afficher dans le centre de notifications de l'application</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={formData.notificationConfig?.methods?.system === true}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        notificationConfig: {
+                          ...prev.notificationConfig,
+                          methods: {
+                            ...prev.notificationConfig?.methods,
+                            system: e.target.checked
+                          }
+                        }
+                      }))}
+                    />
+                    <div className="w-11 h-6 bg-gray-600 rounded-full peer peer-checked:bg-yellow-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"></div>
+                  </label>
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-300 mb-1">Modèle d'email (optionnel)</label>
+                  <input
+                    type="text"
+                    value={formData.notificationConfig?.emailTemplate || ''}
+                    onChange={(e) => setFormData(prev => ({
+                      ...prev,
+                      notificationConfig: {
+                        ...prev.notificationConfig,
+                        emailTemplate: e.target.value
+                      }
+                    }))}
+                    placeholder="Laissez vide pour utiliser le modèle par défaut"
+                    className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-200"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Permet de personnaliser le contenu des emails pour ce schéma.</p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* --- Post‑validation actions --- */}
           {(isFieldAllowed('onApproval') || isFieldAllowed('onRejection')) && (
             <div className="bg-gray-900/40 border border-yellow-400/10 rounded-lg p-5">
               <h3 className="text-lg font-semibold text-yellow-300 mb-4">Actions post‑validation</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* On Approval */}
                 {isFieldAllowed('onApproval') && (
                   <div>
                     <h4 className="text-md font-medium text-yellow-300 mb-3">En cas d'approbation</h4>
@@ -808,7 +829,6 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
                   </div>
                 )}
 
-                {/* On Rejection */}
                 {isFieldAllowed('onRejection') && (
                   <div>
                     <h4 className="text-md font-medium text-yellow-300 mb-3">En cas de rejet</h4>
@@ -887,10 +907,22 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
 
           {/* --- Submit buttons --- */}
           <div className="flex justify-end gap-3 pt-4 border-t border-gray-700">
-            <button type="button" onClick={() => navigate('/dash/validation/schemas')} className="px-5 py-2 bg-gray-700 rounded-lg hover:bg-gray-600 text-gray-200">
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleCancel(e);
+              }}
+              className="px-5 py-2 bg-gray-700 rounded-lg hover:bg-gray-600 text-gray-200"
+            >
               Annuler
             </button>
-            <button type="submit" disabled={loading} className="px-5 py-2 bg-yellow-600 rounded-lg hover:bg-yellow-500 text-white disabled:opacity-50">
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-5 py-2 bg-yellow-600 rounded-lg hover:bg-yellow-500 text-white disabled:opacity-50"
+            >
               {loading ? 'Enregistrement...' : 'Enregistrer'}
             </button>
           </div>

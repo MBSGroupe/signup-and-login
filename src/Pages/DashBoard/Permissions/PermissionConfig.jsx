@@ -1,13 +1,18 @@
+// pages/DashBoard/Permissions/PermissionManager.jsx
 import { useContext, useEffect, useState } from "react";
 import { UserContext } from "../../../Context/dataCont";
 import Title from "../../../Components/Title";
 import { useNavigate } from "react-router-dom";
-
+import { useApi } from "../../../hooks/useApi";
+import { useModal } from "../../../Context/ModalContext";
+import BackButton from "../../../Components/Buttons/BackButton";
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
 export default function PermissionManager() {
   const { authData } = useContext(UserContext);
+  const { callApi } = useApi();
+  const { confirm } = useModal();
   const navigate = useNavigate();
   const [schemas, setSchemas] = useState({});
   const [loading, setLoading] = useState(true);
@@ -15,29 +20,31 @@ export default function PermissionManager() {
 
   useEffect(() => {
     fetchSchemas();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authData]);
 
   const fetchSchemas = async () => {
-    try {
+    setLoading(true);
+    const result = await callApi(async () => {
       const res = await fetch(`${NEST_API_URL}/permissions/schemas`, {
         headers: { Authorization: `Bearer ${authData.token}` }
       });
-      const data = await res.json();
-      if (res.ok) {
-        const grouped = data.schemas.reduce((acc, schema) => {
-          if (!acc[schema.model]) acc[schema.model] = [];
-          acc[schema.model].push(schema);
-          return acc;
-        }, {});
-        setSchemas(grouped);
-      } else {
-        setError(data.message || "Erreur");
-      }
-    } catch (err) {
-      setError("Erreur réseau");
-    } finally {
-      setLoading(false);
+      return res;
+    }, { showSuccessMessage: false }); // no success toast for data fetch
+
+    if (result) {
+      // result is the unwrapped data – expected to contain `schemas` array
+      const schemasData = result.schemas || [];
+      const grouped = schemasData.reduce((acc, schema) => {
+        if (!acc[schema.model]) acc[schema.model] = [];
+        acc[schema.model].push(schema);
+        return acc;
+      }, {});
+      setSchemas(grouped);
+    } else {
+      setSchemas({});
     }
+    setLoading(false);
   };
 
   const handleNewVersion = (model) => {
@@ -45,21 +52,27 @@ export default function PermissionManager() {
   };
 
   const confirmRollback = async (model) => {
-    if (!window.confirm(`Voulez‑vous effectuer un rollback pour le modèle ${model} ?`)) return;
-    try {
+    const confirmed = await confirm({
+      title: "Rollback",
+      message: `Voulez-vous effectuer un rollback pour le modèle ${model} ?`
+    });
+    if (!confirmed) return;
+
+    const result = await callApi(async () => {
       const url = `${NEST_API_URL}/permissions/rollback?model=${model}`;
       const res = await fetch(url, {
         method: "POST",
         headers: { Authorization: `Bearer ${authData.token}` }
       });
-      const data = await res.json();
-      if (res.ok) {
-        await fetchSchemas();
-      } else {
-        alert(data.message || "Erreur");
-      }
-    } catch (err) {
-      alert("Erreur réseau");
+      return res;
+    }, {
+      showSuccessMessage: true,
+      successMessage: "Rollback effectué avec succès"
+    });
+
+    if (result) {
+      // Refresh the list after successful rollback
+      await fetchSchemas();
     }
   };
 
@@ -67,7 +80,10 @@ export default function PermissionManager() {
   if (error) return <div className="text-red-400">{error}</div>;
 
   return (
-    <div className="min-h-screen ml-[80px] p-8 bg-gradient-to-br from-gray-900 to-gray-800 text-yellow-400 font-urbanist">
+    <div className="min-h-screen p-8 bg-gradient-to-br from-gray-900 to-gray-800 text-yellow-400 font-urbanist">
+      <div className="mb-4">
+        <BackButton fallbackPath="/dash" />
+      </div>
       <Title title="Gestion des permissions" />
 
       <div className="mt-6 space-y-8">

@@ -3,7 +3,7 @@ import { UserContext } from '../../Context/dataCont';
 import { fetchWithRefresh } from '../../Components/api';
 import NotificationDropdown from './NotificationDropdown';
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_NEST_API_URL;
 
 const NotificationBell = () => {
   const { authData, setAuthData } = useContext(UserContext);
@@ -26,12 +26,12 @@ const NotificationBell = () => {
     }
   };
 
-  // useEffect(() => {
-  //   if (!authData?.token) return;
-  //   fetchUnreadCount();
-  //   const interval = setInterval(fetchUnreadCount, 30000);
-  //   return () => clearInterval(interval);
-  // }, [authData?.token]);
+  useEffect(() => {
+    if (!authData?.token) return;
+    fetchUnreadCount();
+    const interval = setInterval(fetchUnreadCount, 30000);
+    return () => clearInterval(interval);
+  }, [authData?.token]);
 
   const toggleDropdown = () => setShowDropdown(!showDropdown);
 
@@ -49,16 +49,15 @@ const NotificationBell = () => {
     <div className="relative inline-block" ref={dropdownRef}>
       <button
         onClick={toggleDropdown}
-        className="relative p-2 rounded-full hover:bg-gray-800 transition-colors focus:outline-none"
+        className="relative p-2 rounded-lg hover:bg-[#182233] transition-colors focus:outline-none"
       >
-        {/* Thin SVG Bell Icon */}
         <svg
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"
           strokeWidth="1.5"
           stroke="currentColor"
-          className="w-5 h-5 text-yellow-300"
+          className="w-5 h-5 text-[#94A3B8] hover:text-[#22C55E] transition-colors"
         >
           <path
             strokeLinecap="round"
@@ -68,7 +67,7 @@ const NotificationBell = () => {
         </svg>
 
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+          <span className="absolute -top-1 -right-1 bg-[#22C55E] text-[#0A0F1C] text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center shadow-lg shadow-[#22C55E]/30">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}

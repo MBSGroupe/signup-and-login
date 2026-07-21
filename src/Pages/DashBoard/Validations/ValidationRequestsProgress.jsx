@@ -3,61 +3,56 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { UserContext } from '../../../Context/dataCont';
 import Title from '../../../Components/Title';
 import { fetchWithRefresh } from '../../../Components/api';
+import { useApi } from '../../../hooks/useApi';
+import BackButton from '../../../Components/Buttons/BackButton';
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_NEST_API_URL;
 
 export default function ValidationRequestProgress() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { authData, setAuthData } = useContext(UserContext);
+  const { callApi } = useApi();
   const [request, setRequest] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [popup, setPopup] = useState(null);
-
-  const handlePopup = (type, message) => {
-    setPopup({ type, message });
-    setTimeout(() => setPopup(null), 3000);
-  };
 
   const getTargetDisplay = (targetType, target) => {
     if (!target) return 'N/A';
     switch (targetType) {
       case 'User':
-        return target.fullName || `${target.name || ''} ${target.lastname || ''}`.trim() || target._id;
+        return target.fullName || `${target.name || ''} ${target.lastname || ''}`.trim() || target.id;
       case 'File':
         return target.fileName || target.name || `Document (${target.folder || 'unknown'})`;
       case 'Cotisation':
-        return target.type || target.feeType || `Cotisation ${target.year || ''}` || target._id;
+        return target.type || target.feeType || `Cotisation ${target.year || ''}` || target.id;
       default:
-        return typeof target === 'object' ? target._id : target;
+        return typeof target === 'object' ? target.id : target;
     }
   };
 
   useEffect(() => {
     const fetchRequest = async () => {
-      try {
+      setLoading(true);
+      const result = await callApi(async () => {
         const res = await fetchWithRefresh(
           `${API_URL}/validation/request/${id}`,
           { method: 'GET' },
           authData.token,
           setAuthData
         );
-        const data = await res.json();
-        console.log(data)
-        if (res.ok) {
-          setRequest(data);
-        } else {
-          handlePopup('error', data.error || 'Erreur de chargement');
-        }
-      } catch (err) {
-        console.error(err);
-        handlePopup('error', 'Erreur de chargement');
-      } finally {
-        setLoading(false);
+        return res;
+      }, { showSuccessMessage: false }); // no success toast for data fetch
+
+      if (result) {
+        console.log(result);
+        setRequest(result);
       }
+      setLoading(false);
     };
+
     if (authData?.token) fetchRequest();
-  }, [id, authData.token]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, authData.token, setAuthData]);
 
   const getStepStatusBadge = (status) => {
     const colors = {
@@ -74,24 +69,16 @@ export default function ValidationRequestProgress() {
   if (loading) return <div className="min-h-screen flex items-center justify-center text-yellow-300">Chargement...</div>;
   if (!request) return <div className="min-h-screen flex items-center justify-center text-red-400">Demande non trouvée</div>;
 
-  // Sort steps by order
-  const sortedSteps = [...request.steps].sort((a, b) => a.order - b.order);
+  const sortedSteps = [...(request.steps || [])].sort((a, b) => a.order - b.order);
 
   return (
-    <div className="min-h-screen ml-[80px] p-8 bg-gradient-to-br from-gray-900 to-gray-800 text-yellow-400 font-urbanist">
-      {/* Back button */}
+    <div className="min-h-screen p-8 bg-gradient-to-br from-gray-900 to-gray-800 text-yellow-400 font-urbanist">
       <div className="mb-4">
-        <button
-          onClick={() => navigate(-1)}
-          className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded-lg transition inline-flex items-center gap-2"
-        >
-          ← Retour
-        </button>
+        <BackButton fallbackPath="/dash/validation/requests" />
       </div>
 
-      <Title title={`Progrès de la demande #${request._id.slice(-6)}`} />
+      <Title title={`Progrès de la demande #${request.id?.slice(-6)}`} />
 
-      {/* Request overview */}
       <div className="bg-gray-800/60 backdrop-blur-sm border border-yellow-400/20 rounded-xl p-6 mb-6">
         <p><span className="text-gray-400">Cible :</span> {request.targetType} – {getTargetDisplay(request.targetType, request.targetId)}</p>
         <p><span className="text-gray-400">Statut global :</span> 
@@ -104,7 +91,6 @@ export default function ValidationRequestProgress() {
         {request.expiresAt && <p><span className="text-gray-400">Expire le :</span> {new Date(request.expiresAt).toLocaleString()}</p>}
       </div>
 
-      {/* Steps timeline */}
       <h3 className="text-lg font-semibold mb-4">Détail des étapes</h3>
       <div className="space-y-4 mb-6">
         {sortedSteps.map((step, idx) => (
@@ -120,7 +106,7 @@ export default function ValidationRequestProgress() {
                 <p className="text-sm text-gray-400 mt-1">Rôle requis : {step.requiredRole}</p>
                 {step.allowedUserIds && step.allowedUserIds.length > 0 && (
                   <p className="text-sm text-gray-400">
-                    Assignée à : {step.allowedUserIds.map(u => u.name || u.email || u._id).join(', ')}
+                    Assignée à : {step.allowedUserIds.map(u => u.name || u.email || u.id).join(', ')}
                   </p>
                 )}
                 {step.approvedBy && (
@@ -149,12 +135,6 @@ export default function ValidationRequestProgress() {
           </div>
         ))}
       </div>
-
-      {popup && (
-        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-gray-800/90 text-yellow-300 px-6 py-4 rounded-xl shadow-lg border border-yellow-400/30 z-50">
-          {popup.message}
-        </div>
-      )}
     </div>
   );
 }

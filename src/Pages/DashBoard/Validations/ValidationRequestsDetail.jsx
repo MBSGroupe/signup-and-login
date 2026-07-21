@@ -3,107 +3,107 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { UserContext } from '../../../Context/dataCont';
 import Title from '../../../Components/Title';
 import { fetchWithRefresh } from '../../../Components/api';
+import { useApi } from '../../../hooks/useApi';
+import { useError } from '../../../Context/ErrorContext';
+import BackButton from '../../../Components/Buttons/BackButton';
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_NEST_API_URL;
 
 export default function ValidationRequestDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { authData, setAuthData } = useContext(UserContext);
+  const { callApi } = useApi();
+  const { showWarning } = useError(); // ✅ Already destructured at top level
   const [request, setRequest] = useState(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [comments, setComments] = useState({});
-  const [popup, setPopup] = useState(null);
-
-  const handlePopup = (type, message) => {
-    setPopup({ type, message });
-    setTimeout(() => setPopup(null), 3000);
-  };
 
   const getTargetDisplay = (targetType, target) => {
     if (!target) return 'N/A';
     switch (targetType) {
       case 'User':
-        return target.fullName || `${target.name || ''} ${target.lastname || ''}`.trim() || target._id;
+        return target.fullName || `${target.name || ''} ${target.lastname || ''}`.trim() || target.id;
       case 'File':
         return target.fileName || target.name || `Document (${target.folder || 'unknown'})`;
       case 'Cotisation':
-        return target.type || target.feeType || `Cotisation ${target.year || ''}` || target._id;
+        return target.type || target.feeType || `Cotisation ${target.year || ''}` || target.id;
       default:
-        return typeof target === 'object' ? target._id : target;
+        return typeof target === 'object' ? target.id : target;
     }
   };
 
   useEffect(() => {
     const fetchRequest = async () => {
-      try {
+      setLoading(true);
+      const result = await callApi(async () => {
         const res = await fetchWithRefresh(
           `${API_URL}/validation/request/${id}`,
           { method: 'GET' },
           authData.token,
           setAuthData
         );
-        const data = await res.json();
-        if (res.ok) {
-          setRequest(data);
-        } else {
-          handlePopup('error', data.error || 'Erreur de chargement');
-        }
-      } catch (err) {
-        console.error(err);
-        handlePopup('error', 'Erreur de chargement');
-      } finally {
-        setLoading(false);
-      }
-    };
-    if (authData?.token) fetchRequest();
-  }, [id, authData.token]);
+        return res;
+      }, { showSuccessMessage: false });
 
-    const handleStepAction = async (stepOrder, action) => {
-      const comment = comments[stepOrder] || '';
-      if (!comment && action !== 'skip') {
-        handlePopup('error', 'Veuillez ajouter un commentaire');
-        return;
+      if (result) {
+        setRequest(result);
       }
-      setActionLoading(true);
-      try {
-        const url = `${API_URL}/validation/requests/${id}/${action}/${stepOrder}`;
-        let body;
-        if (action === 'skip') {
-          body = { reason: comment };
-        } else {
-          body = { comments: comment };
-        }
-        const res = await fetchWithRefresh(
-          url,
-          {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-          },
-          authData.token,
-          setAuthData
-        );
-        const data = await res.json();
-        if (res.ok) {
-          const updatedRequest = data.request || data;
-          if (!updatedRequest || !updatedRequest._id) {
-            throw new Error('Invalid response from server');
-          }
-          setRequest(updatedRequest);
-          setComments(prev => ({ ...prev, [stepOrder]: '' }));
-          handlePopup('success', `Étape ${action}ée avec succès`);
-        } else {
-          handlePopup('error', data.error || 'Erreur');
-        }
-      } catch (err) {
-        console.error(err);
-        handlePopup('error', 'Erreur réseau');
-      } finally {
-        setActionLoading(false);
-      }
+      setLoading(false);
     };
+
+    if (authData?.token) {
+      fetchRequest();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, authData?.token, setAuthData]);
+
+  const handleStepAction = async (stepOrder, action) => {
+    const comment = comments[stepOrder] || '';
+    if (!comment && action !== 'skip') {
+      showWarning('Veuillez ajouter un commentaire'); // ✅ Use the top-level function
+      return;
+    }
+
+    setActionLoading(true);
+
+    let body;
+    if (action === 'approve') {
+      body = { comments: comment };
+    } else {
+      body = { reason: comment };
+    }
+
+    const result = await callApi(async () => {
+      const res = await fetchWithRefresh(
+        `${API_URL}/validation/requests/${id}/${action}/${stepOrder}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        },
+        authData.token,
+        setAuthData
+      );
+      return res;
+    }, {
+      showSuccessMessage: true,
+      successMessage: `Étape ${action}ée avec succès`,
+    });
+
+    console.log('API result after action:', result);
+
+    if (result) {
+      const updatedRequest = result.request || result;
+      console.log('Setting request to:', updatedRequest);
+      setRequest(updatedRequest);
+      setComments(prev => ({ ...prev, [stepOrder]: '' }));
+    }
+
+    setActionLoading(false);
+  };
+
   const updateComment = (stepOrder, value) => {
     setComments(prev => ({ ...prev, [stepOrder]: value }));
   };
@@ -122,28 +122,20 @@ export default function ValidationRequestDetail() {
   if (loading) return <div className="min-h-screen flex items-center justify-center text-yellow-300">Chargement...</div>;
   if (!request) return <div className="min-h-screen flex items-center justify-center text-red-400">Demande non trouvée</div>;
 
-  const userId = authData.user?._id;
+  const userId = authData.user?.id;
 
-  // Filter steps: only active steps where the user is allowed
-  const userSteps = request.steps.filter(step =>
+  const userSteps = request.steps?.filter(step =>
     step.isActive === true &&
-    step.allowedUserIds?.some(user => user._id.toString() === userId?.toString())
-  );
-
+    step.allowedUserIds?.some(user => user.id.toString() === userId?.toString())
+  ) || [];
 
   return (
-    <div className="min-h-screen ml-[80px] p-8 bg-gradient-to-br from-gray-900 to-gray-800 text-yellow-400 font-urbanist">
-      {/* Go back button - styled like other action buttons */}
+    <div className="min-h-screen p-8 bg-gradient-to-br from-gray-900 to-gray-800 text-yellow-400 font-urbanist">
       <div className="mb-4">
-        <button
-          onClick={() => navigate(-1)}
-          className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded-lg transition inline-flex items-center gap-2"
-        >
-          ← Retour
-        </button>
+        <BackButton fallbackPath="/dash/validation/requests" />
       </div>
 
-      <Title title={`Demande #${request._id.slice(-6)}`} />
+      <Title title={`Demande #${request.id?.slice(-6)}`} />
       <div className="bg-gray-800/60 backdrop-blur-sm border border-yellow-400/20 rounded-xl p-6 mb-6">
         <p><span className="text-gray-400">Cible :</span> {request.targetType} – {getTargetDisplay(request.targetType, request.targetId)}</p>
         <p><span className="text-gray-400">Statut :</span> {request.status}</p>
@@ -206,12 +198,6 @@ export default function ValidationRequestDetail() {
           </div>
         ))}
       </div>
-
-      {popup && (
-        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-gray-800/90 text-yellow-300 px-6 py-4 rounded-xl shadow-lg border border-yellow-400/30 z-50">
-          {popup.message}
-        </div>
-      )}
     </div>
   );
 }

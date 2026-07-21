@@ -5,9 +5,7 @@ import { UserContext } from "../../../Context/dataCont";
 import { fetchWithRefresh } from "../../../Components/api";
 import VersionForm from "../../../Components/Forms/VersionForm";
 
-const API_URL = import.meta.env.VITE_API_URL;
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
-
 
 export default function EditVersion() {
   const { versionId } = useParams();
@@ -25,11 +23,11 @@ export default function EditVersion() {
           headers: { Authorization: `Bearer ${authData.token}` }
         });
         const data = await res.json();
-        if (res.ok) {
-          
-          if (data.version) {
-            setSchema({ fields: data.version.fields || [], operations: data.version.operations || [] });
-            setInitialStatus(data.version.status || "active");
+        if (res.ok && data.success !== false) {
+          const versionData = data.data?.version || data.version;
+          if (versionData) {
+            setSchema({ fields: versionData.fields || [], operations: versionData.operations || [] });
+            setInitialStatus(versionData.status || "active");
           } else {
             alert("Version non trouvée");
             navigate(-1);
@@ -48,7 +46,7 @@ export default function EditVersion() {
   }, [versionId, authData, navigate]);
 
   const handleSubmit = async (updatedSchema, status) => {
-    console.log(updatedSchema)
+    console.log(updatedSchema);
     setSaving(true);
     try {
       const res = await fetchWithRefresh(
@@ -67,7 +65,7 @@ export default function EditVersion() {
         setAuthData
       );
       const data = await res.json();
-      if (res.ok) {
+      if (res.ok && data.success !== false) {
         navigate(-1);
       } else {
         alert(data.message || "Erreur lors de la mise à jour");

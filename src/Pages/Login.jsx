@@ -6,7 +6,6 @@ import SectionTitle from "../Components/Title";
 const API_URL = import.meta.env.VITE_API_URL;
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
-
 const LoginForm = () => {
   const { authData, setAuthData } = useContext(UserContext);
   const navigate = useNavigate();
@@ -15,10 +14,9 @@ const LoginForm = () => {
     email: "",
     password: "",
   });
-  const [lockTime, setLockTime] = useState(null); // temps restant en secondes
+  const [lockTime, setLockTime] = useState(null);
   const LOCK_STORAGE_KEY = "loginLockUntil";
 
-  // Initialiser le timer à partir du localStorage
   useEffect(() => {
     const storedLockUntil = localStorage.getItem(LOCK_STORAGE_KEY);
     if (storedLockUntil) {
@@ -33,7 +31,6 @@ const LoginForm = () => {
     }
   }, []);
 
-  // Gestion du compte à rebours
   useEffect(() => {
     let interval;
     if (lockTime > 0) {
@@ -68,28 +65,31 @@ const LoginForm = () => {
         body: JSON.stringify(formData),
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        setAuthData({ user: data.user, token: data.token });
-        // Redirection selon le rôle
-        if (data.user.role === 'admin' || data.user.role === 'super_admin') {
+      const respData = await response.json();
+      console.log(respData);
+      
+      if (response.ok && respData.success) {
+        // Extract data from the wrapper
+        const { user, token } = respData.data;
+        setAuthData({ user, token });
+        
+        // Redirect based on role
+        if (user.role === 'admin' || user.role === 'super_admin') {
           navigate('/dash');
-        } else if (data.user.role === 'user') {
+        } else if (user.role === 'user') {
           navigate('/auth/profile');
         } else {
           navigate('/');
         }
       } else if (response.status === 429) {
-        // Le serveur renvoie le temps restant (en secondes)
-        const remaining = data.remainingTime || 60; // fallback
+        // Lockout response – extract remainingTime from data
+        const remaining = respData.data?.remainingTime || 60;
         const lockUntil = Date.now() + remaining * 1000;
         localStorage.setItem(LOCK_STORAGE_KEY, lockUntil);
         setLockTime(remaining);
-        setMessage(data.message || "Trop de tentatives. Veuillez patienter.");
-        
+        setMessage(respData.message || respData.data?.message || "Trop de tentatives. Veuillez patienter.");
       } else {
-        setMessage(data.message || "Erreur de connexion.");
+        setMessage(respData.message || respData.data?.message || "Erreur de connexion.");
       }
     } catch (err) {
       console.error("Network error:", err);

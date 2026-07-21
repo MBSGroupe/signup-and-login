@@ -1,3 +1,4 @@
+// pages/DashBoard/Permissions/PermissionDetails.jsx
 import { useContext, useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { UserContext } from "../../../Context/dataCont";
@@ -5,7 +6,6 @@ import Title from "../../../Components/Title";
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
-// Mapping des statuts en français
 const statusLabels = {
   active: "Actif",
   flawed: "Défectueux",
@@ -28,6 +28,7 @@ export default function PermissionDetails() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState("fields");
+
   useEffect(() => {
     const fetchSchema = async () => {
       try {
@@ -35,8 +36,8 @@ export default function PermissionDetails() {
           headers: { Authorization: `Bearer ${authData.token}` }
         });
         const data = await res.json();
-        if (res.ok) {
-          const found = data.version
+        if (res.ok && data.success !== false) {
+          const found = data.data?.version || data.version;
           if (found) {
             setSchema(found);
           } else {
@@ -62,7 +63,7 @@ export default function PermissionDetails() {
         headers: { Authorization: `Bearer ${authData.token}` }
       });
       const data = await res.json();
-      if (res.ok) {
+      if (res.ok && data.success !== false) {
         window.location.reload();
       } else {
         alert(data.message || "Erreur lors de la restauration");
@@ -116,7 +117,6 @@ export default function PermissionDetails() {
       </div>
       <Title title={`Schéma ${model} v${schema.version}`} />
 
-      {/* En-tête d'info */}
       <div className="mt-4 bg-gray-800/60 backdrop-blur-sm border border-yellow-400/20 rounded-xl p-4 flex flex-wrap gap-4 justify-between items-center">
         <div>
           <span className="text-gray-400">Statut : </span>
@@ -124,7 +124,7 @@ export default function PermissionDetails() {
             {statusLabels[schema.status] || schema.status}
           </span>
         </div>
-        <div className="text-gray-400">Activé le : {new Date(schema.activatedAt).toLocaleDateString('fr-FR')}</div>
+        <div className="text-gray-400">Activé le : {schema.activatedAt ? new Date(schema.activatedAt).toLocaleDateString('fr-FR') : '-'}</div>
         <div className="text-gray-400">Créé par : {schema.createdBy?.name || "Inconnu"}</div>
         <div className="flex gap-2">
           {!schema.isActive && (
@@ -146,7 +146,6 @@ export default function PermissionDetails() {
         </div>
       </div>
 
-      {/* Onglets */}
       <div className="flex space-x-1 mt-6 border-b border-gray-700">
         <button
           onClick={() => setActiveTab("fields")}
@@ -190,7 +189,6 @@ export default function PermissionDetails() {
         </button>
       </div>
 
-      {/* Contenu des onglets */}
       <div className="bg-gray-800/60 backdrop-blur-sm border border-yellow-400/20 rounded-b-xl p-6">
         {activeTab === "fields" && (
           <div className="overflow-x-auto">
@@ -261,10 +259,8 @@ export default function PermissionDetails() {
                       <span className="text-gray-400">Version {entry.version}</span> –{" "}
                       {new Date(entry.changedAt).toLocaleString('fr-FR')}
                     </p>
-
                     <p>
-                      <span className="text-gray-400">Changed By {entry.changedBy.name}</span> –{" "}
-                      {new Date(entry.changedAt).toLocaleString('fr-FR')}
+                      <span className="text-gray-400">Chargé par : {entry.changedBy?.name || entry.changedBy}</span>
                     </p>
                     <p className="text-gray-300 mt-1">{entry.reason || "–"}</p>
                     {entry.changes && entry.changes.length > 0 && (

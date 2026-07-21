@@ -28,7 +28,9 @@ export default function GetCotisations() {
         setAuthData
       );
       const data = await res.json();
-      setDefinitions(data);
+      // Extract from wrapper: { success: true, data: [...] }
+      const definitionsData = data.data || data;
+      setDefinitions(Array.isArray(definitionsData) ? definitionsData : []);
     } catch (error) {
       console.error("Erreur lors du chargement des définitions:", error);
     } finally {
@@ -55,7 +57,7 @@ export default function GetCotisations() {
   const handleDelete = async (defId) => {
     try {
       const res = await fetchWithRefresh(
-        `${NEST_API_URL}/fee/definitions/${defId}`,
+        `${NEST_API_URL}/fees/definitions/${defId}`,
         { method: "DELETE" },
         authData.token,
         setAuthData
@@ -84,7 +86,6 @@ export default function GetCotisations() {
     <div className="min-h-screen ml-[80px] p-8 bg-gradient-to-br from-gray-900 to-gray-800 text-yellow-400 font-urbanist">
       <Title title="Gestion des campagnes de cotisation" />
 
-      {/* Search and toggle row */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6 mt-4">
         <div className="relative flex-1 max-w-md">
           <IoSearchOutline className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
@@ -99,7 +100,6 @@ export default function GetCotisations() {
           />
         </div>
 
-        {/* Modern toggle switch */}
         <label className="flex items-center gap-3 cursor-pointer select-none">
           <span className="text-sm text-gray-300">Inactives</span>
           <div
@@ -121,11 +121,10 @@ export default function GetCotisations() {
         {filteredDefinitions.length} campagne(s) trouvée(s)
       </p>
 
-      {/* Cards */}
       <div className="space-y-4">
         {filteredDefinitions.map((def) => (
           <div
-            key={def._id}
+            key={def.id}
             className={`bg-gray-800/60 backdrop-blur-sm border rounded-xl p-5 shadow-lg transition-all duration-300 ${
               def.isActive === false
                 ? 'border-gray-600/50 opacity-80 hover:opacity-100'
@@ -172,7 +171,7 @@ export default function GetCotisations() {
                   Modifier
                 </button>
                 <button
-                  onClick={() => setShowDeleteConfirm(def._id)}
+                  onClick={() => setShowDeleteConfirm(def.id)}
                   className="px-3 py-1 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 transition"
                 >
                   Annuler
@@ -186,7 +185,6 @@ export default function GetCotisations() {
         )}
       </div>
 
-      {/* Edit Modal */}
       {editingDef && (
         <EditFeeDefinitionModal
           definition={editingDef}
@@ -195,7 +193,6 @@ export default function GetCotisations() {
         />
       )}
 
-      {/* Delete confirmation modal */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-gray-800 rounded-xl p-6 w-96 border border-red-400/30 shadow-2xl">
@@ -208,13 +205,13 @@ export default function GetCotisations() {
                 onClick={() => setShowDeleteConfirm(null)}
                 className="px-4 py-2 bg-gray-600 rounded hover:bg-gray-500"
               >
-                Ok
+                Annuler
               </button>
               <button
                 onClick={() => handleDelete(showDeleteConfirm)}
                 className="px-4 py-2 bg-red-600 rounded hover:bg-red-500"
               >
-                Annuler
+                OK
               </button>
             </div>
           </div>

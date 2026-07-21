@@ -3,66 +3,77 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { UserContext } from '../../../Context/dataCont';
 import { fetchWithRefresh } from '../../../Components/api';
 import ValidationSchemaForm from '../../../Components/Modals/ValidationSchemaForm';
+import { useApi } from '../../../hooks/useApi';
+import BackButton from '../../../Components/Buttons/BackButton';
+import Title from '../../../Components/Title';
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_NEST_API_URL;
 
 export default function EditValidationSchema() {
   const { schemaId } = useParams();
   const navigate = useNavigate();
   const { authData, setAuthData } = useContext(UserContext);
+  const { callApi } = useApi();
   const [initialData, setInitialData] = useState(null);
   const [loading, setLoading] = useState(true);
-  // Optional: state for permission‑based field filtering
   const [allowedFields, setAllowedFields] = useState(null);
   const [fieldConfigs, setFieldConfigs] = useState({});
 
   useEffect(() => {
     const fetchData = async () => {
-      try {
-        // 1. Fetch schema data
-        const schemaRes = await fetchWithRefresh(
+      setLoading(true);
+
+      // 1. Fetch schema data
+      const schemaResult = await callApi(async () => {
+        const res = await fetchWithRefresh(
           `${API_URL}/validation/schemas/${schemaId}`,
           { method: 'GET' },
           authData.token,
           setAuthData
         );
-        const schemaData = await schemaRes.json();
-        if (!schemaRes.ok) throw new Error(schemaData.message);
-        setInitialData(schemaData.schema || schemaData);
+        return res;
+      });
 
-        // 2. (Optional) Fetch editable fields for this model
-        try {
-          const permRes = await fetchWithRefresh(
-            `${API_URL}/permissions/user/${authData.user._id}/fields?model=Validation`,
-            { method: 'GET' },
-            authData.token,
-            setAuthData
-          );
-          const permData = await permRes.json();
-          if (permRes.ok) {
-            setAllowedFields(permData.fields || []);
-            setFieldConfigs(permData.configs || {});
-          }
-        } catch (permErr) {
-          console.warn('Could not fetch editable fields, using all fields', permErr);
-          // Fallback: allow all fields (default behaviour)
-          setAllowedFields(null);
-        }
-      } catch (err) {
-        console.error(err);
-        alert(err.message || 'Erreur lors du chargement');
+      if (!schemaResult) {
+        // `callApi` already showed a toast (error or warning). Just navigate away.
         navigate('/dash/validation/schemas');
-      } finally {
         setLoading(false);
+        return;
       }
+
+      setInitialData(schemaResult);
+
+      // 2. Fetch editable fields (optional)
+      const permResult = await callApi(async () => {
+        const res = await fetchWithRefresh(
+          `${API_URL}/permissions/user/${authData.user.id}/editable-fields?model=Validation`,
+          { method: 'GET' },
+          authData.token,
+          setAuthData
+        );
+        return res;
+      }, { showSuccessMessage: false });
+
+      if (permResult) {
+        setAllowedFields(permResult.fields || []);
+        setFieldConfigs(permResult.configs || {});
+      } else {
+        setAllowedFields(null);
+      }
+
+      setLoading(false);
     };
-    if (authData?.token) fetchData();
-  }, [schemaId, authData?.token, navigate]);
+
+    if (authData?.token) {
+      fetchData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schemaId, authData?.token, setAuthData, authData?.user?.id, navigate]);
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-yellow-300">
-        Chargement...
+      <div className="min-h-screen p-8 bg-gradient-to-br from-gray-900 to-gray-800 text-yellow-400 font-urbanist flex items-center justify-center">
+        <div className="text-yellow-300">Chargement...</div>
       </div>
     );
   }
@@ -70,12 +81,18 @@ export default function EditValidationSchema() {
   if (!initialData) return null;
 
   return (
-    <ValidationSchemaForm
-      initialData={initialData}
-      schemaId={schemaId}
-      onSuccess={() => navigate('/dash/validation/schemas')}
-      allowedFields={allowedFields}
-      fieldConfigs={fieldConfigs}
-    />
+    <div className="min-h-screen p-8 bg-gradient-to-br from-gray-900 to-gray-800 text-yellow-400 font-urbanist">
+      <div className="mb-4">
+        <BackButton fallbackPath="/dash/validation/schemas" />
+      </div>
+      <Title title="Modifier le schéma" />
+      <ValidationSchemaForm
+        initialData={initialData}
+        schemaId={schemaId}
+        onSuccess={() => navigate(-1)}
+        allowedFields={allowedFields}
+        fieldConfigs={fieldConfigs}
+      />
+    </div>
   );
 }

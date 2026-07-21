@@ -1,13 +1,16 @@
+// AllValidationRequests.jsx
 import { useContext, useEffect, useState } from 'react';
 import { UserContext } from '../../../Context/dataCont';
-import Title from '../../../Components/Title';
+import { useApi } from '../../../hooks/useApi';
 import { fetchWithRefresh } from '../../../Components/api';
+import Title from '../../../Components/Title';
 import { useNavigate } from 'react-router-dom';
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_NEST_API_URL;
 
 export default function AllValidationRequests() {
   const { authData, setAuthData } = useContext(UserContext);
+  const { callApi } = useApi();
   const navigate = useNavigate();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -15,23 +18,25 @@ export default function AllValidationRequests() {
 
   useEffect(() => {
     const fetchRequests = async () => {
-      try {
+      setLoading(true);
+      const result = await callApi(async () => {
         const res = await fetchWithRefresh(
           `${API_URL}/validation/requests/all?status=${filter}`,
           { method: 'GET' },
           authData.token,
           setAuthData
         );
-        const data = await res.json();
-        setRequests(data.requests || []);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
+        return res;
+      }, { showSuccessMessage: false }); 
+
+      if (result) {
+        setRequests(result.requests || []);
       }
+      setLoading(false);
     };
+
     if (authData?.token) fetchRequests();
-  }, [filter, authData.token]);
+  }, [filter, authData?.token, setAuthData]);
 
   const getStatusBadge = (status) => {
     const colors = {
@@ -69,7 +74,7 @@ export default function AllValidationRequests() {
   }
 
   return (
-    <div className="min-h-screen ml-[80px] p-8 bg-gradient-to-br from-gray-900 to-gray-800 text-yellow-400 font-urbanist">
+    <div className="min-h-screen p-8 bg-gradient-to-br from-gray-900 to-gray-800 text-yellow-400 font-urbanist">
       <Title title="Toutes les demandes de validation" />
       <div className="mb-6 flex gap-4">
         <select
@@ -90,9 +95,9 @@ export default function AllValidationRequests() {
         {requests.length === 0 && <p className="text-gray-400">Aucune demande trouvée.</p>}
         {requests.map((req) => (
           <div
-            key={req._id}
+            key={req.id}
             className="bg-gray-800/60 backdrop-blur-sm border border-yellow-400/20 rounded-xl p-5 shadow-lg hover:shadow-xl transition cursor-pointer"
-            onClick={() => navigate(`/dash/validation/progress/${req._id}`)}
+            onClick={() => navigate(`/dash/validation/progress/${req.id}`)}
           >
             <div className="flex justify-between items-start">
               <div className="flex-1">

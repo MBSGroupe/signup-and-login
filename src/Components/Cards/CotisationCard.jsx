@@ -6,6 +6,30 @@ import MarkFeePaidModal from "../Modals/PayFee";
 const API_URL = import.meta.env.VITE_API_URL;
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
+// ─── Design Tokens (Banking Theme) ──────────────────────────────────────────
+
+const CARD_BASE =
+  "bg-[#111827] border border-white/5 shadow-xl rounded-xl p-4 transition-all hover:border-emerald-500/30 hover:shadow-emerald-500/5";
+const BADGE_BASE =
+  "px-2.5 py-0.5 rounded-full text-xs font-medium border";
+const MENU_BUTTON =
+  "p-1.5 text-[#64748B] hover:text-white rounded-lg transition-colors hover:bg-white/5";
+
+const statusColors = {
+  pending: `${BADGE_BASE} bg-amber-500/10 text-amber-400 border-amber-500/20`,
+  paid: `${BADGE_BASE} bg-emerald-500/10 text-emerald-400 border-emerald-500/20`,
+  partial: `${BADGE_BASE} bg-blue-500/10 text-blue-400 border-blue-500/20`,
+  overdue: `${BADGE_BASE} bg-red-500/10 text-red-400 border-red-500/20`,
+  cancelled: `${BADGE_BASE} bg-gray-500/10 text-gray-400 border-gray-500/20`,
+};
+
+const statusLabels = {
+  pending: "En attente",
+  paid: "Payée",
+  partial: "Partielle",
+  overdue: "En retard",
+  cancelled: "Annulée",
+};
 
 export default function CotisationCard({ cotisation, onCotisationUpdated, isOwner }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -36,22 +60,6 @@ export default function CotisationCard({ cotisation, onCotisationUpdated, isOwne
   const lastPaymentDate = computed.lastPaymentDate
     ? new Date(computed.lastPaymentDate).toLocaleDateString("fr-FR")
     : null;
-
-  const statusColors = {
-    pending: "bg-yellow-200/20 text-yellow-300 border-yellow-400/40",
-    paid: "bg-green-200/20 text-green-300 border-green-400/40",
-    partial: "bg-blue-200/20 text-blue-300 border-blue-400/40",
-    overdue: "bg-red-200/20 text-red-300 border-red-400/40",
-    cancelled: "bg-gray-200/20 text-gray-300 border-gray-400/40",
-  };
-
-  const statusLabels = {
-    pending: "En attente",
-    paid: "Payée",
-    partial: "Partielle",
-    overdue: "En retard",
-    cancelled: "Annulée",
-  };
 
   const handleEdit = () => {
     navigate(`/auth/edit/fee/${cotisation.id}`);
@@ -95,66 +103,63 @@ export default function CotisationCard({ cotisation, onCotisationUpdated, isOwne
   };
 
   return (
-    <div className="relative bg-gray-800/60 backdrop-blur-sm border border-yellow-400/20 rounded-xl p-5 shadow-lg hover:shadow-xl transition-all duration-300">
+    <div className={CARD_BASE}>
       {/* Header */}
       <div className="flex justify-between items-start mb-3">
-        <h3 className="text-lg font-semibold text-yellow-300">
-          Cotisation {cotisation.year}
-        </h3>
         <div className="flex items-center gap-2">
-          <span
-            className={`px-2 py-1 rounded-full text-xs font-medium border ${
-              statusColors[status] || "bg-gray-500/20 text-gray-300"
-            }`}
-          >
+          <span className="text-emerald-400 font-medium flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span>
+            Cotisation {cotisation.year}
+          </span>
+          <span className={statusColors[status] || statusColors.pending}>
             {statusLabels[status] || status}
           </span>
-
-          {!isOwner && (
-            <div className="relative" ref={menuRef}>
-              <button
-                onClick={() => setMenuOpen(!menuOpen)}
-                className="text-gray-400 hover:text-yellow-300"
-              >
-                ⋮
-              </button>
-              {menuOpen && (
-                <div className="absolute right-0 mt-2 w-40 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-10">
-                  <ul className="py-1 text-sm text-gray-300">
-                    <li
-                      onClick={handleEdit}
-                      className="px-4 py-2 hover:bg-yellow-400 hover:text-gray-900 cursor-pointer"
-                    >
-                      Modifier
-                    </li>
-                    {status === 'cancelled' ? (
-                      <li
-                        onClick={handleReactivate}
-                        className="px-4 py-2 hover:bg-green-600 hover:text-white cursor-pointer"
-                      >
-                        Réactiver
-                      </li>
-                    ) : (
-                      <li
-                        onClick={handleCancel}
-                        className="px-4 py-2 hover:bg-red-500 hover:text-white cursor-pointer"
-                      >
-                        Annuler
-                      </li>
-                    )}
-                  </ul>
-                </div>
-              )}
-            </div>
-          )}
         </div>
+
+        {!isOwner && (
+          <div className="relative" ref={menuRef}>
+            <button
+              onClick={() => setMenuOpen(!menuOpen)}
+              className={MENU_BUTTON}
+            >
+              ⋮
+            </button>
+            {menuOpen && (
+              <div className="absolute right-0 mt-2 w-40 bg-[#182233] border border-white/10 rounded-lg shadow-2xl z-10 overflow-hidden">
+                <ul className="py-1 text-sm text-[#94A3B8]">
+                  <li
+                    onClick={handleEdit}
+                    className="px-4 py-2 hover:bg-white/5 hover:text-white cursor-pointer transition-colors"
+                  >
+                    Modifier
+                  </li>
+                  {status === 'cancelled' ? (
+                    <li
+                      onClick={handleReactivate}
+                      className="px-4 py-2 hover:bg-white/5 hover:text-emerald-400 cursor-pointer transition-colors"
+                    >
+                      Réactiver
+                    </li>
+                  ) : (
+                    <li
+                      onClick={handleCancel}
+                      className="px-4 py-2 hover:bg-white/5 hover:text-red-400 cursor-pointer transition-colors"
+                    >
+                      Annuler
+                    </li>
+                  )}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Body */}
-      <div className="space-y-2 text-gray-300">
+      <div className="space-y-1.5 text-sm">
         <div className="flex justify-between">
-          <span className="text-gray-400">Montant :</span>
-          <span className="font-mono">{cotisation.amount} DA</span>
+          <span className="text-[#94A3B8]">Montant :</span>
+          <span className="font-mono text-white font-semibold">{cotisation.amount} DA</span>
         </div>
 
         {penalty > 0 && (
@@ -165,62 +170,61 @@ export default function CotisationCard({ cotisation, onCotisationUpdated, isOwne
         )}
 
         <div className="flex justify-between">
-          <span className="text-gray-400">Total dû :</span>
-          <span className="font-mono">{totalDue} DA</span>
+          <span className="text-[#94A3B8]">Total dû :</span>
+          <span className="font-mono text-white font-semibold">{totalDue} DA</span>
         </div>
 
         {totalPaid > 0 && (
-          <div className="flex justify-between text-green-400">
+          <div className="flex justify-between text-emerald-400">
             <span>Payé :</span>
             <span className="font-mono">{Math.min(totalPaid, totalDue)} DA</span>
           </div>
         )}
 
         {remaining > 0 && status !== 'paid' && (
-          <div className="flex justify-between font-medium text-yellow-300">
+          <div className="flex justify-between text-amber-400 font-medium">
             <span>Reste à payer :</span>
             <span className="font-mono">{remaining} DA</span>
           </div>
         )}
 
         {status === 'paid' && (
-          <div className="flex justify-between font-medium text-green-400">
+          <div className="flex justify-between text-emerald-400 font-medium">
             <span>Statut :</span>
             <span>Soldé</span>
           </div>
         )}
 
         <div className="flex justify-between">
-          <span className="text-gray-400">Échéance :</span>
-          <span>{dueDate}</span>
+          <span className="text-[#94A3B8]">Échéance :</span>
+          <span className="text-[#F8FAFC]">{dueDate}</span>
         </div>
 
         {lastPaymentDate && (
           <div className="flex justify-between">
-            <span className="text-gray-400">Dernier paiement :</span>
-            <span>{lastPaymentDate}</span>
+            <span className="text-[#94A3B8]">Dernier paiement :</span>
+            <span className="text-[#F8FAFC]">{lastPaymentDate}</span>
           </div>
         )}
 
         <div className="flex justify-between">
-          <span className="text-gray-400">Type :</span>
-          <span>{cotisation.feeType}</span>
+          <span className="text-[#94A3B8]">Type :</span>
+          <span className="capitalize text-[#F8FAFC]">{cotisation.feeType}</span>
         </div>
 
         {cotisation.user?.fullName && (
           <div className="flex justify-between">
-            <span className="text-gray-400">Membre :</span>
-            <span>{cotisation.user.fullName || `${cotisation.user.name} ${cotisation.user.lastname}`}</span>
+            <span className="text-[#94A3B8]">Membre :</span>
+            <span className="text-[#F8FAFC]">{cotisation.user.fullName || `${cotisation.user.name} ${cotisation.user.lastname}`}</span>
           </div>
         )}
       </div>
 
       {cotisation.notes && (
-        <div className="mt-3 pt-2 border-t border-gray-700 text-sm text-gray-400">
+        <div className="mt-3 pt-2 border-t border-white/5 text-sm text-[#64748B]">
           {cotisation.notes}
         </div>
       )}
-
     </div>
   );
 }

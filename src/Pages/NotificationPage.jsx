@@ -3,7 +3,7 @@ import { UserContext } from '../Context/dataCont';
 import { fetchWithRefresh } from '../Components/api';
 import Title from '../Components/Title';
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_NEST_API_URL;
 
 export default function NotificationsPage() {
   const { authData, setAuthData } = useContext(UserContext);
@@ -45,7 +45,7 @@ export default function NotificationsPage() {
         setAuthData
       );
       setNotifications(prev =>
-        prev.map(n => (n._id === id ? { ...n, readAt: new Date().toISOString() } : n))
+        prev.map(n => (n.id === id ? { ...n, readAt: new Date().toISOString() } : n))
       );
     } catch (err) {
       console.error(err);
@@ -101,13 +101,13 @@ export default function NotificationsPage() {
             ) : (
               notifications.map((notif) => (
                 <div
-                  key={notif._id}
+                  key={notif.id}
                   className={`p-5 rounded-xl border transition-all duration-200 cursor-pointer
                     ${!notif.readAt 
                       ? 'bg-gray-700/40 border-yellow-400/40 shadow-md hover:shadow-yellow-400/10' 
                       : 'bg-gray-800/40 border-gray-700 hover:border-yellow-400/20'
                     }`}
-                  onClick={() => markAsRead(notif._id)}
+                  onClick={() => markAsRead(notif.id)}
                 >
                   <div className="flex items-start gap-4">
                     <div className="text-2xl">{getTypeIcon(notif.type)}</div>

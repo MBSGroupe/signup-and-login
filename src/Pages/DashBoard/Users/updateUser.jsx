@@ -3,8 +3,7 @@ import { UserContext } from "../../../Context/dataCont";
 import Title from "../../../Components/Title";
 import { useParams } from "react-router-dom";
 
-// Import your wilaya data
-import wilayasData from "../../../assets/data/wilayas.json"; // Adjust path as needed
+import wilayasData from "../../../assets/data/wilayas.json";
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
@@ -28,25 +27,29 @@ export default function UpdateUser() {
         
         // 1. Fetch user data
         const userRes = await fetch(`${NEST_API_URL}/users/${id}`, {
-          method : "GET",
+          method: "GET",
           headers: { Authorization: `Bearer ${authData.token}` }
         });
-        const userData = await userRes.json();
-        setUserData(userData.user);
+        const userResult = await userRes.json();
+        // Response format: { success: true, data: { user: {...} } }
+        const userDataObj = userResult.data?.user || userResult.data || userResult;
+        setUserData(userDataObj);
         
         // 2. Fetch permissions for this user
         const permRes = await fetch(`${NEST_API_URL}/permissions/user/${id}/editable-fields?model=User`, {
-          method : "GET",
+          method: "GET",
           headers: { Authorization: `Bearer ${authData.token}` }
         });
-        const permData = await permRes.json();
+        const permResult = await permRes.json();
+        // Response format: { success: true, data: { fields: [], configs: {} } }
+        const permData = permResult.data || permResult;
         setPermissions(permData);
         
         // 3. Initialize form with user data (only fields that exist)
         const initialForm = {};
-        permData.fields.forEach(field => {
-          if (userData.user[field] !== undefined) {
-            initialForm[field] = userData.user[field];
+        (permData.fields || []).forEach(field => {
+          if (userDataObj[field] !== undefined) {
+            initialForm[field] = userDataObj[field];
           }
         });
         setFormData(initialForm);
@@ -76,7 +79,6 @@ export default function UpdateUser() {
     e.preventDefault();
     setSubmitting(true);
     
-
     const payload = {
       ...formData,
       password: formData.password
@@ -92,25 +94,26 @@ export default function UpdateUser() {
         body: JSON.stringify(payload),
       });
       
-      const data = await response.json();
-      console.log("data",payload)
+      const result = await response.json();
       
       if (!response.ok) {
-        setMessage(data.message || "Erreur de mise à jour");
+        setMessage(result.message || result.data?.message || "Erreur de mise à jour");
         return;
       }
       
       // Update auth data if user updated themselves
-      if (authData.user._id === id) {
+      if (authData.user?.id === id) {
+        const updatedUser = result.data?.user || result.data;
         setAuthData(prev => ({
-          token: data.token || prev.token,
-          user: { ...prev.user, ...data.user }
+          token: result.data?.token || prev.token,
+          user: { ...prev.user, ...updatedUser }
         }));
       }
       
       setMessage("✅ Profil mis à jour avec succès");
       
     } catch (error) {
+      console.error(error);
       setMessage("❌ Erreur serveur");
     } finally {
       setSubmitting(false);
@@ -126,91 +129,44 @@ export default function UpdateUser() {
     uploadData.append("folder", "profile");
     
     try {
-      const response = await fetch(`${NEST_API_URL}/files/${id}`, {
+      const response = await fetch(`${NEST_API_URL}/files/upload/${id}`, {
         method: "POST",
         headers: { Authorization: `Bearer ${authData.token}` },
         body: uploadData,
       });
       
-      const data = await response.json();
+      const result = await response.json();
       
       if (!response.ok) {
-        setMessage(data.message || "Upload échoué");
+        setMessage(result.message || "Upload échoué");
         return;
       }
       
-      setFormData(prev => ({ ...prev, profilePicture: data.file.url }));
+      // Response format: { success: true, data: { file: {...}, user: {...} } }
+      const fileUrl = result.data?.file?.url || result.data?.url;
+      if (fileUrl) {
+        setFormData(prev => ({ ...prev, profilePicture: fileUrl }));
+      }
       setShowProfilePicker(false);
       
     } catch (error) {
+      console.error(error);
       setMessage("❌ Erreur lors de l'upload");
     }
   };
   
   // Dynamic field renderer based on field type and config
-const renderField = (fieldName) => {
-  if (!permissions?.configs || !permissions.configs[fieldName]) return null;
-  
-  const config = permissions.configs[fieldName];
-  const value = formData[fieldName] || "";
-  
-  // Special handling for wilaya and commune
-  if (fieldName === 'wilaya') {
-    return (
-      <div key={fieldName} className="space-y-1">
-        <label className="text-yellow-300 text-sm block">
-          {config.label || "Wilaya"}
-        </label>
-        <select
-          name={fieldName}
-          value={value}
-          onChange={handleChange}
-          className="w-full bg-gray-700 text-yellow-200 rounded-lg p-3 border border-yellow-300/30"
-        >
-          <option value="">Sélectionner une wilaya</option>
-          {wilayasData?.map(w => (
-            <option key={w.code} value={w.code}>
-              {w.name} ({w.code})
-            </option>
-          ))}
-        </select>
-      </div>
-    );
-  }
-  
-  if (fieldName === 'commune') {
-    return (
-      <div key={fieldName} className="space-y-1">
-        <label className="text-yellow-300 text-sm block">
-          {config.label || "Commune"}
-        </label>
-        <select
-          name={fieldName}
-          value={value}
-          onChange={handleChange}
-          className="w-full bg-gray-700 text-yellow-200 rounded-lg p-3 border border-yellow-300/30"
-          disabled={!formData.wilaya}
-        >
-          <option value="">Sélectionner une commune</option>
-          {formData.wilaya && wilayasData
-            ?.find(w => w.code === formData.wilaya)
-            ?.communes?.map(c => (
-              <option key={c.code} value={c.code}>
-                {c.name}
-              </option>
-            ))}
-        </select>
-      </div>
-    );
-  }
-  
-  // Regular select fields from schema options
-  switch (config.type) {
-    case 'select':
+  const renderField = (fieldName) => {
+    if (!permissions?.configs || !permissions.configs[fieldName]) return null;
+    
+    const config = permissions.configs[fieldName];
+    const value = formData[fieldName] || "";
+    
+    if (fieldName === 'wilaya') {
       return (
         <div key={fieldName} className="space-y-1">
           <label className="text-yellow-300 text-sm block">
-            {config.label}
+            {config.label || "Wilaya"}
           </label>
           <select
             name={fieldName}
@@ -218,98 +174,148 @@ const renderField = (fieldName) => {
             onChange={handleChange}
             className="w-full bg-gray-700 text-yellow-200 rounded-lg p-3 border border-yellow-300/30"
           >
-            <option value="">Sélectionner...</option>
-            {config.validation?.options?.map(opt => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
+            <option value="">Sélectionner une wilaya</option>
+            {wilayasData?.map(w => (
+              <option key={w.code} value={w.code}>
+                {w.name} ({w.code})
               </option>
             ))}
           </select>
         </div>
       );
-      
-    case 'email':
+    }
+    
+    if (fieldName === 'commune') {
       return (
         <div key={fieldName} className="space-y-1">
           <label className="text-yellow-300 text-sm block">
-            {config.label}
+            {config.label || "Commune"}
           </label>
-          <input
-            type="email"
+          <select
             name={fieldName}
             value={value}
             onChange={handleChange}
-            placeholder={config.ui?.placeholder}
             className="w-full bg-gray-700 text-yellow-200 rounded-lg p-3 border border-yellow-300/30"
-          />
-        </div>
-      );
-      
-    case 'date':
-      return (
-        <div key={fieldName} className="space-y-1">
-          <label className="text-yellow-300 text-sm block">
-            {config.label}
-          </label>
-          <input
-            type="date"
-            name={fieldName}
-            value={value ? new Date(value).toISOString().split('T')[0] : ''}
-            onChange={handleChange}
-            className="w-full bg-gray-700 text-yellow-200 rounded-lg p-3 border border-yellow-300/30"
-          />
-        </div>
-      );
-      
-    case 'image':
-    case 'file':
-      return (
-        <div key={fieldName} className="space-y-1">
-          <label className="text-yellow-300 text-sm block">
-            {config.label}
-          </label>
-          {value && config.type === 'image' && (
-            <img
-              src={value}
-              alt="Preview"
-              className="w-32 h-32 object-cover rounded-lg mb-2 cursor-pointer"
-              onClick={() => setShowProfilePicker(true)}
-            />
-          )}
-          <input
-            type="file"
-            accept={config.validation?.fileTypes?.join(',')}
-            onChange={handleUpload}
-            className="hidden"
-            id="file-upload"
-          />
-          <label
-            htmlFor="file-upload"
-            className="inline-block px-4 py-2 bg-yellow-300 text-gray-900 rounded-lg cursor-pointer"
+            disabled={!formData.wilaya}
           >
-            Choisir un fichier
-          </label>
+            <option value="">Sélectionner une commune</option>
+            {formData.wilaya && wilayasData
+              ?.find(w => w.code === formData.wilaya)
+              ?.communes?.map(c => (
+                <option key={c.code} value={c.code}>
+                  {c.name}
+                </option>
+              ))}
+          </select>
         </div>
       );
-      
-    default:
-      return (
-        <div key={fieldName} className="space-y-1">
-          <label className="text-yellow-300 text-sm block">
-            {config.label}
-          </label>
-          <input
-            type={config.type || 'text'}
-            name={fieldName}
-            value={value}
-            onChange={handleChange}
-            placeholder={config.ui?.placeholder}
-            className="w-full bg-gray-700 text-yellow-200 rounded-lg p-3 border border-yellow-300/30"
-          />
-        </div>
-      );
-  }
-}
+    }
+    
+    switch (config.type) {
+      case 'select':
+        return (
+          <div key={fieldName} className="space-y-1">
+            <label className="text-yellow-300 text-sm block">
+              {config.label}
+            </label>
+            <select
+              name={fieldName}
+              value={value}
+              onChange={handleChange}
+              className="w-full bg-gray-700 text-yellow-200 rounded-lg p-3 border border-yellow-300/30"
+            >
+              <option value="">Sélectionner...</option>
+              {config.validation?.options?.map(opt => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        );
+        
+      case 'email':
+        return (
+          <div key={fieldName} className="space-y-1">
+            <label className="text-yellow-300 text-sm block">
+              {config.label}
+            </label>
+            <input
+              type="email"
+              name={fieldName}
+              value={value}
+              onChange={handleChange}
+              placeholder={config.ui?.placeholder}
+              className="w-full bg-gray-700 text-yellow-200 rounded-lg p-3 border border-yellow-300/30"
+            />
+          </div>
+        );
+        
+      case 'date':
+        return (
+          <div key={fieldName} className="space-y-1">
+            <label className="text-yellow-300 text-sm block">
+              {config.label}
+            </label>
+            <input
+              type="date"
+              name={fieldName}
+              value={value ? new Date(value).toISOString().split('T')[0] : ''}
+              onChange={handleChange}
+              className="w-full bg-gray-700 text-yellow-200 rounded-lg p-3 border border-yellow-300/30"
+            />
+          </div>
+        );
+        
+      case 'image':
+      case 'file':
+        return (
+          <div key={fieldName} className="space-y-1">
+            <label className="text-yellow-300 text-sm block">
+              {config.label}
+            </label>
+            {value && config.type === 'image' && (
+              <img
+                src={value}
+                alt="Preview"
+                className="w-32 h-32 object-cover rounded-lg mb-2 cursor-pointer"
+                onClick={() => setShowProfilePicker(true)}
+              />
+            )}
+            <input
+              type="file"
+              accept={config.validation?.fileTypes?.join(',')}
+              onChange={handleUpload}
+              className="hidden"
+              id="file-upload"
+            />
+            <label
+              htmlFor="file-upload"
+              className="inline-block px-4 py-2 bg-yellow-300 text-gray-900 rounded-lg cursor-pointer"
+            >
+              Choisir un fichier
+            </label>
+          </div>
+        );
+        
+      default:
+        return (
+          <div key={fieldName} className="space-y-1">
+            <label className="text-yellow-300 text-sm block">
+              {config.label}
+            </label>
+            <input
+              type={config.type || 'text'}
+              name={fieldName}
+              value={value}
+              onChange={handleChange}
+              placeholder={config.ui?.placeholder}
+              className="w-full bg-gray-700 text-yellow-200 rounded-lg p-3 border border-yellow-300/30"
+            />
+          </div>
+        );
+    }
+  };
 
   if (loading) {
     return (
@@ -324,7 +330,7 @@ const renderField = (fieldName) => {
       
       <div className="mb-8 text-center">
         <Title
-          title={userData?._id === authData?.user?._id 
+          title={userData?.id === authData?.user?.id 
             ? "Modifier Votre Profil" 
             : "Modifier l'utilisateur"}
           className="text-yellow-300"
@@ -335,8 +341,7 @@ const renderField = (fieldName) => {
                       border border-yellow-300/20 shadow-xl p-8">
         
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Render fields in order from permissions */}
-          {permissions?.fields
+          {(permissions?.fields || [])
             .sort((a, b) => {
               const orderA = permissions.configs[a]?.ui?.order || 0;
               const orderB = permissions.configs[b]?.ui?.order || 0;
@@ -345,7 +350,6 @@ const renderField = (fieldName) => {
             .map(fieldName => renderField(fieldName))
           }
           
-          {/* Always include password field */}
           <div className="space-y-1">
             <label className="text-yellow-300 text-sm block">
               Mot de passe (requis pour confirmer)

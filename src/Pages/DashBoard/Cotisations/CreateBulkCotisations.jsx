@@ -5,8 +5,8 @@ import Title from '../../../Components/Title';
 import { fetchWithRefresh } from '../../../Components/api';
 import wilayasData from '../../../assets/data/wilayas.json';
 import { transformDates } from '../../../Utils/transformPayload';
-const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
+const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
 export default function CreateBulkCotisation() {
   const { authData, setAuthData } = useContext(UserContext);
@@ -34,7 +34,9 @@ export default function CreateBulkCotisation() {
           `${NEST_API_URL}/permissions/user/${viewerId}/creatable-fields?model=Fee`,
           { headers: { Authorization: `Bearer ${authData.token}` } }
         );
-        const data = await response.json();
+        const responseData = await response.json();
+        // Extract from wrapper: { success: true, data: { fields: [], configs: {} } }
+        const data = responseData.data || responseData;
         if (response.ok) {
           setCreatableFieldsList(data.fields || []);
           setFieldConfigs(data.configs || {});
@@ -113,6 +115,7 @@ export default function CreateBulkCotisation() {
       ...nested,
     };
     payload = transformDates(payload, ['dueDate']);
+    
     try {
       const response = await fetchWithRefresh(
         `${NEST_API_URL}/fees/bulk`,
@@ -121,16 +124,17 @@ export default function CreateBulkCotisation() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         },
-        
         authData.token,
         setAuthData
       );
-      const data = await response.json();
-      if (response.ok) {
+      const responseData = await response.json();
+      // Extract data from wrapper: { success: true, data: { ... } }
+      const data = responseData.data || responseData;
+      if (response.ok && responseData.success !== false) {
         setResult(data);
         setMessage(`✅ Opération terminée : ${data.created} cotisation(s) créée(s)`);
       } else {
-        setMessage(data.message || '❌ Erreur lors de la création');
+        setMessage(data.message || responseData.message || '❌ Erreur lors de la création');
       }
     } catch (err) {
       console.error(err);
@@ -139,6 +143,7 @@ export default function CreateBulkCotisation() {
       setLoading(false);
     }
   };
+
 
   const renderField = (fieldName) => {
     const config = fieldConfigs[fieldName];

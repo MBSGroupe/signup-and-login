@@ -40,6 +40,12 @@ import ValidationSchemaVersions from "./Pages/DashBoard/Validations/ValidationSc
 import AllValidationRequests from "./Pages/DashBoard/Validations/allValidationRequests";
 import ValidationSchemaDetails from './Pages/DashBoard/Validations/ValidationSchemaDetails'
 import ValidationRequestProgress from './Pages/DashBoard/Validations/ValidationRequestsProgress';
+
+import BackgroundManager from './Pages/DashBoard/EtatsDeSortie/BackgroundManager'
+
+// 👇 IMPORT THE NEW COMPONENT
+import PixelNo from './Components/NO';
+
 export default function App() {
   return (
     <Routes>
@@ -48,6 +54,23 @@ export default function App() {
       <Route path="/" element={<MainLayout />}>
         <Route index element={<LoginForm />} />
         <Route path="signup" element={<FormulaireCNOA />} />
+        
+        {/* 👇 ADD THE NEW ROUTE HERE */}
+      <Route 
+        path="pixel-no" 
+        element={
+          <PixelNo 
+            rows={25}
+            cols={50}
+            pixelSize={20}
+            gap={2}
+            color="#facc15"
+            bgColor="#0f0f1a"
+            speed={2}
+            onComplete={() => console.log('Pixel NO complete!')}
+          />
+        } 
+      />
       </Route>
 
       {/* AUTH LAYOUT (logged in pages) */}
@@ -92,6 +115,7 @@ export default function App() {
         <Route path="validation/requests" element={<ValidationRequestsList />} />
         <Route path="validation/all-requests" element={<AllValidationRequests />} />
         <Route path="validation/requests/:id" element={<ValidationRequestDetail />} />
+        
         <Route path="validation/schemas" element={<ValidationSchemasList />} />
         <Route path="validation/schemas/new" element={<NewValidationSchema />} />
         <Route path="validation/schemas/:schemaId/edit" element={<EditValidationSchema />} />
@@ -99,6 +123,7 @@ export default function App() {
         <Route path="validation/schemas/:schemaId" element={<ValidationSchemaDetails />} />
         <Route path="validation/progress/:id" element={<ValidationRequestProgress />} />
 
+        <Route path="template/background" element={< BackgroundManager/>} />
 
         <Route path="delete/:id" element={<DeleteItem mode='user' />} />
         <Route path="cancel/fee/:id" element={<DeleteItem mode='cotisation' />} />

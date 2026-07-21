@@ -3,59 +3,71 @@ import { UserContext } from '../../../Context/dataCont';
 import Title from '../../../Components/Title';
 import { fetchWithRefresh } from '../../../Components/api';
 import { useNavigate } from 'react-router-dom';
+import { useApi } from '../../../hooks/useApi';
+import { useModal } from '../../../Context/ModalContext';
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_NEST_API_URL;
 
 export default function ValidationSchemasList() {
   const { authData, setAuthData } = useContext(UserContext);
+  const { callApi } = useApi();
+  const { confirm } = useModal(); 
   const navigate = useNavigate();
   const [schemas, setSchemas] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showInactive, setShowInactive] = useState(false);
+
 
   const fetchSchemas = async () => {
-    try {
-      const url = `${API_URL}/validation/schemas?includeInactive=${showInactive}`;
+    setLoading(true);
+    const url = `${API_URL}/validation/schemas`;
+    const result = await callApi(async () => {
       const res = await fetchWithRefresh(url, { method: 'GET' }, authData.token, setAuthData);
-      const data = await res.json();
-      setSchemas(data.schemas || data);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
+      return res;
+    }, { showSuccessMessage: false });
+
+    if (result) {
+      setSchemas(result.schemas || result || []);
+    } else {
+      setSchemas([]);
     }
+    setLoading(false);
   };
 
   useEffect(() => {
-    if (authData?.token) fetchSchemas();
-  }, [authData?.token, showInactive]);
+    if (authData?.token) {
+      fetchSchemas();
+    }
+  }, [authData?.token, setAuthData]);
 
   const handleRollback = async (schema) => {
-    if (!confirm('Rollback to the previous active version? This will change the active schema.')) return;
-    try {
+    const confirmed = await confirm({
+      title: 'Rollback',
+      message: 'Rollback to the previous active version? This will change the active schema.',
+    });
+    if (!confirmed) return;
+
+    const result = await callApi(async () => {
       const res = await fetchWithRefresh(
-        `${API_URL}/validation/schemas/${schema._id}/rollback`,
+        `${API_URL}/validation/schemas/${schema.id}/rollback`,
         { method: 'POST' },
         authData.token,
         setAuthData
       );
-      if (res.ok) {
-        alert('Rollback successful');
-        fetchSchemas();
-      } else {
-        const err = await res.json();
-        alert(err.message || 'Rollback failed');
-      }
-    } catch (err) {
-      console.error(err);
-      alert('Network error');
+      return res;
+    }, {
+      showSuccessMessage: true, 
+      successMessage: 'Rollback successful',
+    });
+
+    if (result) {
+      await fetchSchemas();
     }
   };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center text-yellow-300">Chargement...</div>;
 
   return (
-    <div className="min-h-screen ml-[80px] p-8 bg-gradient-to-br from-gray-900 to-gray-800 text-yellow-400 font-urbanist">
+    <div className="min-h-screen p-8 bg-gradient-to-br from-gray-900 to-gray-800 text-yellow-400 font-urbanist">
       <div className="flex justify-between items-center mb-6">
         <Title title="Schémas de validation" />
         <button
@@ -66,21 +78,9 @@ export default function ValidationSchemasList() {
         </button>
       </div>
 
-      <div className="mb-4 flex justify-end">
-        <label className="flex items-center gap-2 text-sm cursor-pointer">
-          <input
-            type="checkbox"
-            checked={showInactive}
-            onChange={(e) => setShowInactive(e.target.checked)}
-            className="w-4 h-4"
-          />
-          <span>Afficher les versions inactives</span>
-        </label>
-      </div>
-
       <div className="space-y-4">
         {schemas.map(schema => (
-          <div key={schema._id} className="bg-gray-800/60 border border-yellow-400/20 rounded-xl p-5 shadow-lg">
+          <div key={schema.id} className="bg-gray-800/60 border border-yellow-400/20 rounded-xl p-5 shadow-lg">
             <div className="flex justify-between items-start">
               <div className="flex-1">
                 <h3 className="text-xl font-semibold">{schema.name}</h3>
@@ -102,19 +102,19 @@ export default function ValidationSchemasList() {
                   </button>
                 )}
                 <button
-                  onClick={() => navigate(`/dash/validation/schemas/${schema._id}/edit`)}
+                  onClick={() => navigate(`/dash/validation/schemas/${schema.id}/edit`)}
                   className="px-3 py-1 bg-gray-700 text-gray-200 rounded-md hover:bg-gray-600 transition text-sm"
                 >
                   Modifier
                 </button>
                 <button
-                  onClick={() => navigate(`/dash/validation/schemas/${schema._id}/versions`)}
+                  onClick={() => navigate(`/dash/validation/schemas/${schema.id}/versions`)}
                   className="px-3 py-1 bg-gray-700 text-gray-200 rounded-md hover:bg-gray-600 transition text-sm"
                 >
                   Versions
                 </button>
                 <button
-                  onClick={() => navigate(`/dash/validation/schemas/${schema._id}`)}
+                  onClick={() => navigate(`/dash/validation/schemas/${schema.id}`)}
                   className="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition text-sm"
                 >
                   Détails

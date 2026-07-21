@@ -30,7 +30,5 @@ export function transformDates(payload, dateFields = []) {
       }
     }
   }
-
-  // Also handle nested objects (e.g., user.preferences? not needed)
   return newPayload;
 }

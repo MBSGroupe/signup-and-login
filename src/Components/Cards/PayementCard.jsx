@@ -1,107 +1,144 @@
 import { useContext, useState } from "react";
 import { UserContext } from "../../Context/dataCont";
-import PDFPreviewModal from '../Modals/pdfPreviexModal';
+import PDFPreviewModal from '../Modals/PdfPreviexModal';
 
-const API_URL = import.meta.env.VITE_API_URL;
+const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
+
+// ─── Design Tokens (Banking Theme) ──────────────────────────────────────────
+
+const CARD_BASE =
+  "bg-[#111827] border border-white/5 shadow-xl rounded-xl p-4 transition-all hover:border-emerald-500/30 hover:shadow-emerald-500/5";
+const BTN_PRIMARY =
+  "inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg transition-colors shadow-lg shadow-emerald-600/20";
+const BTN_SECONDARY =
+  "inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-[#1F2937] hover:bg-[#2A3A4A] text-white text-sm font-medium rounded-lg transition-colors border border-white/5";
+const BTN_WARNING =
+  "inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white text-sm font-medium rounded-lg transition-colors shadow-lg shadow-amber-600/20";
+const BTN_INFO =
+  "inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg transition-colors shadow-lg shadow-blue-600/20";
 
 export default function PaymentCard({ payment, handlePopup }) {
   const { authData } = useContext(UserContext);
   const [showPreview, setShowPreview] = useState(false);
-  const dateTime = new Date(payment.date).toLocaleString('fr-FR');
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [pdfData, setPdfData] = useState(null);
+
+  const paymentId = payment._id || payment.id;
+  const dateTime = new Date(payment.date || payment.createdAt).toLocaleString('fr-FR');
   const isReversed = payment.reversed === true;
 
+  // Common function: fetch PDF preview blob from the backend
+  const fetchReceiptBlob = async () => {
+    const response = await fetch(`${NEST_API_URL}/pdf/preview/receipt`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authData.token}`,
+      },
+      body: JSON.stringify({ paymentId }),
+    });
+
+    if (!response.ok) {
+      let errorMsg = 'Échec de la génération du reçu';
+      try { const err = await response.json(); errorMsg = err.message || errorMsg; } catch (_) {}
+      throw new Error(errorMsg);
+    }
+
+    return await response.blob();
+  };
+
+  // Download the receipt directly (no modal)
   const handleDownloadReceipt = async () => {
+    setIsDownloading(true);
     try {
-      const response = await fetch(`${API_URL}/pdf/payment/${payment._id}/receipt`, {
-        method: 'GET',
-        headers: { Authorization: `Bearer ${authData.token}` },
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || 'Erreur lors du téléchargement');
-      }
-      const blob = await response.blob();
+      const blob = await fetchReceiptBlob();
       const url = window.URL.createObjectURL(blob);
+
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `recu_paiement_${payment._id}.pdf`);
+      link.download = `recu_paiement_${paymentId}.pdf`;
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
+
+      if (handlePopup) handlePopup('success', 'Reçu téléchargé avec succès');
     } catch (err) {
-      console.error(err);
-      if (handlePopup) handlePopup('error', 'Impossible de télécharger le reçu');
+      console.error('❌ Download error:', err);
+      if (handlePopup) handlePopup('error', err.message || 'Impossible de télécharger le reçu');
+    } finally {
+      setIsDownloading(false);
     }
   };
 
-  const handleEmailReceipt = async () => {
+  // Preview the receipt in modal
+  const handlePreview = async () => {
     try {
-      const response = await fetch(`${API_URL}/pdf/payment/${payment._id}/email`, {
-        method: 'GET',
-        headers: { Authorization: `Bearer ${authData.token}` },
+      const blob = await fetchReceiptBlob();
+      const blobUrl = URL.createObjectURL(blob);
+
+      setPdfData({
+        blobUrl,
+        title: `Reçu de paiement #${paymentId}`,
+        downloadUrl: null,   // no permanent downloadUrl from preview
       });
-      const data = await response.json();
-      if (response.ok) {
-        if (handlePopup) handlePopup('success', 'Reçu envoyé par email avec succès');
-      } else {
-        throw new Error(data.error || 'Erreur lors de l\'envoi');
-      }
+      setShowPreview(true);
     } catch (err) {
-      console.error(err);
-      if (handlePopup) handlePopup('error', 'Impossible d\'envoyer le reçu par email');
+      console.error('❌ Preview error:', err);
+      if (handlePopup) handlePopup('error', err.message || "Impossible de charger l'aperçu");
     }
   };
 
   return (
     <>
-      <div className="bg-gray-800/60 backdrop-blur-sm border border-yellow-400/20 rounded-xl p-4 shadow-lg">
-        <div className="flex justify-between items-start mb-2">
-          <span className="text-yellow-300 font-medium">Paiement</span>
-          <span className="text-xs text-gray-400">{dateTime}</span>
+      <div className={CARD_BASE}>
+        <div className="flex justify-between items-start mb-3">
+          <span className="text-emerald-400 font-medium flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span>
+            Paiement
+          </span>
+          <span className="text-xs text-[#64748B]">{dateTime}</span>
         </div>
         <div className="space-y-1 text-sm">
           <div className="flex justify-between">
-            <span className="text-gray-400">Montant :</span>
-            <span className="font-mono text-green-400">{payment.amount} DA</span>
+            <span className="text-[#94A3B8]">Montant :</span>
+            <span className="font-mono text-white font-semibold">{payment.amount} DA</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-400">Mode :</span>
-            <span className="capitalize">{payment.type}</span>
+            <span className="text-[#94A3B8]">Mode :</span>
+            <span className="capitalize text-[#F8FAFC]">{payment.type || payment.method || payment.paymentMethod || 'N/A'}</span>
           </div>
-          {payment.fromCredit && <div className="text-blue-400 text-xs">Payé par crédit</div>}
-          {payment.notes && <div className="text-gray-500 text-xs mt-1">{payment.notes}</div>}
+          {payment.fromCredit && <div className="text-teal-400 text-xs">Payé par crédit</div>}
+          {payment.notes && <div className="text-[#64748B] text-xs mt-1">{payment.notes}</div>}
           {isReversed && (
             <div className="text-red-400 text-xs font-semibold mt-1">⚠️ Remboursé / Annulé</div>
           )}
         </div>
-        <div className="flex gap-2 mt-2">
+        <div className="flex gap-2 mt-3 flex-wrap">
           <button
             onClick={handleDownloadReceipt}
-            className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
+            disabled={isDownloading}
+            className={`${BTN_PRIMARY} disabled:opacity-60 disabled:cursor-not-allowed`}
           >
-            Télécharger
+            {isDownloading ? 'Téléchargement...' : 'Télécharger'}
           </button>
           <button
-            onClick={() => setShowPreview(true)}
-            className="px-3 py-1 bg-yellow-400 text-gray-900 rounded text-sm hover:bg-yellow-300"
+            onClick={handlePreview}
+            className={BTN_WARNING}
           >
             Aperçu
           </button>
-          <button
-            onClick={handleEmailReceipt}
-            className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
-          >
-            Envoyer par email
-          </button>
         </div>
       </div>
-      {showPreview && (
+
+      {showPreview && pdfData && (
         <PDFPreviewModal
           type="payment"
-          data={payment}
-          onClose={() => setShowPreview(false)}
-          authData={authData}
+          data={pdfData}
+          onClose={() => {
+            setShowPreview(false);
+            setPdfData(null);
+          }}
         />
       )}
     </>

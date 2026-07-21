@@ -23,35 +23,37 @@ export default function EditCotisation() {
     const fetchCotisation = async () => {
       try {
         setLoading(true);
-        // 1. Récupérer la cotisation
+
         const cotRes = await fetch(`${API_URL}/fees/${id}`, {
           headers: { Authorization: `Bearer ${authData.token}` }
         });
         const cotData = await cotRes.json();
         if (!cotRes.ok) throw new Error(cotData.message || "Erreur lors du chargement");
 
-        const cotisation = cotData;
-        // 2. Récupérer l'ID du propriétaire (l'utilisateur concerné)
+        const cotisation = cotData.data || cotData;
+        
         const ownerId = cotisation.userId;
         if (!ownerId) throw new Error("Propriétaire de la cotisation introuvable");
 
-        // 3. Récupérer les permissions pour le modèle Fee
         const permRes = await fetch(
           `${API_URL}/permissions/user/${ownerId}/editable-fields?model=Fee`,
           { headers: { Authorization: `Bearer ${authData.token}` } }
         );
         const permData = await permRes.json();
+        
+        // Extract from wrapper
+        const permissionsData = permData.data || permData;
 
-        if (!permRes.ok) throw new Error(permData.message || "Erreur de permissions");
+        if (!permRes.ok) throw new Error(permissionsData.message || "Erreur de permissions");
 
         setPermissions({
-          fields: permData.fields || [],
-          configs: permData.configs || {}
+          fields: permissionsData.fields || [],
+          configs: permissionsData.configs || {}
         });
 
-        // 4. Initialiser le formulaire avec les champs éditables et les valeurs actuelles
+        // 4. Initialiser le formulaire
         const initialForm = {};
-        (permData.fields || []).forEach((field) => {
+        (permissionsData.fields || []).forEach((field) => {
           if (cotisation[field] !== undefined) {
             initialForm[field] = cotisation[field];
           }
@@ -94,11 +96,11 @@ export default function EditCotisation() {
       );
 
       const data = await response.json();
-      if (response.ok) {
+      if (response.ok && data.success !== false) {
         setMessage("✅ Cotisation mise à jour !");
         setTimeout(() => navigate(-1), 2000);
       } else {
-        setMessage(data.message || "❌ Échec de la mise à jour");
+        setMessage(data.message || data.data?.message || "❌ Échec de la mise à jour");
       }
     } catch (error) {
       console.error(error);

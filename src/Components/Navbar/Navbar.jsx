@@ -29,8 +29,8 @@ export default function Navbar() {
   }, []);
 
   return (
-    <nav className="bg-gray-900 text-yellow-300 shadow-md sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-6 lg:px-8">
+    <nav className="bg-[#111827] border-b border-white/5 shadow-sm sticky top-0 z-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16 items-center">
 
           {/* Logo / Brand */}
@@ -43,58 +43,56 @@ export default function Navbar() {
           {/* Desktop Links */}
           <div className="hidden md:flex items-center gap-6">
             {(role === "admin" || role === "super_admin") && (
-              <Link to="/dash" className="hover:text-yellow-400 transition-colors">
+              <Link to="/dash" className="text-[#94A3B8] hover:text-[#22C55E] transition-colors font-medium">
                 Dashboard
               </Link>
             )}
-            <Link to="/auth/profile" className="hover:text-yellow-400 transition-colors">
+            <Link to="/auth/profile" className="text-[#94A3B8] hover:text-[#22C55E] transition-colors font-medium">
               Profile
             </Link>
           </div>
 
           {/* Right side: Bell + Profile Dropdown */}
-          <div className="flex items-center gap-3">
-            {/* Notification Bell */}
+          <div className="flex items-center gap-4">
             <NotificationBell />
 
-            {/* Profile Dropdown */}
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setDropdownOpen(!dropdownOpen)}
-                className="flex items-center gap-2 px-3 py-2 rounded-full hover:bg-gray-800 transition-all"
+                className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[#182233] transition-all"
               >
-                <span className="font-semibold">{user?.name}</span>
+                <span className="text-[#F8FAFC] font-medium text-sm">{user?.name}</span>
                 <img
                   src={PROFILE_URL}
                   alt="Avatar"
-                  className="w-8 h-8 rounded-full border-2 border-yellow-300"
+                  className="w-8 h-8 rounded-full border-2 border-[#22C55E]/30 object-cover"
                 />
               </button>
 
               {dropdownOpen && (
-                <div className="absolute right-0 mt-2 w-48 bg-gray-900 text-yellow-300 shadow-lg rounded-lg py-2 z-50 border border-yellow-300">
+                <div className="absolute right-0 mt-2 w-56 bg-[#182233] border border-white/10 rounded-xl shadow-2xl py-1 z-50">
                   <button
                     onClick={() => { navigate(`/auth/update/${id}`); setDropdownOpen(false); }}
-                    className="block w-full text-left px-4 py-2 hover:bg-yellow-300 hover:text-gray-900 transition-all"
+                    className="block w-full text-left px-4 py-2.5 text-sm text-[#F8FAFC] hover:bg-[#22C55E]/10 hover:text-[#22C55E] transition-colors"
                   >
                     Edit Profile
                   </button>
                   <button
                     onClick={() => { navigate("/auth/resetPsw"); setDropdownOpen(false); }}
-                    className="block w-full text-left px-4 py-2 hover:bg-yellow-300 hover:text-gray-900 transition-all"
+                    className="block w-full text-left px-4 py-2.5 text-sm text-[#F8FAFC] hover:bg-[#22C55E]/10 hover:text-[#22C55E] transition-colors"
                   >
                     Edit Password
                   </button>
                   <button
                     onClick={() => { navigate("/auth/preferences"); setDropdownOpen(false); }}
-                    className="block w-full text-left px-4 py-2 hover:bg-yellow-300 hover:text-gray-900 transition-all"
+                    className="block w-full text-left px-4 py-2.5 text-sm text-[#F8FAFC] hover:bg-[#22C55E]/10 hover:text-[#22C55E] transition-colors"
                   >
                     Preferences
                   </button>
-                  <div className="border-t border-yellow-300 my-1"></div>
+                  <div className="border-t border-white/5 my-1"></div>
                   <button
                     onClick={() => { handleLogout(); setDropdownOpen(false); }}
-                    className="block w-full text-left px-4 py-2 text-red-500 hover:bg-red-500 hover:text-gray-900 transition-all"
+                    className="block w-full text-left px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors"
                   >
                     Logout
                   </button>
@@ -112,4 +110,4 @@ export default function Navbar() {
       </div>
     </nav>
   );
-}
+} 

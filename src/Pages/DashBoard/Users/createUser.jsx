@@ -33,7 +33,6 @@ export default function CreateUser() {
             Authorization: `Bearer ${authData.token}`,
           },
           body: JSON.stringify({
-            targetId: viewerId,
             operation: "create",
             model: "User"
           }),
@@ -41,9 +40,9 @@ export default function CreateUser() {
         
         const canCreateData = await canCreateRes.json();
         
-        setCanCreate(canCreateData.canPerform);
+        setCanCreate(canCreateData.data?.canPerform || false);
 
-        if (!canCreateData.canPerform) {
+        if (!canCreateData.data?.canPerform) {
           setLoading(false);
           return;
         }
@@ -54,15 +53,15 @@ export default function CreateUser() {
         });
         
         const fieldsData = await fieldsRes.json();
-
         
-        // The API returns an object with { fields: [], configs: {} }
-        setCreatableFields(fieldsData.fields || []);
-        setFieldConfigs(fieldsData.configs || {});
+        // Extract from wrapper: { success: true, data: { fields: [], configs: {} } }
+        const data = fieldsData.data || fieldsData;
+        setCreatableFields(data.fields || []);
+        setFieldConfigs(data.configs || {});
         
         // 3. Initialize form with empty values for creatable fields
         const initialForm = { password: "", secondPassword: "" };
-        (fieldsData.fields || []).forEach(field => {
+        (data.fields || []).forEach(field => {
           if (field !== 'password') {
             initialForm[field] = "";
           }
@@ -81,6 +80,7 @@ export default function CreateUser() {
       fetchCreatableFields();
     }
   }, [authData, viewerId]);
+  
   const handleChange = (e) => {
     const { name, value, type } = e.target;
     setFormData(prev => ({
@@ -92,7 +92,6 @@ export default function CreateUser() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    
     const requiredFields = creatableFields.filter(field => 
       fieldConfigs[field]?.validation?.required
     );
@@ -105,7 +104,6 @@ export default function CreateUser() {
       }
     }
 
-    // Special validation for password
     if (!formData.password) {
       setIsError(true);
       setMessage("Le mot de passe est requis.");
@@ -118,24 +116,40 @@ export default function CreateUser() {
       return;
     }
 
-    // Prepare payload (only include creatable fields)
+    // Prepare payload
     const payload = {};
     creatableFields.forEach(field => {
       if (formData[field] !== undefined) {
         payload[field] = formData[field];
       }
     });
+
+    // Convert date fields to ISO-8601 strings
     const dateFields = ['startDate', 'dateOfBirth', 'activityStartDate', 'actvityStartDate'];
-      dateFields.forEach(field => {
-        if (payload[field]) {
-          let val = payload[field];
-          // If value is a YYYY-MM-DD string, append time part
-          if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(val)) {
-            payload[field] = `${val}T00:00:00.000Z`;
-          }
+    dateFields.forEach(field => {
+      if (payload[field]) {
+         console.log(`Before conversion - ${field}:`, payload[field], typeof payload[field]);
+        let val = payload[field];
+        if (val instanceof Date) {
+          payload[field] = val.toISOString();
         }
-      });
-    payload.password = formData.password; 
+        else if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(val)) {
+          payload[field] = `${val}T00:00:00.000Z`;
+        }
+         console.log(`After conversion - ${field}:`, payload[field]);
+        // If it's already an ISO string, leave it
+      }
+    });
+
+    // Handle the typo field (actvityStartDate -> activityStartDate)
+    if (payload.actvityStartDate && !payload.activityStartDate) {
+      payload.activityStartDate = payload.actvityStartDate;
+      delete payload.actvityStartDate;
+    }
+
+    payload.password = formData.password;
+
+    console.log('Payload being sent:', JSON.stringify(payload, null, 2));
 
     try {
       const response = await fetchWithRefresh(`${NEST_API_URL}/users`, {
@@ -146,11 +160,10 @@ export default function CreateUser() {
 
       const data = await response.json();
       
-      if (response.ok) {
+      if (response.ok && data.success) {
         setIsError(false);
         setMessage("✅ Utilisateur créé avec succès!");
         
-        // Reset form
         const resetForm = { password: "", secondPassword: "" };
         creatableFields.forEach(field => {
           if (field !== 'password') resetForm[field] = "";
@@ -158,7 +171,7 @@ export default function CreateUser() {
         setFormData(resetForm);
       } else {
         setIsError(true);
-        setMessage(data.message || "❌ Échec de la création.");
+        setMessage(data.message || data.data?.message || "❌ Échec de la création.");
       }
     } catch (err) {
       console.error("Network error:", err);
@@ -167,95 +180,135 @@ export default function CreateUser() {
     }
   };
 
-const renderField = (fieldName) => {
-  const config = fieldConfigs[fieldName] || {};
-  const value = formData[fieldName] || "";
-  // Special handling for Algerian fields
-  if (fieldName === 'wilaya') {
-    return (
-      <div key={fieldName} className="space-y-1">
-        <label className="text-gray-700 text-sm font-medium">
-          {config.label || "Wilaya"}
-        </label>
-        <select
-          name={fieldName}
-          value={value}
-          onChange={handleChange}
-          className="w-full p-3 border border-gray-300 rounded-md
-            focus:outline-none focus:ring-2 focus:ring-yellow-400"
-        >
-          <option value="">Sélectionner une wilaya</option>
-          {wilayasData?.map(w => (
-            <option key={w.code} value={w.code}>
-              {w.name} ({w.code})
-            </option>
-          ))}
-        </select>
-      </div>
-    );
-  }
-  
-  if (fieldName === 'commune') {
-    return (
-      <div key={fieldName} className="space-y-1">
-        <label className="text-gray-700 text-sm font-medium">
-          {config.label || "Commune"}
-        </label>
-        <select
-          name={fieldName}
-          value={value}
-          onChange={handleChange}
-          disabled={!formData.wilaya}
-          className="w-full p-3 border border-gray-300 rounded-md
-            focus:outline-none focus:ring-2 focus:ring-yellow-400
-            disabled:bg-gray-100 disabled:cursor-not-allowed"
-        >
-          <option value="">Sélectionner une commune</option>
-          {formData.wilaya && wilayasData
-            ?.find(w => w.code === formData.wilaya)
-            ?.communes?.map(c => (
-              <option key={c.code} value={c.code}>
-                {c.name}
+  const renderField = (fieldName) => {
+    const config = fieldConfigs[fieldName] || {};
+    const value = formData[fieldName] || "";
+    
+    if (fieldName === 'wilaya') {
+      return (
+        <div key={fieldName} className="space-y-1">
+          <label className="text-gray-700 text-sm font-medium">
+            {config.label || "Wilaya"}
+          </label>
+          <select
+            name={fieldName}
+            value={value}
+            onChange={handleChange}
+            className="w-full p-3 border border-gray-300 rounded-md
+              focus:outline-none focus:ring-2 focus:ring-yellow-400"
+          >
+            <option value="">Sélectionner une wilaya</option>
+            {wilayasData?.map(w => (
+              <option key={w.code} value={w.code}>
+                {w.name} ({w.code})
               </option>
             ))}
-        </select>
-      </div>
-    );
-  }
-  
-  // For all other fields, use the config type
-  if (config.type === 'select') {
+          </select>
+        </div>
+      );
+    }
+    
+    if (fieldName === 'commune') {
+      return (
+        <div key={fieldName} className="space-y-1">
+          <label className="text-gray-700 text-sm font-medium">
+            {config.label || "Commune"}
+          </label>
+          <select
+            name={fieldName}
+            value={value}
+            onChange={handleChange}
+            disabled={!formData.wilaya}
+            className="w-full p-3 border border-gray-300 rounded-md
+              focus:outline-none focus:ring-2 focus:ring-yellow-400
+              disabled:bg-gray-100 disabled:cursor-not-allowed"
+          >
+            <option value="">Sélectionner une commune</option>
+            {formData.wilaya && wilayasData
+              ?.find(w => w.code === formData.wilaya)
+              ?.communes?.map(c => (
+                <option key={c.code} value={c.code}>
+                  {c.name}
+                </option>
+              ))}
+          </select>
+        </div>
+      );
+    }
+    
+    if (config.type === 'select') {
+      return (
+        <div key={fieldName} className="space-y-1">
+          <label className="text-gray-700 text-sm font-medium">
+            {config.label || fieldName}
+          </label>
+          <select
+            name={fieldName}
+            value={value}
+            onChange={handleChange}
+            className="w-full p-3 border border-gray-300 rounded-md
+              focus:outline-none focus:ring-2 focus:ring-yellow-400"
+          >
+            <option value="">Sélectionner...</option>
+            {config.validation?.options?.map(opt => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      );
+    }
+    
+    if (config.type === 'email') {
+      return (
+        <div key={fieldName} className="space-y-1">
+          <label className="text-gray-700 text-sm font-medium">
+            {config.label || fieldName}
+          </label>
+          <input
+            type="email"
+            name={fieldName}
+            value={value}
+            onChange={handleChange}
+            placeholder={config.placeholder || `Entrez ${fieldName}`}
+            className="w-full p-3 border border-gray-300 rounded-md
+              focus:outline-none focus:ring-2 focus:ring-yellow-400"
+          />
+        </div>
+      );
+    }
+    
+    if (config.type === 'date') {
+      return (
+        <div key={fieldName} className="space-y-1">
+          <label className="text-gray-700 text-sm font-medium">
+            {config.label || fieldName}
+          </label>
+          <input
+            type="date"
+            name={fieldName}
+            value={value}
+            onChange={handleChange}
+            max={new Date().toISOString().split('T')[0]}
+            className="w-full p-3 border border-gray-300 rounded-md
+              focus:outline-none focus:ring-2 focus:ring-yellow-400"
+          />
+        </div>
+      );
+    }
+    
+    if (config.type === 'password') {
+      return null;
+    }
+    
     return (
       <div key={fieldName} className="space-y-1">
         <label className="text-gray-700 text-sm font-medium">
-          {config.label || fieldName}
-        </label>
-        <select
-          name={fieldName}
-          value={value}
-          onChange={handleChange}
-          className="w-full p-3 border border-gray-300 rounded-md
-            focus:outline-none focus:ring-2 focus:ring-yellow-400"
-        >
-          <option value="">Sélectionner...</option>
-          {config.validation?.options?.map(opt => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-      </div>
-    );
-  }
-  
-  if (config.type === 'email') {
-    return (
-      <div key={fieldName} className="space-y-1">
-        <label className="text-gray-700 text-sm font-medium">
-          {config.label || fieldName}
+          {config.label || fieldName.charAt(0).toUpperCase() + fieldName.slice(1)}
         </label>
         <input
-          type="email"
+          type={config.type || 'text'}
           name={fieldName}
           value={value}
           onChange={handleChange}
@@ -265,49 +318,7 @@ const renderField = (fieldName) => {
         />
       </div>
     );
-  }
-  
-  if (config.type === 'date') {
-    return (
-      <div key={fieldName} className="space-y-1">
-        <label className="text-gray-700 text-sm font-medium">
-          {config.label || fieldName}
-        </label>
-        <input
-          type="date"
-          name={fieldName}
-          value={value}
-          onChange={handleChange}
-          max={new Date().toISOString().split('T')[0]}
-          className="w-full p-3 border border-gray-300 rounded-md
-            focus:outline-none focus:ring-2 focus:ring-yellow-400"
-        />
-      </div>
-    );
-  }
-  
-  if (config.type === 'password') {
-    return null; // password handled separately
-  }
-  
-  // Default text input
-  return (
-    <div key={fieldName} className="space-y-1">
-      <label className="text-gray-700 text-sm font-medium">
-        {config.label || fieldName.charAt(0).toUpperCase() + fieldName.slice(1)}
-      </label>
-      <input
-        type={config.type || 'text'}
-        name={fieldName}
-        value={value}
-        onChange={handleChange}
-        placeholder={config.placeholder || `Entrez ${fieldName}`}
-        className="w-full p-3 border border-gray-300 rounded-md
-          focus:outline-none focus:ring-2 focus:ring-yellow-400"
-      />
-    </div>
-  );
-};
+  };
 
   if (loading) {
     return (
@@ -341,7 +352,6 @@ const renderField = (fieldName) => {
       <div className="w-full max-w-md bg-white rounded-xl shadow-lg p-8">
         <form className="space-y-4" onSubmit={handleSubmit}>
           
-          {/* Render ONLY creatable fields from the API */}
           {creatableFields
             .filter(field => field !== 'password')
             .sort((a, b) => {
@@ -352,7 +362,6 @@ const renderField = (fieldName) => {
             .map(fieldName => renderField(fieldName))
           }
           
-          {/* Password fields - always present */}
           <div className="space-y-1">
             <label className="text-gray-700 text-sm font-medium">
               Mot de passe

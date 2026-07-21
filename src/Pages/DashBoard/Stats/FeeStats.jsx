@@ -1,9 +1,41 @@
+// FeeStats.jsx
 import { useContext, useEffect, useState } from 'react';
 import { UserContext } from '../../../Context/dataCont';
 import Title from '../../../Components/Title';
 import { fetchWithRefresh } from '../../../Components/api';
+import {
+  IoWallet,
+  IoCash,
+  IoCard,
+  IoCalendar,
+  IoStatsChart,
+  IoCheckmarkCircle,
+  IoTime,
+  IoWarning,
+  IoClose,
+  IoTrendingUp,
+  IoTrendingDown,
+  IoRefresh,
+  IoPieChart,
+} from 'react-icons/io5';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+} from 'recharts';
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_NEST_API_URL;
+
+// Colors for charts - Banking theme
+const CHART_PIE = ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#6b7280', '#8b5cf6', '#14b8a6'];
 
 export default function FeeStats() {
   const { authData, setAuthData } = useContext(UserContext);
@@ -15,16 +47,17 @@ export default function FeeStats() {
     const fetchStats = async () => {
       try {
         const res = await fetchWithRefresh(
-          `${API_URL}/fee/stats`,
+          `${API_URL}/fees/stats`,
           { method: 'GET' },
           authData.token,
           setAuthData
         );
-        const data = await res.json();
-        if (res.ok) {
+        const responseData = await res.json();
+        if (res.ok && responseData.success !== false) {
+          const data = responseData.data || responseData;
           setStats(data);
         } else {
-          setError(data.message || 'Impossible de charger les statistiques');
+          setError(responseData.message || responseData.data?.message || 'Impossible de charger les statistiques');
         }
       } catch (err) {
         console.error(err);
@@ -38,15 +71,18 @@ export default function FeeStats() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-yellow-300">Chargement...</div>
+      <div className="min-h-screen bg-[#0A0F1C] p-8 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-2 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
+          <p className="text-[#64748B] text-sm">Chargement...</p>
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen bg-[#0A0F1C] p-8 flex items-center justify-center">
         <div className="text-red-400">{error}</div>
       </div>
     );
@@ -67,114 +103,174 @@ export default function FeeStats() {
 
   const paymentRate = totalProjected > 0 ? ((totalPaid / totalProjected) * 100).toFixed(1) : 0;
 
-  const formatAmount = (amount) => new Intl.NumberFormat('fr-DZ', { style: 'currency', currency: 'DZD' }).format(amount || 0);
+  const formatAmount = (amount) => {
+    if (amount === undefined || amount === null) return '0 DA';
+    return new Intl.NumberFormat('fr-DZ', { style: 'currency', currency: 'DZD' }).format(amount || 0);
+  };
 
-  return (
-    <div className="min-h-screen ml-[80px] p-8 bg-gradient-to-br from-gray-900 to-gray-800 text-yellow-400 font-urbanist">
-      <Title title="Statistiques des cotisations" />
+  const statusData = [
+    { name: 'Payées', value: byStatus.paid || 0, color: '#22c55e' },
+    { name: 'Partielles', value: byStatus.partial || 0, color: '#3b82f6' },
+    { name: 'En attente', value: byStatus.pending || 0, color: '#f59e0b' },
+    { name: 'En retard', value: byStatus.overdue || 0, color: '#ef4444' },
+    { name: 'Annulées', value: byStatus.cancelled || 0, color: '#6b7280' },
+  ].filter(item => item.value > 0);
 
-      {/* Cartes récapitulatives principales */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <StatCard
-          label="Total collecté"
-          value={formatAmount(totalPaid)}
-          bg="bg-green-600/20"
-          border="border-green-500"
-        />
-        <StatCard
-          label="Total restant dû"
-          value={formatAmount(totalRemaining)}
-          bg="bg-yellow-600/20"
-          border="border-yellow-500"
-        />
-        <StatCard
-          label="Nombre de cotisations"
-          value={totalFees}
-          bg="bg-blue-600/20"
-          border="border-blue-500"
-        />
-        <StatCard
-          label="Taux de paiement"
-          value={`${paymentRate} %`}
-          bg="bg-purple-600/20"
-          border="border-purple-500"
-        />
-      </div>
+  const paymentMethodData = [
+    { name: 'Par crédit', value: totalPaidByCredit, color: '#8b5cf6' },
+    { name: 'Par espèces/autre', value: totalPaidByCash, color: '#14b8a6' },
+  ].filter(item => item.value > 0);
 
-      {/* Cartes pour crédit et versements */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <StatCard
-          label="Payé par crédit"
-          value={formatAmount(totalPaidByCredit)}
-          bg="bg-indigo-600/20"
-          border="border-indigo-500"
-        />
-        <StatCard
-          label="Payé par espèces/autre"
-          value={formatAmount(totalPaidByCash)}
-          bg="bg-cyan-600/20"
-          border="border-cyan-500"
-        />
-        <StatCard
-          label="Total versements"
-          value={formatAmount(totalVersements)}
-          bg="bg-emerald-600/20"
-          border="border-emerald-500"
-        />
-        <StatCard
-          label="Total retraits"
-          value={formatAmount(totalRepayments)}
-          bg="bg-rose-600/20"
-          border="border-rose-500"
-        />
-      </div>
-
-      {/* Carte pour le net crédit ajouté */}
-      <div className="grid grid-cols-1 mb-8">
-        <StatCard
-          label="Net crédit ajouté (versements - retraits)"
-          value={formatAmount(netCreditAdded)}
-          bg="bg-orange-600/20"
-          border="border-orange-500"
-        />
-      </div>
-
-      {/* Répartition par statut */}
-      <div className="mt-8 bg-gray-800/60 backdrop-blur-sm border border-yellow-400/20 rounded-xl p-6">
-        <h3 className="text-lg font-semibold text-yellow-300 mb-4">Répartition par statut</h3>
-        <div className="space-y-3">
-          <StatusBar label="Payées" value={byStatus.paid || 0} total={totalFees} color="bg-green-500" />
-          <StatusBar label="Partielles" value={byStatus.partial || 0} total={totalFees} color="bg-blue-500" />
-          <StatusBar label="En attente" value={byStatus.pending || 0} total={totalFees} color="bg-yellow-500" />
-          <StatusBar label="En retard" value={byStatus.overdue || 0} total={totalFees} color="bg-red-500" />
-          <StatusBar label="Annulées" value={byStatus.cancelled || 0} total={totalFees} color="bg-gray-500" />
+  const StatCard = ({ label, value, icon, accentColor = 'emerald' }) => {
+    const colorMap = {
+      emerald: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400',
+      green: 'border-green-500/30 bg-green-500/10 text-green-400',
+      yellow: 'border-yellow-500/30 bg-yellow-500/10 text-yellow-400',
+      blue: 'border-blue-500/30 bg-blue-500/10 text-blue-400',
+      purple: 'border-purple-500/30 bg-purple-500/10 text-purple-400',
+      indigo: 'border-indigo-500/30 bg-indigo-500/10 text-indigo-400',
+      cyan: 'border-cyan-500/30 bg-cyan-500/10 text-cyan-400',
+      rose: 'border-rose-500/30 bg-rose-500/10 text-rose-400',
+      orange: 'border-orange-500/30 bg-orange-500/10 text-orange-400',
+      gray: 'border-gray-500/30 bg-gray-500/10 text-gray-400',
+    };
+    const colors = colorMap[accentColor] || colorMap.emerald;
+    return (
+      <div className={`bg-[#111827] border ${colors.split(' ')[0]} rounded-xl p-6 shadow-lg transition-all hover:border-emerald-500/50 hover:shadow-emerald-500/5`}>
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="text-[#94A3B8] text-sm">{label}</p>
+            <p className={`text-2xl font-bold mt-2 ${colors.split(' ')[2]}`}>{value}</p>
+          </div>
+          <div className={`text-2xl ${colors.split(' ')[2]} opacity-60`}>{icon}</div>
         </div>
       </div>
-    </div>
-  );
-}
+    );
+  };
 
-// Composant pour une carte de statistique
-function StatCard({ label, value, bg, border }) {
   return (
-    <div className={`${bg} backdrop-blur-sm border ${border} rounded-xl p-6 shadow-lg`}>
-      <p className="text-gray-300 text-sm">{label}</p>
-      <p className="text-2xl font-bold text-yellow-300 mt-2">{value}</p>
-    </div>
-  );
-}
+    <div className="min-h-screen bg-[#0A0F1C] p-8 font-sans">
+      <Title title="Statistiques des cotisations" />
 
-// Barre de progression pour les statuts
-function StatusBar({ label, value, total, color }) {
-  const percentage = total > 0 ? (value / total) * 100 : 0;
-  return (
-    <div>
-      <div className="flex justify-between text-sm text-gray-400 mb-1">
-        <span>{label}</span>
-        <span>{value} ({percentage.toFixed(1)}%)</span>
+      {/* Key Metrics */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <StatCard label="Total collecté" value={formatAmount(totalPaid)} icon={<IoWallet />} accentColor="emerald" />
+        <StatCard label="Total restant dû" value={formatAmount(totalRemaining)} icon={<IoTime />} accentColor="yellow" />
+        <StatCard label="Nombre de cotisations" value={totalFees} icon={<IoStatsChart />} accentColor="blue" />
+        <StatCard label="Taux de paiement" value={`${paymentRate}%`} icon={<IoCheckmarkCircle />} accentColor="purple" />
       </div>
-      <div className="w-full bg-gray-700 rounded-full h-2.5">
-        <div className={`${color} h-2.5 rounded-full`} style={{ width: `${percentage}%` }}></div>
+
+      {/* Financial Breakdown */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <StatCard label="Payé par crédit" value={formatAmount(totalPaidByCredit)} icon={<IoCard />} accentColor="indigo" />
+        <StatCard label="Payé par espèces" value={formatAmount(totalPaidByCash)} icon={<IoCash />} accentColor="cyan" />
+        <StatCard label="Total versements" value={formatAmount(totalVersements)} icon={<IoTrendingUp />} accentColor="green" />
+        <StatCard label="Total retraits" value={formatAmount(totalRepayments)} icon={<IoTrendingDown />} accentColor="rose" />
+      </div>
+
+      {/* Net Credit Added & Total Projected */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div className="col-span-1">
+          <StatCard 
+            label="Net crédit ajouté (versements - retraits)" 
+            value={formatAmount(netCreditAdded)} 
+            icon={<IoRefresh />} 
+            accentColor={netCreditAdded >= 0 ? 'orange' : 'rose'} 
+          />
+        </div>
+        <div className="col-span-1">
+          <StatCard 
+            label="Total projeté" 
+            value={formatAmount(totalProjected)} 
+            icon={<IoCalendar />} 
+            accentColor="gray" 
+          />
+        </div>
+      </div>
+
+      {/* Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Status Distribution */}
+        <div className="bg-[#111827] border border-white/5 rounded-xl p-6 shadow-xl">
+          <h3 className="text-lg font-semibold text-[#F8FAFC] mb-4 flex items-center gap-2">
+            <IoPieChart className="text-emerald-400" />
+            Répartition par statut
+          </h3>
+          {statusData.length > 0 ? (
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={statusData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={true}
+                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
+                    outerRadius={100}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    {statusData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#182233', borderColor: '#22c55e' }}
+                    labelStyle={{ color: '#F8FAFC' }}
+                    formatter={(value) => formatAmount(value)}
+                  />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-72 text-[#64748B]">
+              <IoStatsChart className="text-4xl mb-2 text-[#64748B]/40" />
+              <p className="text-sm">Aucune donnée disponible</p>
+            </div>
+          )}
+        </div>
+
+        {/* Payment Methods */}
+        <div className="bg-[#111827] border border-white/5 rounded-xl p-6 shadow-xl">
+          <h3 className="text-lg font-semibold text-[#F8FAFC] mb-4 flex items-center gap-2">
+            <IoWallet className="text-emerald-400" />
+            Méthodes de paiement
+          </h3>
+          {paymentMethodData.length > 0 ? (
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={paymentMethodData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={true}
+                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
+                    outerRadius={100}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    {paymentMethodData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#182233', borderColor: '#22c55e' }}
+                    labelStyle={{ color: '#F8FAFC' }}
+                    formatter={(value) => formatAmount(value)}
+                  />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-72 text-[#64748B]">
+              <IoStatsChart className="text-4xl mb-2 text-[#64748B]/40" />
+              <p className="text-sm">Aucune donnée disponible</p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

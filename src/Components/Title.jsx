@@ -1,8 +1,7 @@
 export default function SectionTitle({ title }) {
   return (
-    <div className="text-4xl md:text-5xl mb-6 font-[Orbitron] text-gray-900 dark:text-yellow-300 relative inline-block">
-      {/* Underline accent */}
-      <span className="absolute left-0 -bottom-1 w-16 h-1 bg-yellow-300 rounded-full"></span>
+    <div className="text-2xl md:text-3xl font-bold text-[#F8FAFC] mb-6 relative inline-block">
+      <span className="absolute left-0 -bottom-2 w-12 h-0.5 bg-emerald-500 rounded-full"></span>
       {title}
     </div>
   );

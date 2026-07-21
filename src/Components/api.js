@@ -1,36 +1,50 @@
-import { oc } from "react-day-picker/locale";
+const API_URL = import.meta.env.VITE_NEST_API_URL;
 
-export async function fetchWithRefresh(url, options = {}, token, setAuthData) {
-  const isFormData = options.body instanceof FormData;
-
-  // attach token to headers
-  options.headers = {
-    ...options.headers,
-    Authorization: `Bearer ${token}`,
-    // only set JSON content type if not FormData
-    ...(isFormData ? {} : { "Content-Type": "application/json" }),
+export const fetchWithRefresh = async (
+  url,
+  options,
+  token,
+  setAuthData
+) => {
+  const makeRequest = async (accessToken) => {
+    return fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
+        'Authorization': `Bearer ${accessToken}`,
+      },
+    });
   };
 
-  let res = await fetch(url, options);
+  let response = await makeRequest(token);
 
-  if (res.status === 401) {
-    const refreshRes = await fetch("/auth/refresh", {
-      method: "GET",
-      credentials: "include",
-    });
+  if (response.status === 401) {
+    try {
+      const refreshResponse = await fetch(`${API_URL}/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include',
+      });
 
-    if (refreshRes.ok) {
-      const data = await refreshRes.json();
-
-      setAuthData(prev => ({ ...prev, token: data.token }));
-
-      options.headers.Authorization = `Bearer ${data.token}`;
-      return fetch(url, options);
-    } else {
-      localStorage.removeItem("authData");
-      window.location.href = "/";
+      if (refreshResponse.ok) {
+        const data = await refreshResponse.json();
+        const newToken = data.data?.accessToken || data.accessToken;
+        
+        if (newToken) {
+          setAuthData((prev) => ({ ...prev, token: newToken }));
+          response = await makeRequest(newToken);
+        }
+      } else {
+        setAuthData(null);
+        window.location.href = '/login';
+        throw new Error('Session expired');
+      }
+    } catch (error) {
+      setAuthData(null);
+      window.location.href = '/login';
+      throw error;
     }
   }
 
-  return res;
-}
+  return response;
+};

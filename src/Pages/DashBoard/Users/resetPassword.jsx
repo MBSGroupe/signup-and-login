@@ -3,23 +3,22 @@ import Title from "../../../Components/Title";
 import { UserContext } from "../../../Context/dataCont";
 import { fetchWithRefresh } from "../../../Components/api";
 
-const API_URL = import.meta.env.VITE_API_URL;
+const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
 export default function ResetPassword() {
   const { authData, setAuthData } = useContext(UserContext);
-  const id = authData?.user?._id || authData?.user?.id;
+  const id = authData?.user?.id || authData?.user?._id;
 
   const [formData, setFormData] = useState({
     currentPassword: "",
     newPassword: "",
     confirmNewPassword: "",
   });
-  const [message, setMessage] = useState(""); // messages d'erreur
-  const [successMessage, setSuccessMessage] = useState(""); // message de succès
+  const [message, setMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [lockSeconds, setLockSeconds] = useState(null); // temps restant (secondes)
+  const [lockSeconds, setLockSeconds] = useState(null);
 
-  // Calculer le délai initial de 24h à partir de passwordChangedAt
   useEffect(() => {
     if (authData?.user?.passwordChangedAt) {
       const lastChange = new Date(authData.user.passwordChangedAt).getTime();
@@ -32,7 +31,6 @@ export default function ResetPassword() {
     }
   }, [authData]);
 
-  // Gestion du compte à rebours
   useEffect(() => {
     let interval;
     if (lockSeconds > 0) {
@@ -62,38 +60,42 @@ export default function ResetPassword() {
     setIsSubmitting(true);
 
     try {
-      const response = await fetchWithRefresh(
-        `${API_URL}/user/psw/${id}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            currentPassword: formData.currentPassword,
-            newPassword: formData.newPassword,
-          }),
+      const response = await fetch(`${NEST_API_URL}/users/${id}/reset-password`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authData.token}`,
         },
-        authData.token,
-        setAuthData
-      );
+        body: JSON.stringify({
+          currentPassword: formData.currentPassword,
+          newPassword: formData.newPassword,
+        }),
+      });
 
       const data = await response.json();
 
-      if (response.ok) {
+      if (response.ok && data.success) {
         setSuccessMessage("✅ Mot de passe mis à jour avec succès !");
         setFormData({ currentPassword: "", newPassword: "", confirmNewPassword: "" });
-        // Mettre à jour authData avec le nouvel utilisateur
-        if (data.user) {
-          setAuthData((prev) => ({ ...prev, user: data.user }));
+        
+        // Update authData with the updated user from response
+        if (data.data?.user) {
+          setAuthData((prev) => ({ ...prev, user: data.data.user }));
         }
-        // Bloquer pour 24h
         setLockSeconds(24 * 3600);
       } else if (response.status === 429) {
-        const match = data.message?.match(/(\d+)\s*secondes?/);
-        const seconds = match ? parseInt(match[1], 10) : 60;
-        setLockSeconds(seconds);
-        setMessage(data.message || "Trop de tentatives. Veuillez patienter.");
+        // Lockout response – extract remaining time
+        const remainingTime = data.data?.remainingTime;
+        if (remainingTime) {
+          setLockSeconds(remainingTime);
+        } else {
+          const match = data.message?.match(/(\d+)\s*secondes?/);
+          const seconds = match ? parseInt(match[1], 10) : 60;
+          setLockSeconds(seconds);
+        }
+        setMessage(data.message || data.data?.message || "Trop de tentatives. Veuillez patienter.");
       } else {
-        setMessage(data.message || "❌ Échec de la mise à jour.");
+        setMessage(data.message || data.data?.message || "❌ Échec de la mise à jour.");
       }
     } catch (err) {
       console.error(err);
@@ -118,7 +120,6 @@ export default function ResetPassword() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 font-urbanist px-4">
       <div className="w-full max-w-md bg-gray-800/80 backdrop-blur-xl border border-yellow-400/20 rounded-2xl shadow-2xl p-8">
         
-        {/* Title */}
         <div className="mb-8 text-center">
           <Title title="Change Password" textColor="text-yellow-300" />
           <p className="text-gray-400 mt-2 text-sm">
@@ -133,7 +134,6 @@ export default function ResetPassword() {
           )}
         </div>
 
-        {/* Message de succès (affiché même si bloqué) */}
         {successMessage && (
           <div className="mb-4 text-center text-sm font-medium text-green-400">
             {successMessage}
@@ -202,9 +202,7 @@ export default function ResetPassword() {
         </form>
 
         {message && (
-          <p
-            className={`mt-5 text-center text-sm font-medium text-red-400`}
-          >
+          <p className="mt-5 text-center text-sm font-medium text-red-400">
             {message}
           </p>
         )}

@@ -2,7 +2,7 @@ import { useState, useEffect, useContext } from 'react';
 import { UserContext } from '../../Context/dataCont';
 import { fetchWithRefresh } from '../../Components/api';
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_NEST_API_URL;
 
 const NotificationDropdown = ({ onClose, onRead }) => {
   const { authData, setAuthData } = useContext(UserContext);
@@ -32,41 +32,38 @@ const NotificationDropdown = ({ onClose, onRead }) => {
   };
 
   const markAsRead = async (notif) => {
-    const { _id, type, data } = notif;
-    console.log(type)
-    // Navigate based on notification type
+    const { id, type, data } = notif;
+    let navigateUrl = null;
+
+    // Determine the target URL without navigating yet
     switch (type) {
       case 'validation.request':
       case 'validation.rejected':
       case 'validation.cancelled':
       case 'validation.rejection_noted':
         if (data?.validationRequestId) {
-          window.location.href = `/dash/validation/requests/${data.validationRequestId}`;
+          navigateUrl = `/dash/validation/requests/${data.validationRequestId}`;
         }
         break;
-      // case 'fee.overdue':
-      //   if (data?.feeId) {
-      //     window.location.href = `/dash/allCotisations?feeId=${data.feeId}`;
-      //   }
-      //   break;
-      // Add more cases as needed (e.g., payment reminders, file uploads)
       default:
-        // Fallback to notifications list page
-        window.location.href = '/auth/notifications';
-        return;
+        navigateUrl = '/auth/notifications';
     }
 
-    // After navigation, mark as read (optional: can be done in background)
     try {
+      // Mark as read first (await the fetch)
       await fetchWithRefresh(
-        `${API_URL}/notifications/${_id}/read`,
+        `${API_URL}/notifications/${id}/read`,
         { method: 'PATCH' },
         authData.token,
         setAuthData
       );
-      // No need to update state because we are leaving the page
     } catch (err) {
       console.error('Failed to mark as read', err);
+    }
+
+    // Navigate after the request completes (or even if it fails)
+    if (navigateUrl) {
+      window.location.href = navigateUrl;
     }
   };
 
@@ -132,7 +129,7 @@ const NotificationDropdown = ({ onClose, onRead }) => {
         ) : (
           notifications.map(notif => (
             <div
-              key={notif._id}
+              key={notif.id}
               className={`p-3 border-b border-gray-700 cursor-pointer transition hover:bg-gray-700 ${
                 !notif.readAt ? 'bg-gray-700/50' : ''
               }`}

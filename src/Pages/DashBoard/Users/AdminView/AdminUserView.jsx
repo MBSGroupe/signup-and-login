@@ -24,9 +24,9 @@ export default function AdminUserView() {
 
           method: "GET"
         });
-        const data = await res.json();
-        setUser(data.user);
-        setMessage(data.message)
+        const userData = await res.json();
+        setUser(userData.data.user);
+        setMessage(userData.data.message)
       } catch (err) {
         console.log(err);
       } finally {
@@ -44,8 +44,8 @@ export default function AdminUserView() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
       });
-      const data = await res.json();
-      setMessage(data.message || "User validated");
+      const ValidationData = await res.json();
+      setMessage(ValidationData.data.message || "User validated");
       setUser(prev => ({ ...prev, isAdminVerified: true })); // Update local state
       setShowPopup(true);
 

@@ -5,9 +5,7 @@ import { UserContext } from "../../../Context/dataCont";
 import { fetchWithRefresh } from "../../../Components/api";
 import VersionForm from "../../../Components/Forms/VersionForm";
 
-const API_URL = import.meta.env.VITE_API_URL;
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
-
 
 export default function NewVersion() {
   const { model } = useParams();
@@ -24,8 +22,9 @@ export default function NewVersion() {
           headers: { Authorization: `Bearer ${authData.token}` }
         });
         const data = await res.json();
-        if (res.ok) {
-          const active = data.schemas.find(s => s.isActive);
+        if (res.ok && data.success !== false) {
+          const schemasData = data.data?.schemas || data.schemas || [];
+          const active = schemasData.find(s => s.isActive);
           if (active) {
             setInitialSchema({ fields: active.fields || [], operations: active.operations || [] });
           } else {
@@ -44,7 +43,7 @@ export default function NewVersion() {
   }, [model, authData]);
 
   const handleSubmit = async (schema, status) => {
-    console.log(schema, status)
+    console.log(schema, status);
     setSaving(true);
     try {
       const res = await fetchWithRefresh(
@@ -58,8 +57,8 @@ export default function NewVersion() {
         setAuthData
       );
       const data = await res.json();
-      if (res.ok) {
-        navigate(`/dash/permissions/${model}/${data.result?.version || '?'}`);
+      if (res.ok && data.success !== false) {
+        navigate(`/dash/permissions/${model}/${data.data?.result?.version || data.result?.version || '?'}`);
       } else {
         alert(data.message || "Erreur lors de la création");
       }
@@ -75,7 +74,7 @@ export default function NewVersion() {
   return (
     <VersionForm
       initialSchema={initialSchema}
-      initialStatus="active"          // default status for new version
+      initialStatus="active"
       onSubmit={handleSubmit}
       submitLabel="Créer la version"
       title={`Nouvelle version pour ${model}`}

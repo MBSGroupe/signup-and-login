@@ -18,7 +18,7 @@ export default function DeleteItem({ mode }) { // mode = "user" ou "cotisation"
     user: {
       endpoint: `${NEST_API_URL}/users/${id}`,
       method : 'DELETE',
-      redirect: "/dash/allUsers",
+      redirect: -1,
       successMsg: "✅ Utilisateur supprimé avec succès.",
       confirmMsg: "Êtes-vous sûr de vouloir supprimer cet utilisateur ?",
       title: "Suppression d'utilisateur"
