@@ -1,6 +1,18 @@
 import { useState, useEffect, useContext } from 'react';
 import { UserContext } from '../../Context/dataCont';
 import { fetchWithRefresh } from '../../Components/api';
+import {
+  Bell,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  Info,
+  Clock,
+  Mail,
+  CheckCheck,
+  ChevronRight,
+  Loader2
+} from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_NEST_API_URL;
 
@@ -23,7 +35,8 @@ const NotificationDropdown = ({ onClose, onRead }) => {
         setAuthData
       );
       const data = await res.json();
-      setNotifications(data.data);
+      console.log(data.data);
+      setNotifications(data.data.data);
     } catch (err) {
       console.error('Failed to fetch notifications', err);
     } finally {
@@ -101,52 +114,137 @@ const NotificationDropdown = ({ onClose, onRead }) => {
     return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
   };
 
+  const getNotificationIcon = (type) => {
+    switch (type) {
+      case 'validation.request':
+        return <Bell className="w-4 h-4 text-emerald-400" />;
+      case 'validation.rejected':
+        return <XCircle className="w-4 h-4 text-rose-400" />;
+      case 'validation.cancelled':
+        return <AlertCircle className="w-4 h-4 text-yellow-400" />;
+      case 'validation.rejection_noted':
+        return <Info className="w-4 h-4 text-blue-400" />;
+      default:
+        return <Mail className="w-4 h-4 text-[#64748B]" />;
+    }
+  };
+
   if (loading) {
     return (
-      <div className="absolute right-0 mt-2 w-80 bg-gray-800 rounded-lg shadow-xl border border-gray-700 z-50">
-        <div className="p-4 text-center text-gray-400">Loading...</div>
+      <div className="absolute right-0 mt-2 w-[360px] bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] shadow-2xl shadow-black/50 overflow-hidden z-50">
+        <div className="flex items-center justify-center p-6">
+          <Loader2 className="w-6 h-6 text-emerald-400 animate-spin" />
+        </div>
       </div>
     );
   }
 
+  const unreadCount = notifications.filter(n => !n.readAt).length;
+
   return (
-    <div className="absolute right-0 mt-2 w-80 bg-gray-800 rounded-lg shadow-xl border border-gray-700 z-50">
-      <div className="p-3 border-b border-gray-700 flex justify-between items-center">
-        <h3 className="font-semibold text-yellow-300">Notifications</h3>
-        {notifications.some(n => !n.readAt) && (
+    <div className="absolute right-0 mt-2 w-[360px] bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] shadow-2xl shadow-black/50 overflow-hidden z-50">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[rgba(255,255,255,0.06)]">
+        <div className="flex items-center gap-2">
+          <div className="p-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+            <Bell className="w-4 h-4 text-emerald-400" />
+          </div>
+          <span className="font-semibold text-[#F8FAFC]">Notifications</span>
+          {unreadCount > 0 && (
+            <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-medium text-white bg-emerald-500 rounded-full">
+              {unreadCount}
+            </span>
+          )}
+        </div>
+        {unreadCount > 0 && (
           <button
             onClick={markAllAsRead}
             disabled={markingAll}
-            className="text-xs text-blue-400 hover:text-blue-300"
+            className="flex items-center gap-1 text-xs text-[#94A3B8] hover:text-emerald-400 transition-colors"
           >
-            {markingAll ? '...' : 'Mark all read'}
+            {markingAll ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : (
+              <CheckCheck className="w-3.5 h-3.5" />
+            )}
+            Mark all read
           </button>
         )}
       </div>
-      <div className="max-h-96 overflow-y-auto">
+
+      {/* List */}
+      <div className="max-h-[420px] overflow-y-auto custom-scrollbar">
         {notifications.length === 0 ? (
-          <div className="p-4 text-center text-gray-400">No notifications</div>
+          <div className="flex flex-col items-center justify-center py-8 text-[#64748B]">
+            <Bell className="w-8 h-8 mb-2 opacity-30" />
+            <span className="text-sm">No notifications</span>
+          </div>
         ) : (
-          notifications.map(notif => (
+          notifications.map((notif) => (
             <div
               key={notif.id}
-              className={`p-3 border-b border-gray-700 cursor-pointer transition hover:bg-gray-700 ${
-                !notif.readAt ? 'bg-gray-700/50' : ''
+              className={`group flex items-start gap-3 px-4 py-3 border-b border-[rgba(255,255,255,0.04)] cursor-pointer transition-all duration-150 hover:bg-[#1F2937] ${
+                !notif.readAt ? 'bg-emerald-500/5' : ''
               }`}
               onClick={() => markAsRead(notif)}
             >
-              <div className="font-medium text-white">{notif.title}</div>
-              <div className="text-sm text-gray-300 mt-1">{notif.message}</div>
-              <div className="text-xs text-gray-500 mt-1">{formatDate(notif.createdAt)}</div>
+              <div className="flex-shrink-0 mt-0.5">
+                {getNotificationIcon(notif.type)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-[#F8FAFC] truncate">
+                  {notif.title}
+                </p>
+                <p className="text-sm text-[#94A3B8] line-clamp-2 leading-relaxed mt-0.5">
+                  {notif.message}
+                </p>
+                <div className="flex items-center gap-2 mt-1">
+                  <Clock className="w-3 h-3 text-[#64748B]" />
+                  <span className="text-xs text-[#64748B]">
+                    {formatDate(notif.createdAt)}
+                  </span>
+                </div>
+              </div>
+              {!notif.readAt && (
+                <div className="flex-shrink-0 mt-1">
+                  <span className="inline-block w-2 h-2 rounded-full bg-emerald-400" />
+                </div>
+              )}
             </div>
           ))
         )}
       </div>
-      <div className="p-2 text-center border-t border-gray-700">
-        <a href="/auth/notifications" className="text-sm text-yellow-400 hover:underline">
+
+      {/* Footer */}
+      <div className="px-4 py-2.5 text-center border-t border-[rgba(255,255,255,0.06)]">
+        <a
+          href="/auth/notifications"
+          className="inline-flex items-center gap-1 text-sm text-[#94A3B8] hover:text-emerald-400 transition-colors"
+        >
           See all notifications
+          <ChevronRight className="w-4 h-4" />
         </a>
       </div>
+
+      <style >{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #374151;
+          border-radius: 20px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #4b5563;
+        }
+        .custom-scrollbar {
+          scrollbar-width: thin;
+          scrollbar-color: #374151 transparent;
+        }
+      `}</style>
     </div>
   );
 };

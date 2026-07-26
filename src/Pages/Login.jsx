@@ -2,6 +2,7 @@ import { React, useState, useEffect, useContext } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { UserContext } from "../Context/dataCont";
 import SectionTitle from "../Components/Title";
+import { Mail, Lock, LogIn, Shield, AlertCircle } from "lucide-react";
 
 const API_URL = import.meta.env.VITE_API_URL;
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
@@ -69,11 +70,9 @@ const LoginForm = () => {
       console.log(respData);
       
       if (response.ok && respData.success) {
-        // Extract data from the wrapper
         const { user, token } = respData.data;
         setAuthData({ user, token });
         
-        // Redirect based on role
         if (user.role === 'admin' || user.role === 'super_admin') {
           navigate('/dash');
         } else if (user.role === 'user') {
@@ -82,7 +81,6 @@ const LoginForm = () => {
           navigate('/');
         }
       } else if (response.status === 429) {
-        // Lockout response – extract remainingTime from data
         const remaining = respData.data?.remainingTime || 60;
         const lockUntil = Date.now() + remaining * 1000;
         localStorage.setItem(LOCK_STORAGE_KEY, lockUntil);
@@ -104,57 +102,108 @@ const LoginForm = () => {
   };
 
   return (
-    <div className="flex flex-col justify-center items-center min-h-screen gap-10 font-urbanist bg-gray-800 text-yellow-300 p-10">
-      <SectionTitle title="Welcome Back" />
-      <p className="text-center text-yellow-300 mb-6">
-        Log in and access your profile
-      </p>
+    <div className="min-h-screen bg-[#0A0F1C] flex flex-col items-center justify-center p-6 font-sans antialiased">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-10">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 mb-4">
+            <Shield className="w-8 h-8 text-emerald-400" />
+          </div>
+          <h1 className="text-3xl font-bold text-[#F8FAFC] tracking-tight">
+            Welcome Back
+          </h1>
+          <p className="text-[#94A3B8] mt-2 text-sm">
+            Log in to your secure dashboard
+          </p>
+        </div>
 
-      <div className="w-full max-w-md bg-gray-900 p-8 rounded-2xl shadow-xl border border-yellow-300/40">
-        <h2 className="text-2xl font-bold text-center text-yellow-300 mb-6">
-          Login
-        </h2>
+        <div className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] shadow-2xl shadow-black/50 p-8">
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div className="space-y-1.5">
+              <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">
+                Email Address
+              </label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748B]" />
+                <input
+                  type="email"
+                  name="email"
+                  placeholder="you@example.com"
+                  value={formData.email}
+                  onChange={handleChange}
+                  disabled={lockTime > 0}
+                  className="w-full pl-9 pr-4 py-2.5 bg-[#0A0F1C] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all duration-200 placeholder-[#64748B] disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+              </div>
+            </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <input
-            type="email"
-            name="email"
-            placeholder="E-mail"
-            value={formData.email}
-            onChange={handleChange}
-            disabled={lockTime > 0}
-            className="w-full p-3 bg-gray-800 text-yellow-300 placeholder-yellow-500 border border-yellow-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          />
-          <input
-            type="password"
-            name="password"
-            placeholder="Password"
-            value={formData.password}
-            onChange={handleChange}
-            disabled={lockTime > 0}
-            className="w-full p-3 bg-gray-800 text-yellow-300 placeholder-yellow-500 border border-yellow-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          />
+            <div className="space-y-1.5">
+              <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">
+                Password
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748B]" />
+                <input
+                  type="password"
+                  name="password"
+                  placeholder="••••••••"
+                  value={formData.password}
+                  onChange={handleChange}
+                  disabled={lockTime > 0}
+                  className="w-full pl-9 pr-4 py-2.5 bg-[#0A0F1C] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all duration-200 placeholder-[#64748B] disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+              </div>
+            </div>
 
-          <button
-            type="submit"
-            disabled={lockTime > 0}
-            className="w-full py-3 text-lg font-semibold text-yellow-300 border-2 border-yellow-300 rounded-md bg-transparent hover:bg-yellow-300 hover:text-gray-900 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {lockTime > 0 ? `Bloqué (${formatTime(lockTime)})` : "Log In"}
-          </button>
-        </form>
+            <button
+              type="submit"
+              disabled={lockTime > 0}
+              className="w-full py-3 text-sm font-semibold text-white bg-emerald-500 hover:bg-emerald-600 rounded-xl shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+            >
+              {lockTime > 0 ? (
+                <>
+                  <AlertCircle className="w-4 h-4" />
+                  Bloqué ({formatTime(lockTime)})
+                </>
+              ) : (
+                <>
+                  <LogIn className="w-4 h-4" />
+                  Log In
+                </>
+              )}
+            </button>
+          </form>
 
-        {message && (
-          <p className="mt-4 text-center text-red-500 font-medium">{message}</p>
-        )}
-      </div>
+          {message && (
+            <div className={`mt-5 p-3 rounded-xl text-sm font-medium flex items-center gap-2 ${
+              message.includes('Trop de tentatives') || message.includes('Erreur')
+                ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+            }`}>
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              {message}
+            </div>
+          )}
+        </div>
 
-      <div className="text-center text-yellow-300 mt-4">
-        By continuing, you agree to our Terms and Privacy Policy. <br />
-        Don't have an account?{" "}
-        <Link to="/signup" className="underline hover:text-yellow-400">
-          Sign Up
-        </Link>
+        <div className="mt-8 text-center text-[#64748B] text-sm">
+          <p>
+            By continuing, you agree to our{" "}
+            <a href="#" className="text-emerald-400 hover:underline">
+              Terms of Service
+            </a>{" "}
+            and{" "}
+            <a href="#" className="text-emerald-400 hover:underline">
+              Privacy Policy
+            </a>
+            .
+          </p>
+          <p className="mt-2">
+            Don't have an account?{" "}
+            <Link to="/signup" className="text-emerald-400 hover:underline font-medium">
+              Sign Up
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   );

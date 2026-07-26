@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Title from "../../Components/Title";
-import BackButton from "../../Components/Buttons/BackButton";
 import FieldEditor from "../FieldEditor";
 import RuleListEditor from "../RuleListEditor";
+import { Plus, Trash2, Save, X, Layers, List } from "lucide-react";
 
 // Status options (must match backend enum)
 const STATUS_OPTIONS = [
@@ -18,9 +17,7 @@ export default function VersionForm({
   initialStatus = "active",
   onSubmit,
   submitLabel = "Enregistrer",
-  title = "Version",
   loading = false,
-  backPath = "/dash/validation/schemas" // fallback for BackButton
 }) {
   const navigate = useNavigate();
   const [schema, setSchema] = useState(initialSchema);
@@ -81,98 +78,153 @@ export default function VersionForm({
   };
 
   return (
-    <div className="min-h-screen ml-[80px] p-8 bg-gradient-to-br from-gray-900 to-gray-800 text-yellow-400 font-urbanist">
-      <div className="mb-4">
-        <BackButton fallbackPath={backPath} />
+    <form onSubmit={handleSubmit} className="space-y-8">
+      {/* Status selection */}
+      <div className="space-y-1.5">
+        <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">
+          Statut de la version
+        </label>
+        <select
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+          required
+          className="w-full max-w-xs px-4 py-2.5 bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all duration-200"
+        >
+          {STATUS_OPTIONS.map(opt => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
       </div>
-      <Title title={title} />
-      <div className="mt-6 bg-gray-800/60 backdrop-blur-sm border border-yellow-400/20 rounded-xl p-6">
-        <form onSubmit={handleSubmit}>
-          {/* Status selection */}
-          <div className="mb-6">
-            <label className="block text-gray-300 font-medium mb-2">Statut de la version</label>
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-              required
-              className="bg-gray-900 border border-gray-700 rounded px-4 py-2 text-gray-200 focus:ring-2 focus:ring-yellow-400"
-            >
-              {STATUS_OPTIONS.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-          </div>
 
-          <h2 className="text-lg font-semibold text-yellow-300 mb-4">Champs</h2>
-          {schema.fields.map((field, idx) => (
+      {/* Fields section */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sm font-semibold text-[#F8FAFC]">
+            <Layers className="w-5 h-5 text-emerald-400" />
+            Champs
+            <span className="text-xs text-[#64748B] font-normal ml-1">
+              ({schema.fields.length})
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={addField}
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-emerald-500 hover:bg-emerald-600 rounded-xl shadow-lg shadow-emerald-500/20 transition-all duration-200"
+          >
+            <Plus className="w-4 h-4" />
+            Ajouter un champ
+          </button>
+        </div>
+
+        {schema.fields.map((field, idx) => (
+          <div key={idx} className="relative bg-[#0A0F1C] rounded-xl border border-[rgba(255,255,255,0.06)] p-4 hover:border-[rgba(255,255,255,0.12)] transition-all">
             <FieldEditor
-              key={idx}
               field={field}
               onChange={(updated) => updateField(idx, updated)}
               onDelete={() => deleteField(idx)}
             />
-          ))}
-          <button
-            type="button"
-            onClick={addField}
-            className="mb-6 px-4 py-2 bg-yellow-400 text-gray-900 rounded hover:bg-yellow-500"
-          >
-            + Ajouter un champ
-          </button>
+          </div>
+        ))}
+        {schema.fields.length === 0 && (
+          <div className="text-center text-[#64748B] text-sm py-6 bg-[#0A0F1C] rounded-xl border border-[rgba(255,255,255,0.06)]">
+            Aucun champ défini. Cliquez sur "Ajouter un champ" pour commencer.
+          </div>
+        )}
+      </div>
 
-          <h2 className="text-lg font-semibold text-yellow-300 mb-4">Opérations</h2>
-          {schema.operations.map((op, idx) => (
-            <div key={idx} className="border border-gray-700 rounded-lg p-4 mb-4">
-              <div className="flex justify-between items-center mb-3">
-                <h3 className="text-yellow-300 font-medium">{op.operation || 'Nouvelle opération'}</h3>
-                <button onClick={() => deleteOperation(idx)} type="button" className="text-red-400 hover:text-red-300">Supprimer</button>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-gray-400 text-sm mb-1">Nom de l'opération</label>
-                  <input
-                    type="text"
-                    value={op.operation || ''}
-                    onChange={(e) => handleOperationChange(idx, 'operation', e.target.value)}
-                    className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-gray-200"
-                  />
-                </div>
-              </div>
-              <div className="mt-4">
-                <label className="block text-gray-400 text-sm mb-1">Rôles autorisés</label>
-                <RuleListEditor
-                  rules={op.allowed || []}
-                  onChange={(val) => handleOperationRuleChange(idx, val)}
-                />
-              </div>
-            </div>
-          ))}
+      {/* Operations section */}
+      <div className="space-y-4 pt-4 border-t border-[rgba(255,255,255,0.06)]">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sm font-semibold text-[#F8FAFC]">
+            <List className="w-5 h-5 text-emerald-400" />
+            Opérations
+            <span className="text-xs text-[#64748B] font-normal ml-1">
+              ({schema.operations.length})
+            </span>
+          </div>
           <button
             type="button"
             onClick={addOperation}
-            className="mb-6 px-4 py-2 bg-yellow-400 text-gray-900 rounded hover:bg-yellow-500"
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-emerald-500 hover:bg-emerald-600 rounded-xl shadow-lg shadow-emerald-500/20 transition-all duration-200"
           >
-            + Ajouter une opération
+            <Plus className="w-4 h-4" />
+            Ajouter une opération
           </button>
+        </div>
 
-          <div className="flex justify-end gap-3 mt-4">
-            <button
-              type="button"
-              onClick={handleCancel}
-              className="px-4 py-2 bg-gray-700 text-gray-200 rounded hover:bg-gray-600"
-            >
-              Annuler
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-4 py-2 bg-yellow-400 text-gray-900 rounded hover:bg-yellow-500 disabled:opacity-50"
-            >
-              {loading ? "Enregistrement..." : submitLabel}
-            </button>
+        {schema.operations.map((op, idx) => (
+          <div key={idx} className="bg-[#0A0F1C] rounded-xl border border-[rgba(255,255,255,0.06)] p-5 hover:border-[rgba(255,255,255,0.12)] transition-all">
+            <div className="flex justify-between items-start mb-4">
+              <h3 className="text-sm font-semibold text-[#F8FAFC]">
+                {op.operation || 'Nouvelle opération'}
+              </h3>
+              <button
+                onClick={() => deleteOperation(idx)}
+                type="button"
+                className="p-1.5 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-lg transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">
+                  Nom de l'opération
+                </label>
+                <input
+                  type="text"
+                  value={op.operation || ''}
+                  onChange={(e) => handleOperationChange(idx, 'operation', e.target.value)}
+                  className="w-full px-4 py-2.5 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all duration-200"
+                />
+              </div>
+            </div>
+            <div className="mt-4 space-y-1.5">
+              <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">
+                Rôles autorisés
+              </label>
+              <RuleListEditor
+                rules={op.allowed || []}
+                onChange={(val) => handleOperationRuleChange(idx, val)}
+              />
+            </div>
           </div>
-        </form>
+        ))}
+        {schema.operations.length === 0 && (
+          <div className="text-center text-[#64748B] text-sm py-6 bg-[#0A0F1C] rounded-xl border border-[rgba(255,255,255,0.06)]">
+            Aucune opération définie. Cliquez sur "Ajouter une opération" pour commencer.
+          </div>
+        )}
       </div>
-    </div>
+
+      {/* Actions */}
+      <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t border-[rgba(255,255,255,0.06)]">
+        <button
+          type="button"
+          onClick={handleCancel}
+          className="inline-flex items-center justify-center gap-2 px-6 py-2.5 text-sm font-medium text-[#94A3B8] bg-[#1F2937] hover:bg-[#182233] rounded-xl transition-all duration-200 border border-[rgba(255,255,255,0.06)]"
+        >
+          <X className="w-4 h-4" />
+          Annuler
+        </button>
+        <button
+          type="submit"
+          disabled={loading}
+          className="inline-flex items-center justify-center gap-2 px-6 py-2.5 text-sm font-medium text-white bg-emerald-500 hover:bg-emerald-600 rounded-xl shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {loading ? (
+            <>
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              Enregistrement...
+            </>
+          ) : (
+            <>
+              <Save className="w-4 h-4" />
+              {submitLabel}
+            </>
+          )}
+        </button>
+      </div>
+    </form>
   );
 }

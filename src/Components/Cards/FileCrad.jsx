@@ -18,7 +18,8 @@ const BTN_CONFIRM_DELETE =
   "w-24 h-9 text-sm rounded-lg bg-red-600 hover:bg-red-500 text-white transition flex items-center justify-center shadow-lg shadow-red-600/20";
 
 export default function FileCard({ file, handleDelete, handleReplace }) {
-  const isImage = file.type?.startsWith("image");
+  const imageFormats = ['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'bmp'];
+const isImage = imageFormats.includes(file.type?.toLowerCase());
   const inputRef = useRef(null);
 
   const [confirmDelete, setConfirmDelete] = useState(false);

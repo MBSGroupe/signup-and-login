@@ -1,12 +1,16 @@
 import { useState, useContext, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import Title from "../../../Components/Title";
 import { UserContext } from "../../../Context/dataCont";
 import { fetchWithRefresh } from "../../../Components/api";
+import BackButton from "../../../Components/Buttons/BackButton";
+import { Lock, Key, CheckCircle, AlertCircle, Loader2, ArrowLeft } from "lucide-react";
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
 export default function ResetPassword() {
   const { authData, setAuthData } = useContext(UserContext);
+  const navigate = useNavigate();
   const id = authData?.user?.id || authData?.user?._id;
 
   const [formData, setFormData] = useState({
@@ -77,14 +81,12 @@ export default function ResetPassword() {
       if (response.ok && data.success) {
         setSuccessMessage("✅ Mot de passe mis à jour avec succès !");
         setFormData({ currentPassword: "", newPassword: "", confirmNewPassword: "" });
-        
-        // Update authData with the updated user from response
+
         if (data.data?.user) {
           setAuthData((prev) => ({ ...prev, user: data.data.user }));
         }
         setLockSeconds(24 * 3600);
       } else if (response.status === 429) {
-        // Lockout response – extract remaining time
         const remainingTime = data.data?.remainingTime;
         if (remainingTime) {
           setLockSeconds(remainingTime);
@@ -117,95 +119,128 @@ export default function ResetPassword() {
   const isLocked = lockSeconds > 0;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 font-urbanist px-4">
-      <div className="w-full max-w-md bg-gray-800/80 backdrop-blur-xl border border-yellow-400/20 rounded-2xl shadow-2xl p-8">
-        
-        <div className="mb-8 text-center">
-          <Title title="Change Password" textColor="text-yellow-300" />
-          <p className="text-gray-400 mt-2 text-sm">
-            {isLocked 
-              ? "Modification temporairement bloquée" 
-              : "Update your account password securely"}
-          </p>
-          {isLocked && (
-            <p className="text-yellow-300 mt-2 font-mono text-lg">
-              {formatTime(lockSeconds)}
-            </p>
-          )}
+    <div className="min-h-screen bg-[#0A0F1C] p-6 md:p-8">
+      <div className="max-w-md mx-auto">
+        {/* Back button & header */}
+        <div className="flex items-center gap-4 mb-6">
+          <BackButton fallbackPath="/auth/profile" />
+          <div className="flex items-center gap-3">
+            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+              <Lock className="w-6 h-6 text-emerald-400" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-[#F8FAFC] tracking-tight">Change Password</h1>
+              <p className="text-[#94A3B8] text-sm mt-0.5">
+                {isLocked
+                  ? "Modification temporairement bloquée"
+                  : "Update your account password securely"}
+              </p>
+            </div>
+          </div>
         </div>
 
+        {isLocked && (
+          <div className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] p-4 mb-6 text-center">
+            <p className="text-[#94A3B8] text-sm">Temps restant avant la prochaine tentative</p>
+            <p className="text-2xl font-mono text-emerald-400 mt-1">{formatTime(lockSeconds)}</p>
+          </div>
+        )}
+
         {successMessage && (
-          <div className="mb-4 text-center text-sm font-medium text-green-400">
+          <div className="mb-4 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm flex items-center gap-2">
+            <CheckCircle className="w-5 h-5 flex-shrink-0" />
             {successMessage}
           </div>
         )}
 
-        <form className="space-y-5" onSubmit={handleSubmit}>
-          <input
-            type="password"
-            name="currentPassword"
-            placeholder="Current password"
-            value={formData.currentPassword}
-            onChange={handleChange}
-            disabled={isLocked || isSubmitting}
-            className="w-full p-3 rounded-md bg-gray-900 border border-gray-700 
-                       text-gray-200 placeholder-gray-500
-                       focus:outline-none focus:ring-2 focus:ring-yellow-300
-                       disabled:opacity-50 disabled:cursor-not-allowed"
-            required
-          />
+        <div className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] shadow-2xl shadow-black/50 p-6 md:p-8">
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div className="space-y-1.5">
+              <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">
+                Mot de passe actuel
+              </label>
+              <div className="relative">
+                <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748B]" />
+                <input
+                  type="password"
+                  name="currentPassword"
+                  placeholder="Entrez votre mot de passe actuel"
+                  value={formData.currentPassword}
+                  onChange={handleChange}
+                  disabled={isLocked || isSubmitting}
+                  className="w-full pl-9 pr-4 py-2.5 bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] placeholder-[#64748B] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  required
+                />
+              </div>
+            </div>
 
-          <input
-            type="password"
-            name="newPassword"
-            placeholder="New password"
-            value={formData.newPassword}
-            onChange={handleChange}
-            disabled={isLocked || isSubmitting}
-            className="w-full p-3 rounded-md bg-gray-900 border border-gray-700 
-                       text-gray-200 placeholder-gray-500
-                       focus:outline-none focus:ring-2 focus:ring-yellow-300
-                       disabled:opacity-50 disabled:cursor-not-allowed"
-            required
-          />
+            <div className="space-y-1.5">
+              <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">
+                Nouveau mot de passe
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748B]" />
+                <input
+                  type="password"
+                  name="newPassword"
+                  placeholder="Nouveau mot de passe"
+                  value={formData.newPassword}
+                  onChange={handleChange}
+                  disabled={isLocked || isSubmitting}
+                  className="w-full pl-9 pr-4 py-2.5 bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] placeholder-[#64748B] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  required
+                />
+              </div>
+            </div>
 
-          <input
-            type="password"
-            name="confirmNewPassword"
-            placeholder="Confirm new password"
-            value={formData.confirmNewPassword}
-            onChange={handleChange}
-            disabled={isLocked || isSubmitting}
-            className="w-full p-3 rounded-md bg-gray-900 border border-gray-700 
-                       text-gray-200 placeholder-gray-500
-                       focus:outline-none focus:ring-2 focus:ring-yellow-300
-                       disabled:opacity-50 disabled:cursor-not-allowed"
-            required
-          />
+            <div className="space-y-1.5">
+              <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">
+                Confirmer le nouveau mot de passe
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748B]" />
+                <input
+                  type="password"
+                  name="confirmNewPassword"
+                  placeholder="Confirmez le nouveau mot de passe"
+                  value={formData.confirmNewPassword}
+                  onChange={handleChange}
+                  disabled={isLocked || isSubmitting}
+                  className="w-full pl-9 pr-4 py-2.5 bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] placeholder-[#64748B] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  required
+                />
+              </div>
+            </div>
 
-          <button
-            type="submit"
-            disabled={isLocked || isSubmitting}
-            className={`w-full py-3 rounded-md font-semibold transition
-              ${
-                isLocked || isSubmitting
-                  ? "bg-yellow-300/40 text-black cursor-not-allowed"
-                  : "bg-yellow-300 text-black hover:bg-yellow-400"
-              }`}
-          >
-            {isLocked 
-              ? `Bloqué (${formatTime(lockSeconds)})` 
-              : isSubmitting 
-                ? "Updating..." 
-                : "Change Password"}
-          </button>
-        </form>
+            <button
+              type="submit"
+              disabled={isLocked || isSubmitting}
+              className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isLocked ? (
+                `Bloqué (${formatTime(lockSeconds)})`
+              ) : isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  En cours...
+                </>
+              ) : (
+                "Changer le mot de passe"
+              )}
+            </button>
+          </form>
 
-        {message && (
-          <p className="mt-5 text-center text-sm font-medium text-red-400">
-            {message}
-          </p>
-        )}
+          {message && (
+            <div className={`mt-5 p-4 rounded-xl text-sm font-medium flex items-center gap-2 ${
+              message.includes('Trop de tentatives') || message.includes('Échec') || message.includes('Erreur')
+                ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
+            }`}>
+              <AlertCircle className="w-5 h-5 flex-shrink-0" />
+              {message}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

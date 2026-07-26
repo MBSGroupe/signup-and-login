@@ -3,6 +3,20 @@ import { useContext, useEffect, useState } from "react";
 import { UserContext } from "../../Context/dataCont";
 import { fetchWithRefresh } from "../../Components/api";
 import { transformDates } from "../../Utils/transformPayload";
+import {
+  X,
+  Save,
+  AlertCircle,
+  Calendar,
+  DollarSign,
+  Tag,
+  FileText,
+  Percent,
+  Clock,
+  RefreshCw,
+  Check,
+  Edit
+} from "lucide-react";
 
 const API_URL = import.meta.env.VITE_NEST_API_URL;
 
@@ -30,17 +44,15 @@ export default function EditFeeDefinitionModal({ definition, onClose, onUpdated 
           setAuthData
         );
         const responseData = await res.json();
-        // Extract from wrapper: { success: true, data: { fields: [], configs: {} } }
         const data = responseData.data || responseData;
         if (res.ok && responseData.success !== false) {
           const fields = data.fields || [];
           const configs = data.configs || {};
           setEditableFields(fields);
           setFieldConfigs(configs);
-          // Initialize formData with current definition values for editable fields
           const initialData = {};
           fields.forEach(field => {
-            if (field === "penaltyConfig") return; // handled separately
+            if (field === "penaltyConfig") return;
             if (definition[field] !== undefined) {
               if (configs[field]?.type === 'date' && definition[field]) {
                 initialData[field] = new Date(definition[field]).toISOString().split('T')[0];
@@ -134,7 +146,6 @@ export default function EditFeeDefinitionModal({ definition, onClose, onUpdated 
     }
   };
 
-  // Render a simple field based on its type
   const renderField = (fieldName) => {
     const config = fieldConfigs[fieldName];
     if (!config) return null;
@@ -146,11 +157,26 @@ export default function EditFeeDefinitionModal({ definition, onClose, onUpdated 
     const max = config.validation?.max;
     const options = config.validation?.options || [];
 
+    const fieldIcons = {
+      title: <Tag className="w-4 h-4 text-emerald-400" />,
+      amount: <DollarSign className="w-4 h-4 text-emerald-400" />,
+      dueDate: <Calendar className="w-4 h-4 text-emerald-400" />,
+      notes: <FileText className="w-4 h-4 text-emerald-400" />,
+      feeType: <Tag className="w-4 h-4 text-emerald-400" />,
+      year: <Calendar className="w-4 h-4 text-emerald-400" />,
+    };
+
+    const baseInputClasses = "w-full px-4 py-2.5 bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all duration-200 placeholder-[#64748B]";
+
     switch (type) {
       case 'number':
         return (
-          <div key={fieldName}>
-            <label className="block text-sm text-gray-300 mb-1">{label}</label>
+          <div key={fieldName} className="space-y-1.5">
+            <label className="flex items-center gap-2 text-xs font-medium text-[#94A3B8] uppercase tracking-wider">
+              {fieldIcons[fieldName]}
+              {label}
+              {required && <span className="text-rose-400 ml-1">*</span>}
+            </label>
             <input
               type="number"
               name={fieldName}
@@ -160,28 +186,36 @@ export default function EditFeeDefinitionModal({ definition, onClose, onUpdated 
               min={min}
               max={max}
               step="any"
-              className="w-full px-3 py-2 bg-gray-900 rounded text-white border border-gray-700 focus:ring-2 focus:ring-yellow-400"
+              className={baseInputClasses}
             />
           </div>
         );
       case 'date':
         return (
-          <div key={fieldName}>
-            <label className="block text-sm text-gray-300 mb-1">{label}</label>
+          <div key={fieldName} className="space-y-1.5">
+            <label className="flex items-center gap-2 text-xs font-medium text-[#94A3B8] uppercase tracking-wider">
+              {fieldIcons[fieldName]}
+              {label}
+              {required && <span className="text-rose-400 ml-1">*</span>}
+            </label>
             <input
               type="date"
               name={fieldName}
               value={value}
               onChange={handleChange}
               required={required}
-              className="w-full px-3 py-2 bg-gray-900 rounded text-white border border-gray-700 focus:ring-2 focus:ring-yellow-400"
+              className={baseInputClasses}
             />
           </div>
         );
       case 'text':
         return (
-          <div key={fieldName}>
-            <label className="block text-sm text-gray-300 mb-1">{label}</label>
+          <div key={fieldName} className="space-y-1.5">
+            <label className="flex items-center gap-2 text-xs font-medium text-[#94A3B8] uppercase tracking-wider">
+              {fieldIcons[fieldName]}
+              {label}
+              {required && <span className="text-rose-400 ml-1">*</span>}
+            </label>
             <input
               type="text"
               name={fieldName}
@@ -189,34 +223,42 @@ export default function EditFeeDefinitionModal({ definition, onClose, onUpdated 
               onChange={handleChange}
               required={required}
               maxLength={config.validation?.maxLength}
-              className="w-full px-3 py-2 bg-gray-900 rounded text-white border border-gray-700 focus:ring-2 focus:ring-yellow-400"
+              className={baseInputClasses}
             />
           </div>
         );
       case 'textarea':
         return (
-          <div key={fieldName}>
-            <label className="block text-sm text-gray-300 mb-1">{label}</label>
+          <div key={fieldName} className="space-y-1.5">
+            <label className="flex items-center gap-2 text-xs font-medium text-[#94A3B8] uppercase tracking-wider">
+              {fieldIcons[fieldName]}
+              {label}
+              {required && <span className="text-rose-400 ml-1">*</span>}
+            </label>
             <textarea
               name={fieldName}
               value={value}
               onChange={handleChange}
               required={required}
               rows={3}
-              className="w-full px-3 py-2 bg-gray-900 rounded text-white border border-gray-700 focus:ring-2 focus:ring-yellow-400"
+              className={`${baseInputClasses} resize-y`}
             />
           </div>
         );
       case 'select':
         return (
-          <div key={fieldName}>
-            <label className="block text-sm text-gray-300 mb-1">{label}</label>
+          <div key={fieldName} className="space-y-1.5">
+            <label className="flex items-center gap-2 text-xs font-medium text-[#94A3B8] uppercase tracking-wider">
+              {fieldIcons[fieldName]}
+              {label}
+              {required && <span className="text-rose-400 ml-1">*</span>}
+            </label>
             <select
               name={fieldName}
               value={value}
               onChange={handleChange}
               required={required}
-              className="w-full px-3 py-2 bg-gray-900 rounded text-white border border-gray-700 focus:ring-2 focus:ring-yellow-400"
+              className={baseInputClasses}
             >
               <option value="">Sélectionner</option>
               {options.map(opt => (
@@ -227,16 +269,16 @@ export default function EditFeeDefinitionModal({ definition, onClose, onUpdated 
         );
       case 'checkbox':
         return (
-          <div key={fieldName} className="flex items-center gap-2">
+          <div key={fieldName} className="flex items-center gap-3">
             <input
               type="checkbox"
               id={fieldName}
               name={fieldName}
               checked={!!value}
               onChange={handleChange}
-              className="w-4 h-4"
+              className="w-4 h-4 rounded border-[rgba(255,255,255,0.06)] bg-[#0A0F1C] text-emerald-500 focus:ring-emerald-500 focus:ring-offset-0"
             />
-            <label htmlFor={fieldName} className="text-sm text-gray-300">{label}</label>
+            <label htmlFor={fieldName} className="text-sm text-[#94A3B8]">{label}</label>
           </div>
         );
       default:
@@ -244,28 +286,30 @@ export default function EditFeeDefinitionModal({ definition, onClose, onUpdated 
     }
   };
 
-  // Render penalty config section (only if 'penaltyConfig' is editable)
   const renderPenaltyConfig = () => {
     if (!editableFields.includes("penaltyConfig")) return null;
     const isDisabled = penaltyType === "none";
     return (
-      <div key="penaltyConfig" className="border border-gray-700 rounded-lg p-4 mt-2">
-        <label className="block text-sm font-medium text-gray-300 mb-2">Configuration des pénalités</label>
+      <div key="penaltyConfig" className="bg-[#0A0F1C] rounded-xl border border-[rgba(255,255,255,0.06)] p-4 space-y-3">
+        <div className="flex items-center gap-2 text-xs font-medium text-[#94A3B8] uppercase tracking-wider">
+          <Percent className="w-4 h-4 text-emerald-400" />
+          Configuration des pénalités
+        </div>
         <div className="grid grid-cols-3 gap-3">
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">Type</label>
+          <div className="space-y-1">
+            <label className="block text-xs text-[#64748B]">Type</label>
             <select
               value={penaltyType}
               onChange={handlePenaltyTypeChange}
-              className="w-full px-2 py-1 bg-gray-900 rounded text-white border border-gray-700 text-sm"
+              className="w-full px-3 py-2 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-lg text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500 text-sm"
             >
               <option value="none">Aucune</option>
               <option value="percentage">Pourcentage</option>
               <option value="fixed">Fixe</option>
             </select>
           </div>
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">Taux / Montant</label>
+          <div className="space-y-1">
+            <label className="block text-xs text-[#64748B]">Taux / Montant</label>
             <input
               type="number"
               value={penaltyRate}
@@ -273,23 +317,23 @@ export default function EditFeeDefinitionModal({ definition, onClose, onUpdated 
               disabled={isDisabled}
               min="0"
               step="1"
-              className={`w-full px-2 py-1 bg-gray-900 rounded border text-sm ${
-                isDisabled 
-                  ? 'border-gray-600 text-gray-500 cursor-not-allowed' 
-                  : 'border-gray-700 text-white'
+              className={`w-full px-3 py-2 bg-[#111827] border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500 transition-colors ${
+                isDisabled
+                  ? 'border-[rgba(255,255,255,0.06)] text-[#64748B] cursor-not-allowed'
+                  : 'border-[rgba(255,255,255,0.06)] text-[#F8FAFC]'
               }`}
             />
           </div>
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">Fréquence</label>
+          <div className="space-y-1">
+            <label className="block text-xs text-[#64748B]">Fréquence</label>
             <select
               value={penaltyFrequency}
               onChange={handlePenaltyFrequencyChange}
               disabled={isDisabled}
-              className={`w-full px-2 py-1 bg-gray-900 rounded border text-sm ${
-                isDisabled 
-                  ? 'border-gray-600 text-gray-500 cursor-not-allowed' 
-                  : 'border-gray-700 text-white'
+              className={`w-full px-3 py-2 bg-[#111827] border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500 transition-colors ${
+                isDisabled
+                  ? 'border-[rgba(255,255,255,0.06)] text-[#64748B] cursor-not-allowed'
+                  : 'border-[rgba(255,255,255,0.06)] text-[#F8FAFC]'
               }`}
             >
               <option value="none">Aucune</option>
@@ -305,44 +349,90 @@ export default function EditFeeDefinitionModal({ definition, onClose, onUpdated 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-gray-800 rounded-xl p-6 w-96 max-h-[90vh] overflow-y-auto border border-yellow-400/30 shadow-2xl">
-        <h3 className="text-xl font-bold text-yellow-300 mb-4">Modifier la campagne</h3>
-        <form onSubmit={handleSubmit} className="space-y-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] shadow-2xl shadow-black/50 w-full max-w-lg max-h-[90vh] overflow-y-auto custom-scrollbar">
+        <div className="sticky top-0 bg-[#111827] border-b border-[rgba(255,255,255,0.06)] px-6 py-4 flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+              <Edit className="w-5 h-5 text-emerald-400" />
+            </div>
+            <h3 className="text-xl font-bold text-[#F8FAFC] tracking-tight">Modifier la campagne</h3>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-[#1F2937] rounded-lg transition-colors"
+          >
+            <X className="w-5 h-5 text-[#64748B] hover:text-[#F8FAFC]" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-5">
           {editableFields.filter(f => f !== "penaltyConfig").map(fieldName => renderField(fieldName))}
           {renderPenaltyConfig()}
-          
-          <div className="flex items-center gap-2">
+
+          <div className="flex items-start gap-3 pt-2 border-t border-[rgba(255,255,255,0.06)]">
             <input
               type="checkbox"
               id="propagate"
               checked={propagate}
               onChange={(e) => setPropagate(e.target.checked)}
-              className="w-4 h-4"
+              className="mt-0.5 w-4 h-4 rounded border-[rgba(255,255,255,0.06)] bg-[#0A0F1C] text-emerald-500 focus:ring-emerald-500 focus:ring-offset-0"
             />
-            <label htmlFor="propagate" className="text-sm text-gray-300">
-              Appliquer aux cotisations existantes de tous les membres
+            <label htmlFor="propagate" className="text-sm text-[#94A3B8] leading-relaxed">
+              <span className="font-medium text-[#F8FAFC]">Appliquer aux cotisations existantes</span>
+              <br />
+              <span className="text-xs text-[#64748B]">Propager ces modifications à toutes les cotisations individuelles déjà créées pour cette campagne.</span>
             </label>
           </div>
 
-          <div className="flex justify-end gap-2 mt-4">
+          <div className="flex justify-end gap-3 pt-2 border-t border-[rgba(255,255,255,0.06)]">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-gray-600 rounded hover:bg-gray-500"
+              className="px-5 py-2.5 text-sm font-medium text-[#94A3B8] bg-[#1F2937] hover:bg-[#182233] rounded-xl transition-all duration-200 border border-[rgba(255,255,255,0.06)]"
             >
               Annuler
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-2 bg-yellow-600 rounded hover:bg-yellow-500 text-white disabled:opacity-50"
+              className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-medium text-white bg-emerald-500 hover:bg-emerald-600 rounded-xl transition-all duration-200 shadow-lg shadow-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? "Enregistrement..." : "Enregistrer"}
+              {loading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Enregistrement...
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  Enregistrer
+                </>
+              )}
             </button>
           </div>
         </form>
       </div>
+
+      <style jsx>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #374151;
+          border-radius: 20px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #4b5563;
+        }
+        .custom-scrollbar {
+          scrollbar-width: thin;
+          scrollbar-color: #374151 transparent;
+        }
+      `}</style>
     </div>
   );
 }

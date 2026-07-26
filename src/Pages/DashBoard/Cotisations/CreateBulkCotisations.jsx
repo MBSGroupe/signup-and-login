@@ -5,6 +5,24 @@ import Title from '../../../Components/Title';
 import { fetchWithRefresh } from '../../../Components/api';
 import wilayasData from '../../../assets/data/wilayas.json';
 import { transformDates } from '../../../Utils/transformPayload';
+import {
+  Users,
+  MapPin,
+  Calendar,
+  DollarSign,
+  Tag,
+  Percent,
+  Clock,
+  AlertCircle,
+  FileText,
+  Check,
+  X,
+  Loader2,
+  PlusCircle,
+  ArrowLeft,
+  ChevronDown,
+  ChevronRight
+} from 'lucide-react';
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
@@ -35,7 +53,6 @@ export default function CreateBulkCotisation() {
           { headers: { Authorization: `Bearer ${authData.token}` } }
         );
         const responseData = await response.json();
-        // Extract from wrapper: { success: true, data: { fields: [], configs: {} } }
         const data = responseData.data || responseData;
         if (response.ok) {
           setCreatableFieldsList(data.fields || []);
@@ -128,7 +145,6 @@ export default function CreateBulkCotisation() {
         setAuthData
       );
       const responseData = await response.json();
-      // Extract data from wrapper: { success: true, data: { ... } }
       const data = responseData.data || responseData;
       if (response.ok && responseData.success !== false) {
         setResult(data);
@@ -144,7 +160,6 @@ export default function CreateBulkCotisation() {
     }
   };
 
-
   const renderField = (fieldName) => {
     const config = fieldConfigs[fieldName];
     if (!config) return null;
@@ -152,17 +167,30 @@ export default function CreateBulkCotisation() {
     const value = cotisationFields[fieldName] !== undefined ? cotisationFields[fieldName] : '';
     const isDisabled = (fieldName === 'penaltyConfig.rate' || fieldName === 'penaltyConfig.frequency') && isPenaltyDisabled();
 
+    const fieldIcons = {
+      amount: <DollarSign className="w-4 h-4 text-emerald-400" />,
+      dueDate: <Calendar className="w-4 h-4 text-emerald-400" />,
+      year: <Calendar className="w-4 h-4 text-emerald-400" />,
+      notes: <FileText className="w-4 h-4 text-emerald-400" />,
+    };
+
+    const baseInputClasses = "w-full px-4 py-2.5 bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all duration-200 placeholder-[#64748B]";
+
     if (config.type === 'select') {
       return (
-        <div key={fieldName}>
-          <label className="block text-sm font-medium text-gray-300 mb-2">{config.label}</label>
+        <div key={fieldName} className="space-y-1.5">
+          <label className="flex items-center gap-2 text-xs font-medium text-[#94A3B8] uppercase tracking-wider">
+            {fieldIcons[fieldName] || <Tag className="w-4 h-4 text-emerald-400" />}
+            {config.label}
+            {config.validation?.required && <span className="text-rose-400 ml-1">*</span>}
+          </label>
           <select
             name={fieldName}
             value={value}
             onChange={handleCotisationFieldChange}
             required={config.validation?.required}
             disabled={isDisabled}
-            className={`w-full p-3 rounded-lg bg-gray-900/60 border border-gray-700 text-gray-200 focus:ring-2 focus:ring-yellow-400 ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+            className={`${baseInputClasses} ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             <option value="">Sélectionner...</option>
             {config.validation?.options?.map(opt => (
@@ -176,8 +204,12 @@ export default function CreateBulkCotisation() {
     switch (config.type) {
       case 'number':
         return (
-          <div key={fieldName}>
-            <label className="block text-sm font-medium text-gray-300 mb-2">{config.label}</label>
+          <div key={fieldName} className="space-y-1.5">
+            <label className="flex items-center gap-2 text-xs font-medium text-[#94A3B8] uppercase tracking-wider">
+              {fieldIcons[fieldName] || <Percent className="w-4 h-4 text-emerald-400" />}
+              {config.label}
+              {config.validation?.required && <span className="text-rose-400 ml-1">*</span>}
+            </label>
             <input
               type="number"
               name={fieldName}
@@ -188,14 +220,18 @@ export default function CreateBulkCotisation() {
               step="1"
               required={config.validation?.required}
               disabled={isDisabled}
-              className={`w-full p-3 rounded-lg bg-gray-900/60 border border-gray-700 text-gray-200 focus:ring-2 focus:ring-yellow-400 ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`${baseInputClasses} ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
             />
           </div>
         );
       case 'date':
         return (
-          <div key={fieldName}>
-            <label className="block text-sm font-medium text-gray-300 mb-2">{config.label}</label>
+          <div key={fieldName} className="space-y-1.5">
+            <label className="flex items-center gap-2 text-xs font-medium text-[#94A3B8] uppercase tracking-wider">
+              {fieldIcons[fieldName] || <Calendar className="w-4 h-4 text-emerald-400" />}
+              {config.label}
+              {config.validation?.required && <span className="text-rose-400 ml-1">*</span>}
+            </label>
             <input
               type="date"
               name={fieldName}
@@ -203,28 +239,36 @@ export default function CreateBulkCotisation() {
               onChange={handleCotisationFieldChange}
               required={config.validation?.required}
               disabled={isDisabled}
-              className={`w-full p-3 rounded-lg bg-gray-900/60 border border-gray-700 text-gray-200 focus:ring-2 focus:ring-yellow-400 ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`${baseInputClasses} ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
             />
           </div>
         );
       case 'textarea':
         return (
-          <div key={fieldName}>
-            <label className="block text-sm font-medium text-gray-300 mb-2">{config.label}</label>
+          <div key={fieldName} className="space-y-1.5">
+            <label className="flex items-center gap-2 text-xs font-medium text-[#94A3B8] uppercase tracking-wider">
+              {fieldIcons[fieldName] || <FileText className="w-4 h-4 text-emerald-400" />}
+              {config.label}
+              {config.validation?.required && <span className="text-rose-400 ml-1">*</span>}
+            </label>
             <textarea
               name={fieldName}
               value={value}
               onChange={handleCotisationFieldChange}
               rows="3"
               disabled={isDisabled}
-              className={`w-full p-3 rounded-lg bg-gray-900/60 border border-gray-700 text-gray-200 focus:ring-2 focus:ring-yellow-400 ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`${baseInputClasses} resize-y ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
             />
           </div>
         );
       default:
         return (
-          <div key={fieldName}>
-            <label className="block text-sm font-medium text-gray-300 mb-2">{config.label}</label>
+          <div key={fieldName} className="space-y-1.5">
+            <label className="flex items-center gap-2 text-xs font-medium text-[#94A3B8] uppercase tracking-wider">
+              {fieldIcons[fieldName] || <Tag className="w-4 h-4 text-emerald-400" />}
+              {config.label}
+              {config.validation?.required && <span className="text-rose-400 ml-1">*</span>}
+            </label>
             <input
               type={config.type || 'text'}
               name={fieldName}
@@ -233,7 +277,7 @@ export default function CreateBulkCotisation() {
               placeholder={config.ui?.placeholder}
               required={config.validation?.required}
               disabled={isDisabled}
-              className={`w-full p-3 rounded-lg bg-gray-900/60 border border-gray-700 text-gray-200 focus:ring-2 focus:ring-yellow-400 ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`${baseInputClasses} ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
             />
           </div>
         );
@@ -241,89 +285,163 @@ export default function CreateBulkCotisation() {
   };
 
   return (
-    <div className="min-h-screen ml-[80px] p-8 bg-gradient-to-br from-gray-900 to-gray-800 text-yellow-400 font-urbanist">
-      <Title title="Création en masse de cotisations" />
-
-      <div className="max-w-2xl mx-auto bg-gray-800/60 backdrop-blur-sm border border-yellow-400/20 rounded-xl p-8">
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Rôle</label>
-            <select
-              name="role"
-              value={filters.role}
-              onChange={handleFilterChange}
-              className="w-full p-3 rounded-lg bg-gray-900/60 border border-gray-700 text-gray-200 focus:ring-2 focus:ring-yellow-400"
-            >
-              <option value="all">Tous les rôles</option>
-              <option value="user">Utilisateur</option>
-              <option value="moderator">Modérateur</option>
-              <option value="admin">Administrateur</option>
-              <option value="super_admin">Super Admin</option>
-            </select>
+    <div className="min-h-screen bg-[#0A0F1C] p-6 md:p-8 ml-[3px] mt-16">
+      <div className="max-w-3xl mx-auto">
+        {/* Header */}
+        <div className="flex items-center gap-4 mb-8">
+          <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+            <PlusCircle className="w-6 h-6 text-emerald-400" />
           </div>
-
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Wilaya</label>
-            <select
-              name="wilaya"
-              value={filters.wilaya}
-              onChange={handleFilterChange}
-              className="w-full p-3 rounded-lg bg-gray-900/60 border border-gray-700 text-gray-200 focus:ring-2 focus:ring-yellow-400"
-            >
-              <option value="all">Toutes les wilayas</option>
-              {wilayasData.map(w => (
-                <option key={w.code} value={w.code}>{w.name} ({w.code})</option>
-              ))}
-            </select>
-          </div>
-
-          {creatableFieldsList
-            .sort((a, b) => {
-              const orderA = fieldConfigs[a]?.ui?.order || 0;
-              const orderB = fieldConfigs[b]?.ui?.order || 0;
-              return orderA - orderB;
-            })
-            .map(fieldName => renderField(fieldName))}
-
-          {message && (
-            <p className={`text-sm ${message.includes('✅') ? 'text-green-400' : 'text-red-400'}`}>
-              {message}
+            <h1 className="text-2xl md:text-3xl font-bold text-[#F8FAFC] tracking-tight">
+              Création en masse de cotisations
+            </h1>
+            <p className="text-[#94A3B8] text-sm mt-1">
+              Créez des cotisations pour plusieurs membres à la fois
             </p>
-          )}
-
-          {result && (
-            <div className="p-4 bg-green-600/20 border border-green-500 rounded-lg space-y-1">
-              <p className="text-green-300">✅ {result.created} cotisation(s) créée(s)</p>
-              {result.skipped > 0 && (
-                <p className="text-yellow-300">⚠️ {result.skipped} utilisateur(s) avec une cotisation déjà existante (active) ignoré(s)</p>
-              )}
-              {result.replacedCancelled > 0 && (
-                <p className="text-blue-300">🔄 {result.replacedCancelled} cotisation(s) annulée(s) remplacée(s)</p>
-              )}
-              {result.startDateSkipped > 0 && (
-                <p className="text-orange-300">📅 {result.startDateSkipped} utilisateur(s) exclus(s) car leur date de début est postérieure à la date d'échéance</p>
-              )}
-              <p className="text-gray-400 text-sm">Total utilisateurs concernés : {result.total}</p>
-            </div>
-          )}
-
-          <div className="flex gap-4 pt-4">
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 py-3 rounded-lg font-semibold bg-yellow-400 text-gray-900 hover:bg-yellow-500 transition disabled:opacity-50"
-            >
-              {loading ? 'Création...' : 'Créer les cotisations'}
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate('/dash/allCotisations')}
-              className="flex-1 py-3 rounded-lg font-semibold bg-gray-700 text-gray-300 hover:bg-gray-600 transition"
-            >
-              Annuler
-            </button>
           </div>
-        </form>
+        </div>
+
+        {/* Form Card */}
+        <div className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] shadow-2xl shadow-black/50 p-6 md:p-8">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Filters section */}
+            <div className="space-y-4">
+              <h2 className="text-sm font-semibold text-[#94A3B8] uppercase tracking-wider flex items-center gap-2">
+                <Users className="w-4 h-4 text-emerald-400" />
+                Filtres des membres
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="space-y-1.5">
+                  <label className="flex items-center gap-2 text-xs font-medium text-[#94A3B8] uppercase tracking-wider">
+                    Rôle
+                  </label>
+                  <select
+                    name="role"
+                    value={filters.role}
+                    onChange={handleFilterChange}
+                    className="w-full px-4 py-2.5 bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all duration-200"
+                  >
+                    <option value="all">Tous les rôles</option>
+                    <option value="user">Utilisateur</option>
+                    <option value="moderator">Modérateur</option>
+                    <option value="admin">Administrateur</option>
+                    <option value="super_admin">Super Admin</option>
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="flex items-center gap-2 text-xs font-medium text-[#94A3B8] uppercase tracking-wider">
+                    <MapPin className="w-4 h-4 text-emerald-400" />
+                    Wilaya
+                  </label>
+                  <select
+                    name="wilaya"
+                    value={filters.wilaya}
+                    onChange={handleFilterChange}
+                    className="w-full px-4 py-2.5 bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all duration-200"
+                  >
+                    <option value="all">Toutes les wilayas</option>
+                    {wilayasData.map(w => (
+                      <option key={w.code} value={w.code}>{w.name} ({w.code})</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Cotisation fields */}
+            <div className="space-y-4 pt-4 border-t border-[rgba(255,255,255,0.06)]">
+              <h2 className="text-sm font-semibold text-[#94A3B8] uppercase tracking-wider flex items-center gap-2">
+                <DollarSign className="w-4 h-4 text-emerald-400" />
+                Informations de la cotisation
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {creatableFieldsList
+                  .sort((a, b) => {
+                    const orderA = fieldConfigs[a]?.ui?.order || 0;
+                    const orderB = fieldConfigs[b]?.ui?.order || 0;
+                    return orderA - orderB;
+                  })
+                  .map(fieldName => renderField(fieldName))}
+              </div>
+            </div>
+
+            {/* Message and result */}
+            {message && (
+              <div className={`p-4 rounded-xl text-sm font-medium flex items-center gap-2 ${
+                message.includes('✅') || message.includes('Opération terminée')
+                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                  : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+              }`}>
+                {message.includes('✅') || message.includes('Opération terminée') ? (
+                  <Check className="w-5 h-5 flex-shrink-0" />
+                ) : (
+                  <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                )}
+                {message}
+              </div>
+            )}
+
+            {result && (
+              <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 space-y-1">
+                <p className="text-emerald-400 flex items-center gap-2">
+                  <Check className="w-4 h-4" />
+                  {result.created} cotisation(s) créée(s)
+                </p>
+                {result.skipped > 0 && (
+                  <p className="text-yellow-400 flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4" />
+                    {result.skipped} utilisateur(s) avec une cotisation déjà existante (active) ignoré(s)
+                  </p>
+                )}
+                {result.replacedCancelled > 0 && (
+                  <p className="text-blue-400 flex items-center gap-2">
+                    <RefreshCw className="w-4 h-4" />
+                    {result.replacedCancelled} cotisation(s) annulée(s) remplacée(s)
+                  </p>
+                )}
+                {result.startDateSkipped > 0 && (
+                  <p className="text-orange-400 flex items-center gap-2">
+                    <Clock className="w-4 h-4" />
+                    {result.startDateSkipped} utilisateur(s) exclus(s) car leur date de début est postérieure à la date d'échéance
+                  </p>
+                )}
+                <p className="text-[#94A3B8] text-sm pt-1 border-t border-[rgba(255,255,255,0.06)]">
+                  Total utilisateurs concernés : {result.total}
+                </p>
+              </div>
+            )}
+
+            {/* Buttons */}
+            <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-[rgba(255,255,255,0.06)]">
+              <button
+                type="submit"
+                disabled={loading}
+                className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Création...
+                  </>
+                ) : (
+                  <>
+                    <PlusCircle className="w-5 h-5" />
+                    Créer les cotisations
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/dash/allCotisations')}
+                className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 bg-[#1F2937] hover:bg-[#182233] text-[#94A3B8] hover:text-[#F8FAFC] rounded-xl transition-all duration-200 border border-[rgba(255,255,255,0.06)] font-medium"
+              >
+                <X className="w-5 h-5" />
+                Annuler
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );

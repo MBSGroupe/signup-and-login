@@ -157,7 +157,7 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="min-h-screen ml-[30px] bg-[#0A0F1C] text-[#F8FAFC] font-sans antialiased p-6 md:p-8">
+    <div className="min-h-screen ml-[30px] mt-20 bg-[#0A0F1C] text-[#F8FAFC] font-sans antialiased p-6 md:p-8">
       <div className="max-w-7xl mx-auto">
         {/* ===== HEADER / ACCOUNT SUMMARY ===== */}
         <div className="bg-[#111827] rounded-2xl p-6 md:p-8 border border-[rgba(255,255,255,0.06)] shadow-2xl shadow-black/50">

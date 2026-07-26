@@ -6,21 +6,50 @@ import { fetchWithRefresh } from "../../../Components/api";
 import { useApi } from "../../../hooks/useApi";
 import { useModal } from "../../../Context/ModalContext";
 import BackButton from "../../../Components/Buttons/BackButton";
+import {
+  ArrowLeft,
+  CheckCircle,
+  XCircle,
+  Clock,
+  Users,
+  User,
+  Mail,
+  Calendar,
+  FileText,
+  Layers,
+  Settings,
+  History,
+  RefreshCw,
+  Edit,
+  MoreVertical,
+  ChevronRight,
+  AlertCircle,
+  Shield,
+  UserCheck,
+  UserX,
+  Zap,
+  GitBranch,
+  AlertTriangle,
+  Info,
+  List,
+  Database,
+  ExternalLink
+} from "lucide-react";
 
 const API_URL = import.meta.env.VITE_NEST_API_URL;
 
 const statusLabels = {
-  active: "Actif",
-  flawed: "Défectueux",
-  archived: "Archivé",
+  active: "Active",
+  flawed: "Flawed",
+  archived: "Archived",
   stable: "Stable"
 };
 
 const statusColors = {
-  active: "bg-green-600/20 text-green-300",
-  flawed: "bg-red-600/20 text-red-300",
-  archived: "bg-gray-600/20 text-gray-400",
-  stable: "bg-blue-600/20 text-blue-300"
+  active: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  flawed: "bg-rose-500/10 text-rose-400 border-rose-500/20",
+  archived: "bg-gray-500/10 text-gray-400 border-gray-500/20",
+  stable: "bg-blue-500/10 text-blue-400 border-blue-500/20"
 };
 
 export default function ValidationSchemaDetails() {
@@ -51,10 +80,8 @@ export default function ValidationSchemaDetails() {
       }, { showSuccessMessage: false });
 
       if (result) {
-        // result is the unwrapped schema object
         setSchema(result);
       } else {
-        // callApi already shows a toast; we set error to show a friendly message
         setError("Impossible de charger le schéma.");
       }
       setLoading(false);
@@ -86,7 +113,6 @@ export default function ValidationSchemaDetails() {
 
             if (result && result.user) {
               const user = result.user;
-              console.log(user)
               results[id] = `${user.name} ${user.lastname} (${user.email})`;
             } else {
               results[id] = id;
@@ -121,7 +147,6 @@ export default function ValidationSchemaDetails() {
     });
 
     if (result) {
-      // Refresh the page to show updated schema
       window.location.reload();
     }
   };
@@ -155,9 +180,35 @@ export default function ValidationSchemaDetails() {
     navigate(`/dash/validation/schemas/${schema.id}/edit`);
   };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center text-yellow-300">Chargement...</div>;
-  if (error) return <div className="min-h-screen flex items-center justify-center text-red-400">{error}</div>;
-  if (!schema) return <div className="min-h-screen flex items-center justify-center text-red-400">Schéma introuvable</div>;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0A0F1C] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+          <p className="text-[#94A3B8] text-sm">Loading schema...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-[#0A0F1C] flex items-center justify-center">
+        <div className="bg-rose-500/10 border border-rose-500/20 rounded-xl p-6 text-rose-400">
+          <AlertCircle className="w-6 h-6 inline-block mr-2" />
+          {error}
+        </div>
+      </div>
+    );
+  }
+
+  if (!schema) {
+    return (
+      <div className="min-h-screen bg-[#0A0F1C] flex items-center justify-center">
+        <div className="text-[#94A3B8]">Schema not found</div>
+      </div>
+    );
+  }
 
   const renderStepCard = (step, idx) => {
     let allowedUsersDisplay = "Aucun";
@@ -172,241 +223,413 @@ export default function ValidationSchemaDetails() {
     }
 
     return (
-      <div key={idx} className="bg-gray-800/60 border border-gray-700 rounded-xl p-4 mb-4">
-        <div className="flex justify-between items-start mb-2">
-          <h4 className="font-semibold text-yellow-300">Étape {step.order} – {step.stepName}</h4>
-          <span className={`px-2 py-0.5 text-xs rounded-full ${step.required ? 'bg-green-600/20 text-green-300' : 'bg-gray-600/20 text-gray-300'}`}>
+      <div key={idx} className="bg-[#111827] rounded-xl border border-[rgba(255,255,255,0.06)] p-5 mb-4 hover:border-[rgba(255,255,255,0.12)] transition-all duration-200">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-3">
+          <div className="flex items-center gap-3">
+            <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-emerald-500/10 text-emerald-400 text-sm font-bold border border-emerald-500/20">
+              {step.order}
+            </span>
+            <h4 className="font-semibold text-[#F8FAFC]">{step.stepName}</h4>
+          </div>
+          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+            step.required
+              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+              : 'bg-gray-500/10 text-gray-400 border border-gray-500/20'
+          }`}>
             {step.required ? 'Requis' : 'Optionnel'}
           </span>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-          <div><span className="text-gray-400">Rôle requis :</span> {step.requiredRole}</div>
-          <div><span className="text-gray-400">Utilisateurs autorisés :</span> {allowedUsersDisplay}</div>
-          <div><span className="text-gray-400">Action en cas de rejet :</span> {step.rejectAction}</div>
-          <div><span className="text-gray-400">Rôle d'escalade :</span> {step.escalateToRole || '—'}</div>
-          <div><span className="text-gray-400">Timeout :</span> {step.timeout?.duration > 0 ? `${step.timeout.duration} secondes (${step.timeout.action})` : 'Désactivé'}</div>
-        </div>
-        <div className="mt-2 text-sm">
-          <span className="text-gray-400">Description :</span> {step.description || '—'}
-        </div>
-        {(step.approveConditions?.length > 0) && (
-          <div className="mt-2 text-sm">
-            <span className="text-gray-400">Conditions d'approbation :</span>
-            <ul className="list-disc list-inside ml-4">
-              {step.approveConditions.map((cond, ci) => (
-                <li key={ci}>{cond.type} {JSON.stringify(cond.params)}</li>
-              ))}
-            </ul>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+          <div className="flex items-start gap-2">
+            <Shield className="w-4 h-4 text-[#64748B] mt-0.5 flex-shrink-0" />
+            <div>
+              <span className="text-[#64748B]">Rôle requis :</span>
+              <span className="text-[#F8FAFC] ml-1">{step.requiredRole || '—'}</span>
+            </div>
           </div>
-        )}
+          <div className="flex items-start gap-2">
+            <Users className="w-4 h-4 text-[#64748B] mt-0.5 flex-shrink-0" />
+            <div>
+              <span className="text-[#64748B]">Utilisateurs autorisés :</span>
+              <span className="text-[#F8FAFC] ml-1">{allowedUsersDisplay}</span>
+            </div>
+          </div>
+          <div className="flex items-start gap-2">
+            <XCircle className="w-4 h-4 text-[#64748B] mt-0.5 flex-shrink-0" />
+            <div>
+              <span className="text-[#64748B]">Action en cas de rejet :</span>
+              <span className="text-[#F8FAFC] ml-1">{step.rejectAction || '—'}</span>
+            </div>
+          </div>
+          <div className="flex items-start gap-2">
+            <UserCheck className="w-4 h-4 text-[#64748B] mt-0.5 flex-shrink-0" />
+            <div>
+              <span className="text-[#64748B]">Rôle d'escalade :</span>
+              <span className="text-[#F8FAFC] ml-1">{step.escalateToRole || '—'}</span>
+            </div>
+          </div>
+          <div className="flex items-start gap-2 col-span-full">
+            <Clock className="w-4 h-4 text-[#64748B] mt-0.5 flex-shrink-0" />
+            <div>
+              <span className="text-[#64748B]">Timeout :</span>
+              <span className="text-[#F8FAFC] ml-1">
+                {step.timeout?.duration > 0
+                  ? `${step.timeout.duration} secondes (${step.timeout.action})`
+                  : 'Désactivé'}
+              </span>
+            </div>
+          </div>
+          {step.description && (
+            <div className="flex items-start gap-2 col-span-full">
+              <FileText className="w-4 h-4 text-[#64748B] mt-0.5 flex-shrink-0" />
+              <div>
+                <span className="text-[#64748B]">Description :</span>
+                <span className="text-[#F8FAFC] ml-1">{step.description}</span>
+              </div>
+            </div>
+          )}
+          {step.approveConditions?.length > 0 && (
+            <div className="flex items-start gap-2 col-span-full">
+              <CheckCircle className="w-4 h-4 text-[#64748B] mt-0.5 flex-shrink-0" />
+              <div>
+                <span className="text-[#64748B]">Conditions d'approbation :</span>
+                <ul className="list-disc list-inside ml-2 text-[#F8FAFC]">
+                  {step.approveConditions.map((cond, ci) => (
+                    <li key={ci}>{cond.type} {JSON.stringify(cond.params)}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     );
   };
 
   return (
-    <div className="min-h-screen p-8 bg-gradient-to-br from-gray-900 to-gray-800 text-yellow-400 font-urbanist">
-      <div className="mb-4">
-        <BackButton />
-      </div>
-      <Title title={`Schéma ${schema.name} v${schema.version}`} />
-
-      <div className="mt-4 bg-gray-800/60 backdrop-blur-sm border border-yellow-400/20 rounded-xl p-4 flex flex-wrap gap-4 justify-between items-center">
-        <div>
-          <span className="text-gray-400">Statut : </span>
-          <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[schema.status] || 'bg-gray-600/20 text-gray-400'}`}>
-            {statusLabels[schema.status] || schema.status}
-          </span>
+    <div className="min-h-screen ml-[30px]  bg-[#0A0F1C] p-6 md:p-8">
+      <div className="max-w-7xl mx-auto">
+        {/* Back button */}
+        <div className="mb-4">
+          <BackButton />
         </div>
-        <div className="text-gray-400">Cible : {schema.targetType}</div>
-        <div className="text-gray-400">Actif : {schema.isActive ? '✓ Oui' : '✗ Non'}</div>
-        <div className="text-gray-400">Créé par : {schema.createdBy?.name || "Inconnu"}</div>
-        <div className="flex gap-2">
-          {!schema.isActive && schema.status !== 'flawed' && (
-            <>
-              <button
-                onClick={handleRollback}
-                className="px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600"
-              >
-                Rollback
-              </button>
-              <button
-                onClick={handleReactivate}
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-              >
-                Réactiver
-              </button>
-            </>
-          )}
-          <button
-            onClick={handleEdit}
-            className="px-4 py-2 bg-yellow-400 text-gray-900 rounded hover:bg-yellow-500"
-          >
-            Modifier
-          </button>
+
+        {/* Header */}
+        <div className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] p-6 md:p-8 shadow-2xl shadow-black/50">
+          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+            <div className="flex-1">
+              <div className="flex items-center gap-3 mb-2">
+                <Layers className="w-6 h-6 text-emerald-400" />
+                <h1 className="text-2xl md:text-3xl font-bold text-[#F8FAFC] tracking-tight">
+                  {schema.name}
+                </h1>
+                <span className="text-sm text-[#64748B] bg-[#0A0F1C] px-2 py-0.5 rounded border border-[rgba(255,255,255,0.06)]">
+                  v{schema.version}
+                </span>
+              </div>
+              <p className="text-[#94A3B8] text-sm">{schema.description || 'No description'}</p>
+              <div className="flex flex-wrap items-center gap-4 mt-3 text-sm">
+                <span className="inline-flex items-center gap-1.5 text-[#64748B]">
+                  <Calendar className="w-3.5 h-3.5" />
+                  Created {new Date(schema.createdAt).toLocaleDateString('fr-FR')}
+                </span>
+                <span className="inline-flex items-center gap-1.5 text-[#64748B]">
+                  <User className="w-3.5 h-3.5" />
+                  By {schema.createdBy?.name || 'Unknown'}
+                </span>
+                <span className="inline-flex items-center gap-1.5 text-[#64748B]">
+                  <GitBranch className="w-3.5 h-3.5" />
+                  Target: {schema.targetType}
+                </span>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${
+                statusColors[schema.status] || 'bg-gray-500/10 text-gray-400 border-gray-500/20'
+              }`}>
+                {statusLabels[schema.status] || schema.status}
+              </span>
+              <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${
+                schema.isActive
+                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                  : 'bg-gray-500/10 text-gray-400 border-gray-500/20'
+              }`}>
+                {schema.isActive ? (
+                  <>
+                    <CheckCircle className="w-3 h-3 mr-1" />
+                    Active
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="w-3 h-3 mr-1" />
+                    Inactive
+                  </>
+                )}
+              </span>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex flex-wrap gap-2 mt-6 pt-6 border-t border-[rgba(255,255,255,0.06)]">
+            {!schema.isActive && schema.status !== 'flawed' && (
+              <>
+                <button
+                  onClick={handleRollback}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-lg hover:bg-blue-500/20 transition-all text-sm font-medium"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Rollback
+                </button>
+                <button
+                  onClick={handleReactivate}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg hover:bg-emerald-500/20 transition-all text-sm font-medium"
+                >
+                  <Zap className="w-4 h-4" />
+                  Reactivate
+                </button>
+              </>
+            )}
+            <button
+              onClick={handleEdit}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-[#1F2937] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-lg hover:bg-[#182233] transition-all text-sm font-medium"
+            >
+              <Edit className="w-4 h-4" />
+              Edit
+            </button>
+          </div>
         </div>
-      </div>
 
-      {/* Tabs */}
-      <div className="flex space-x-1 mt-6 border-b border-gray-700">
-        <button
-          onClick={() => setActiveTab("steps")}
-          className={`px-4 py-2 rounded-t-lg transition ${
-            activeTab === "steps"
-              ? "bg-yellow-400 text-gray-900"
-              : "bg-gray-800/60 text-gray-300 hover:bg-gray-700"
-          }`}
-        >
-          Étapes ({schema.steps?.length || 0})
-        </button>
-        <button
-          onClick={() => setActiveTab("global")}
-          className={`px-4 py-2 rounded-t-lg transition ${
-            activeTab === "global"
-              ? "bg-yellow-400 text-gray-900"
-              : "bg-gray-800/60 text-gray-300 hover:bg-gray-700"
-          }`}
-        >
-          Configuration globale
-        </button>
-        <button
-          onClick={() => setActiveTab("actions")}
-          className={`px-4 py-2 rounded-t-lg transition ${
-            activeTab === "actions"
-              ? "bg-yellow-400 text-gray-900"
-              : "bg-gray-800/60 text-gray-300 hover:bg-gray-700"
-          }`}
-        >
-          Actions post‑validation
-        </button>
-        <button
-          onClick={() => setActiveTab("info")}
-          className={`px-4 py-2 rounded-t-lg transition ${
-            activeTab === "info"
-              ? "bg-yellow-400 text-gray-900"
-              : "bg-gray-800/60 text-gray-300 hover:bg-gray-700"
-          }`}
-        >
-          Métadonnées
-        </button>
-        <button
-          onClick={() => setActiveTab("history")}
-          className={`px-4 py-2 rounded-t-lg transition ${
-            activeTab === "history"
-              ? "bg-yellow-400 text-gray-900"
-              : "bg-gray-800/60 text-gray-300 hover:bg-gray-700"
-          }`}
-        >
-          Historique ({schema.changeLog?.length || 0})
-        </button>
-      </div>
-
-      <div className="bg-gray-800/60 backdrop-blur-sm border border-yellow-400/20 rounded-b-xl p-6">
-        {activeTab === "steps" && (
-          <div>
-            {schema.steps?.length === 0 && <p className="text-gray-400">Aucune étape définie.</p>}
-            {schema.steps?.map((step, idx) => renderStepCard(step, idx))}
+        {/* Tabs */}
+        <div className="mt-6">
+          <div className="flex overflow-x-auto gap-1 border-b border-[rgba(255,255,255,0.06)] pb-px">
+            <button
+              onClick={() => setActiveTab("steps")}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg text-sm font-medium transition-all duration-200 ${
+                activeTab === "steps"
+                  ? "bg-[#111827] text-emerald-400 border-b-2 border-emerald-400"
+                  : "text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#1F2937]"
+              }`}
+            >
+              <List className="w-4 h-4" />
+              Steps ({schema.steps?.length || 0})
+            </button>
+            <button
+              onClick={() => setActiveTab("global")}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg text-sm font-medium transition-all duration-200 ${
+                activeTab === "global"
+                  ? "bg-[#111827] text-emerald-400 border-b-2 border-emerald-400"
+                  : "text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#1F2937]"
+              }`}
+            >
+              <Settings className="w-4 h-4" />
+              Global Config
+            </button>
+            <button
+              onClick={() => setActiveTab("actions")}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg text-sm font-medium transition-all duration-200 ${
+                activeTab === "actions"
+                  ? "bg-[#111827] text-emerald-400 border-b-2 border-emerald-400"
+                  : "text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#1F2937]"
+              }`}
+            >
+              <Zap className="w-4 h-4" />
+              Post-Validation
+            </button>
+            <button
+              onClick={() => setActiveTab("info")}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg text-sm font-medium transition-all duration-200 ${
+                activeTab === "info"
+                  ? "bg-[#111827] text-emerald-400 border-b-2 border-emerald-400"
+                  : "text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#1F2937]"
+              }`}
+            >
+              <Info className="w-4 h-4" />
+              Metadata
+            </button>
+            <button
+              onClick={() => setActiveTab("history")}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg text-sm font-medium transition-all duration-200 ${
+                activeTab === "history"
+                  ? "bg-[#111827] text-emerald-400 border-b-2 border-emerald-400"
+                  : "text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#1F2937]"
+              }`}
+            >
+              <History className="w-4 h-4" />
+              History ({schema.changeLog?.length || 0})
+            </button>
           </div>
-        )}
 
-        {activeTab === "global" && (
-          <div className="space-y-2 text-sm">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Tab content */}
+          <div className="bg-[#111827] rounded-b-2xl border-x border-b border-[rgba(255,255,255,0.06)] p-6">
+            {activeTab === "steps" && (
               <div>
-                <span className="text-gray-400">Timeout global :</span>
-                <span className="ml-2 font-mono">{schema.globalTimeout?.duration || 0} heures</span>
+                {schema.steps?.length === 0 && (
+                  <p className="text-[#94A3B8] text-center py-8">No steps defined.</p>
+                )}
+                {schema.steps?.map((step, idx) => renderStepCard(step, idx))}
               </div>
-              <div>
-                <span className="text-gray-400">Action globale :</span>
-                <span className="ml-2">{schema.globalTimeout?.action || 'reject'}</span>
-              </div>
-              <div>
-                <span className="text-gray-400">Notification email :</span>
-                <span className="ml-2">{schema.notificationConfig?.methods?.email ? 'Activée' : 'Désactivée'}</span>
-              </div>
-              <div>
-                <span className="text-gray-400">Notification système :</span>
-                <span className="ml-2">{schema.notificationConfig?.methods?.system ? 'Activée' : 'Désactivée'}</span>
-              </div>
-            </div>
-          </div>
-        )}
+            )}
 
-        {activeTab === "actions" && (
-          <div className="space-y-4 text-sm">
-            <div>
-              <h4 className="font-semibold text-yellow-300 mb-2">En cas d'approbation</h4>
-              <div className="bg-gray-900/60 p-3 rounded">
-                <div><span className="text-gray-400">Action :</span> {schema.onApproval?.action || 'setField'}</div>
-                <div><span className="text-gray-400">Paramètres :</span> <pre className="inline text-xs">{JSON.stringify(schema.onApproval?.params, null, 2)}</pre></div>
-              </div>
-            </div>
-            <div>
-              <h4 className="font-semibold text-yellow-300 mb-2">En cas de rejet</h4>
-              <div className="bg-gray-900/60 p-3 rounded">
-                <div><span className="text-gray-400">Action :</span> {schema.onRejection?.action || 'setField'}</div>
-                <div><span className="text-gray-400">Paramètres :</span> <pre className="inline text-xs">{JSON.stringify(schema.onRejection?.params, null, 2)}</pre></div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === "info" && (
-          <div className="space-y-2 text-sm">
-            <div className="grid grid-cols-2 gap-2">
-              <span className="text-gray-400">Nom :</span>
-              <span>{schema.name}</span>
-              <span className="text-gray-400">Description :</span>
-              <span>{schema.description || '—'}</span>
-              <span className="text-gray-400">Version :</span>
-              <span>{schema.version}</span>
-              <span className="text-gray-400">Target Type :</span>
-              <span>{schema.targetType}</span>
-              <span className="text-gray-400">Tenant :</span>
-              <span>{schema.tenantId || 'Global'}</span>
-              <span className="text-gray-400">Créé le :</span>
-              <span>{new Date(schema.createdAt).toLocaleString('fr-FR')}</span>
-              <span className="text-gray-400">Modifié le :</span>
-              <span>{new Date(schema.updatedAt).toLocaleString('fr-FR')}</span>
-              <span className="text-gray-400">Créé par :</span>
-              <span>{schema.createdBy?.email || schema.createdBy?.name + ' ' + schema.createdBy?.lastname || "–"}</span>
-              <span className="text-gray-400">Dernière modification par :</span>
-              <span>{schema.updatedBy?.email || schema.updatedBy?.name + ' ' + schema.updatedBy?.lastname  || "–"}</span>
-            </div>
-          </div>
-        )}
-
-        {activeTab === "history" && (
-          <div className="space-y-2 text-sm">
-            {schema.changeLog && schema.changeLog.length > 0 ? (
-              <div className="space-y-2 max-h-96 overflow-y-auto">
-                {schema.changeLog.map((entry, idx) => (
-                  <div key={idx} className="bg-gray-900/60 p-2 rounded text-xs">
-                    <p>
-                      <span className="text-gray-400">Version {entry.version}</span> –{" "}
-                      {new Date(entry.changedAt).toLocaleString('fr-FR')}
-                    </p>
-                    <p>
-                      <span className="text-gray-400">Chargé par :</span> {entry.changedBy?.name || "Inconnu"}
-                    </p>
-                    <p className="text-gray-300 mt-1">{entry.reason || "–"}</p>
-                    {entry.changes && entry.changes.length > 0 && (
-                      <div className="mt-2 space-y-1">
-                        {entry.changes.map((change, changeIdx) => (
-                          <div key={changeIdx} className="text-gray-400 text-xs">
-                            <span className="font-mono">{change.field}</span> : {JSON.stringify(change.oldValue)} → {JSON.stringify(change.newValue)}
-                          </div>
-                        ))}
-                      </div>
-                    )}
+            {activeTab === "global" && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div className="bg-[#0A0F1C] p-4 rounded-xl border border-[rgba(255,255,255,0.06)]">
+                  <span className="text-[#64748B] block">Global Timeout</span>
+                  <span className="text-[#F8FAFC] font-medium">
+                    {schema.globalTimeout?.duration || 0} hours
+                  </span>
+                  <span className="text-[#94A3B8] ml-2">({schema.globalTimeout?.action || 'reject'})</span>
+                </div>
+                <div className="bg-[#0A0F1C] p-4 rounded-xl border border-[rgba(255,255,255,0.06)]">
+                  <span className="text-[#64748B] block">Notifications</span>
+                  <div className="flex gap-4 mt-1">
+                    <span className={`inline-flex items-center gap-1.5 ${
+                      schema.notificationConfig?.methods?.email ? 'text-emerald-400' : 'text-[#64748B]'
+                    }`}>
+                      <Mail className="w-4 h-4" />
+                      Email
+                    </span>
+                    <span className={`inline-flex items-center gap-1.5 ${
+                      schema.notificationConfig?.methods?.system ? 'text-emerald-400' : 'text-[#64748B]'
+                    }`}>
+                      <Database className="w-4 h-4" />
+                      System
+                    </span>
                   </div>
-                ))}
+                </div>
               </div>
-            ) : (
-              <p className="text-gray-400">Aucun historique</p>
+            )}
+
+            {activeTab === "actions" && (
+              <div className="space-y-4">
+                <div className="bg-[#0A0F1C] p-4 rounded-xl border border-[rgba(255,255,255,0.06)]">
+                  <h4 className="text-sm font-semibold text-emerald-400 mb-2 flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4" />
+                    On Approval
+                  </h4>
+                  <div className="text-sm text-[#94A3B8]">
+                    <span className="text-[#64748B]">Action: </span>
+                    <span className="text-[#F8FAFC]">{schema.onApproval?.action || 'setField'}</span>
+                  </div>
+                  <div className="mt-1 text-sm text-[#94A3B8]">
+                    <span className="text-[#64748B]">Params: </span>
+                    <code className="text-[#F8FAFC] bg-[#111827] px-2 py-0.5 rounded text-xs">
+                      {JSON.stringify(schema.onApproval?.params, null, 2)}
+                    </code>
+                  </div>
+                </div>
+                <div className="bg-[#0A0F1C] p-4 rounded-xl border border-[rgba(255,255,255,0.06)]">
+                  <h4 className="text-sm font-semibold text-rose-400 mb-2 flex items-center gap-2">
+                    <XCircle className="w-4 h-4" />
+                    On Rejection
+                  </h4>
+                  <div className="text-sm text-[#94A3B8]">
+                    <span className="text-[#64748B]">Action: </span>
+                    <span className="text-[#F8FAFC]">{schema.onRejection?.action || 'setField'}</span>
+                  </div>
+                  <div className="mt-1 text-sm text-[#94A3B8]">
+                    <span className="text-[#64748B]">Params: </span>
+                    <code className="text-[#F8FAFC] bg-[#111827] px-2 py-0.5 rounded text-xs">
+                      {JSON.stringify(schema.onRejection?.params, null, 2)}
+                    </code>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "info" && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div className="bg-[#0A0F1C] p-4 rounded-xl border border-[rgba(255,255,255,0.06)]">
+                  <span className="text-[#64748B] block">Name</span>
+                  <span className="text-[#F8FAFC]">{schema.name}</span>
+                </div>
+                <div className="bg-[#0A0F1C] p-4 rounded-xl border border-[rgba(255,255,255,0.06)]">
+                  <span className="text-[#64748B] block">Description</span>
+                  <span className="text-[#F8FAFC]">{schema.description || '—'}</span>
+                </div>
+                <div className="bg-[#0A0F1C] p-4 rounded-xl border border-[rgba(255,255,255,0.06)]">
+                  <span className="text-[#64748B] block">Version</span>
+                  <span className="text-[#F8FAFC]">{schema.version}</span>
+                </div>
+                <div className="bg-[#0A0F1C] p-4 rounded-xl border border-[rgba(255,255,255,0.06)]">
+                  <span className="text-[#64748B] block">Target Type</span>
+                  <span className="text-[#F8FAFC]">{schema.targetType}</span>
+                </div>
+                <div className="bg-[#0A0F1C] p-4 rounded-xl border border-[rgba(255,255,255,0.06)]">
+                  <span className="text-[#64748B] block">Tenant</span>
+                  <span className="text-[#F8FAFC]">{schema.tenantId || 'Global'}</span>
+                </div>
+                <div className="bg-[#0A0F1C] p-4 rounded-xl border border-[rgba(255,255,255,0.06)]">
+                  <span className="text-[#64748B] block">Created</span>
+                  <span className="text-[#F8FAFC]">{new Date(schema.createdAt).toLocaleString('fr-FR')}</span>
+                </div>
+                <div className="bg-[#0A0F1C] p-4 rounded-xl border border-[rgba(255,255,255,0.06)]">
+                  <span className="text-[#64748B] block">Created By</span>
+                  <span className="text-[#F8FAFC]">{schema.createdBy?.email || schema.createdBy?.name || '—'}</span>
+                </div>
+                <div className="bg-[#0A0F1C] p-4 rounded-xl border border-[rgba(255,255,255,0.06)]">
+                  <span className="text-[#64748B] block">Last Updated</span>
+                  <span className="text-[#F8FAFC]">{new Date(schema.updatedAt).toLocaleString('fr-FR')}</span>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "history" && (
+              <div className="space-y-2 max-h-96 overflow-y-auto custom-scrollbar">
+                {schema.changeLog && schema.changeLog.length > 0 ? (
+                  schema.changeLog.map((entry, idx) => (
+                    <div key={idx} className="bg-[#0A0F1C] p-4 rounded-xl border border-[rgba(255,255,255,0.06)]">
+                      <div className="flex flex-wrap items-center gap-2 text-sm">
+                        <span className="text-[#F8FAFC] font-medium">Version {entry.version}</span>
+                        <span className="text-[#64748B]">—</span>
+                        <span className="text-[#94A3B8]">{new Date(entry.changedAt).toLocaleString('fr-FR')}</span>
+                        <span className="text-[#64748B]">by</span>
+                        <span className="text-[#F8FAFC]">{entry.changedBy?.name || 'Unknown'}</span>
+                      </div>
+                      {entry.reason && (
+                        <p className="text-[#94A3B8] text-sm mt-1">{entry.reason}</p>
+                      )}
+                      {entry.changes && entry.changes.length > 0 && (
+                        <div className="mt-2 space-y-1 text-xs">
+                          {entry.changes.map((change, changeIdx) => (
+                            <div key={changeIdx} className="text-[#94A3B8]">
+                              <span className="text-[#64748B]">{change.field}</span>:
+                              <span className="text-rose-400 ml-1">{JSON.stringify(change.oldValue)}</span>
+                              <span className="text-[#64748B] mx-1">→</span>
+                              <span className="text-emerald-400">{JSON.stringify(change.newValue)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-[#94A3B8] text-center py-8">No history available</p>
+                )}
+              </div>
             )}
           </div>
-        )}
+        </div>
       </div>
+
+      <style jsx>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #374151;
+          border-radius: 20px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #4b5563;
+        }
+        .custom-scrollbar {
+          scrollbar-width: thin;
+          scrollbar-color: #374151 transparent;
+        }
+      `}</style>
     </div>
   );
 }

@@ -3,6 +3,38 @@ import { useNavigate } from 'react-router-dom';
 import { UserContext } from '../../Context/dataCont';
 import { useApi } from '../../hooks/useApi';
 import { useModal } from '../../Context/ModalContext';
+import {
+  Plus,
+  Trash2,
+  Save,
+  X,
+  ChevronDown,
+  ChevronRight,
+  Settings,
+  Bell,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  Users,
+  UserCheck,
+  Clock,
+  ArrowRight,
+  Layers,
+  FileText,
+  List,
+  Zap,
+  Mail,
+  Database,
+  Briefcase,
+  UserPlus,
+  Shield,
+  GitBranch,
+  Calendar,
+  Edit,
+  MoreVertical,
+  Info,
+  History
+} from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_NEST_API_URL;
 
@@ -64,21 +96,21 @@ function MultiSelect({ options, value = [], onChange, placeholder }) {
     <div className="relative" ref={containerRef}>
       <div
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-200 cursor-pointer"
+        className="w-full px-3 py-2 bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] cursor-pointer hover:border-[rgba(255,255,255,0.12)] transition-all"
       >
         {selectedLabels || placeholder || 'Sélectionner...'}
       </div>
       {isOpen && (
-        <div className="absolute z-20 mt-1 w-full bg-gray-800 border border-gray-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+        <div className="absolute z-20 mt-1 w-full bg-[#182233] border border-[rgba(255,255,255,0.06)] rounded-xl shadow-2xl shadow-black/50 max-h-60 overflow-y-auto">
           {options.map(opt => (
-            <label key={opt.value} className="flex items-center px-3 py-2 hover:bg-gray-700 cursor-pointer">
+            <label key={opt.value} className="flex items-center px-3 py-2 hover:bg-[#1F2937] cursor-pointer transition-colors">
               <input
                 type="checkbox"
                 checked={value.includes(opt.value)}
                 onChange={() => toggleOption(opt.value)}
-                className="mr-2 w-4 h-4"
+                className="mr-2 w-4 h-4 accent-emerald-500"
               />
-              <span className="text-gray-200">{opt.label}</span>
+              <span className="text-[#F8FAFC] text-sm">{opt.label}</span>
             </label>
           ))}
         </div>
@@ -89,7 +121,7 @@ function MultiSelect({ options, value = [], onChange, placeholder }) {
 
 export default function ValidationSchemaForm({ initialData, schemaId, onSuccess, allowedFields = null, fieldConfigs = {} }) {
   const { authData, setAuthData } = useContext(UserContext);
-  const { callApi } = useApi();  // <-- centralized API
+  const { callApi } = useApi();
   const { confirm } = useModal();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -112,7 +144,6 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
     }
   });
 
-  // Local states for JSON argument textareas
   const [approvalArgsText, setApprovalArgsText] = useState(JSON.stringify(formData.onApproval.params.args || []));
   const [rejectionArgsText, setRejectionArgsText] = useState(JSON.stringify(formData.onRejection.params.args || []));
 
@@ -123,7 +154,6 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
     setRejectionArgsText(JSON.stringify(formData.onRejection.params.args || []));
   }, [formData.onRejection.params.args]);
 
-  // --- Fetch users by role using callApi ---
   const fetchUsersByRole = async (role) => {
     if (usersByRole[role]) return usersByRole[role];
     setLoadingUsers(true);
@@ -136,7 +166,6 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
     }, { showSuccessMessage: false });
 
     if (result) {
-      // result is the unwrapped data – expected to be an array of users
       const users = result || [];
       setUsersByRole(prev => ({ ...prev, [role]: users }));
       setLoadingUsers(false);
@@ -229,12 +258,12 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
       case 'file_missing':
         return (
           <>
-            <label className="block text-xs text-gray-400 mb-1">Dossier</label>
+            <label className="block text-xs text-[#64748B] mb-1">Dossier</label>
             <input
               type="text"
               value={params.folder || ''}
               onChange={e => updateCondition(stepIdx, condIdx, 'param', { folder: e.target.value })}
-              className="w-full px-2 py-1 bg-gray-900 border border-gray-700 rounded text-sm"
+              className="w-full px-2 py-1 bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] rounded-lg text-sm text-[#F8FAFC]"
               placeholder="ex: id_documents"
             />
           </>
@@ -242,20 +271,20 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
       case 'field_equals':
         return (
           <>
-            <label className="block text-xs text-gray-400 mb-1">Nom du champ</label>
+            <label className="block text-xs text-[#64748B] mb-1">Nom du champ</label>
             <input
               type="text"
               value={params.field || ''}
               onChange={e => updateCondition(stepIdx, condIdx, 'param', { field: e.target.value })}
-              className="w-full px-2 py-1 bg-gray-900 border border-gray-700 rounded text-sm"
+              className="w-full px-2 py-1 bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] rounded-lg text-sm text-[#F8FAFC]"
               placeholder="ex: status"
             />
-            <label className="block text-xs text-gray-400 mt-2 mb-1">Valeur</label>
+            <label className="block text-xs text-[#64748B] mt-2 mb-1">Valeur</label>
             <input
               type="text"
               value={params.value || ''}
               onChange={e => updateCondition(stepIdx, condIdx, 'param', { value: e.target.value })}
-              className="w-full px-2 py-1 bg-gray-900 border border-gray-700 rounded text-sm"
+              className="w-full px-2 py-1 bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] rounded-lg text-sm text-[#F8FAFC]"
               placeholder="ex: active"
             />
           </>
@@ -263,12 +292,12 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
       case 'field_exists':
         return (
           <>
-            <label className="block text-xs text-gray-400 mb-1">Nom du champ</label>
+            <label className="block text-xs text-[#64748B] mb-1">Nom du champ</label>
             <input
               type="text"
               value={params.field || ''}
               onChange={e => updateCondition(stepIdx, condIdx, 'param', { field: e.target.value })}
-              className="w-full px-2 py-1 bg-gray-900 border border-gray-700 rounded text-sm"
+              className="w-full px-2 py-1 bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] rounded-lg text-sm text-[#F8FAFC]"
               placeholder="ex: registrationNumber"
             />
           </>
@@ -276,28 +305,28 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
       case 'payment_status':
         return (
           <>
-            <label className="block text-xs text-gray-400 mb-1">Type de cotisation</label>
+            <label className="block text-xs text-[#64748B] mb-1">Type de cotisation</label>
             <select
               value={params.feeType || 'annual'}
               onChange={e => updateCondition(stepIdx, condIdx, 'param', { feeType: e.target.value })}
-              className="w-full px-2 py-1 bg-gray-900 border border-gray-700 rounded text-sm"
+              className="w-full px-2 py-1 bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] rounded-lg text-sm text-[#F8FAFC]"
             >
               {FEE_TYPES.map(ft => (
                 <option key={ft.value} value={ft.value}>{ft.label}</option>
               ))}
             </select>
-            <label className="block text-xs text-gray-400 mt-2 mb-1">Année</label>
+            <label className="block text-xs text-[#64748B] mt-2 mb-1">Année</label>
             <input
               type="number"
               value={params.year || new Date().getFullYear()}
               onChange={e => updateCondition(stepIdx, condIdx, 'param', { year: parseInt(e.target.value) })}
-              className="w-full px-2 py-1 bg-gray-900 border border-gray-700 rounded text-sm"
+              className="w-full px-2 py-1 bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] rounded-lg text-sm text-[#F8FAFC]"
             />
-            <label className="block text-xs text-gray-400 mt-2 mb-1">Statut attendu</label>
+            <label className="block text-xs text-[#64748B] mt-2 mb-1">Statut attendu</label>
             <select
               value={params.status || 'paid'}
               onChange={e => updateCondition(stepIdx, condIdx, 'param', { status: e.target.value })}
-              className="w-full px-2 py-1 bg-gray-900 border border-gray-700 rounded text-sm"
+              className="w-full px-2 py-1 bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] rounded-lg text-sm text-[#F8FAFC]"
             >
               {PAYMENT_STATUSES.map(ps => (
                 <option key={ps.value} value={ps.value}>{ps.label}</option>
@@ -306,7 +335,7 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
           </>
         );
       case 'debt_zero':
-        return <p className="text-xs text-gray-400">Aucune dette restante (vérifié automatiquement)</p>;
+        return <p className="text-xs text-[#64748B]">Aucune dette restante (vérifié automatiquement)</p>;
       default:
         return null;
     }
@@ -340,7 +369,6 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
     } catch (e) { console.warn('Invalid JSON, keeping previous args'); }
   };
 
-  // --- Submit with callApi ---
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -361,14 +389,12 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
     });
 
     if (result) {
-      // Success – call onSuccess and navigate
       onSuccess?.();
       navigate('/dash/validation/schemas');
     }
     setLoading(false);
   };
 
-  // Centralised cancel handler
   const handleCancel = async (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -393,7 +419,6 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
     if (authData?.token && formData.steps.length) preFetch();
   }, [formData.steps, authData?.token]);
 
-  // Helper to check if a field should be rendered
   const isFieldAllowed = (fieldName) => {
     return allowedFields === null || allowedFields.includes(fieldName);
   };
@@ -412,13 +437,13 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
     switch (type) {
       case 'select':
         return (
-          <div key={fieldName}>
-            <label className="block text-sm font-medium text-gray-300 mb-1">{label}</label>
+          <div key={fieldName} className="space-y-1">
+            <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">{label}</label>
             <select
               value={value || ''}
               onChange={onChange}
               required={required}
-              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-200"
+              className="w-full px-3 py-2 bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
             >
               {options.map(opt => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -428,21 +453,21 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
         );
       case 'textarea':
         return (
-          <div key={fieldName}>
-            <label className="block text-sm font-medium text-gray-300 mb-1">{label}</label>
+          <div key={fieldName} className="space-y-1">
+            <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">{label}</label>
             <textarea
               value={value || ''}
               onChange={onChange}
               required={required}
               rows="3"
-              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-200"
+              className="w-full px-3 py-2 bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all resize-y"
             />
           </div>
         );
       default:
         return (
-          <div key={fieldName}>
-            <label className="block text-sm font-medium text-gray-300 mb-1">{label}</label>
+          <div key={fieldName} className="space-y-1">
+            <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">{label}</label>
             <input
               type={type}
               value={value || ''}
@@ -450,7 +475,7 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
               required={required}
               min={min}
               max={max}
-              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-200"
+              className="w-full px-3 py-2 bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
             />
           </div>
         );
@@ -458,18 +483,18 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
   };
 
   return (
-    <div className="min-h-screen ml-[80px] p-8 bg-gradient-to-br from-gray-900 to-gray-800">
-      <div className="max-w-5xl mx-auto bg-gray-800/80 backdrop-blur-xl border border-yellow-400/20 rounded-xl shadow-xl p-8">
-        <h2 className="text-2xl font-bold text-yellow-300 mb-6">
-          {initialData ? 'Modifier le schéma' : 'Nouveau schéma de validation'}
-        </h2>
+    <div className="min-h-screen bg-[#0A0F1C] p-6 md:p-8">
+      <div className="max-w-7xl mx-auto">
 
         <form onSubmit={handleSubmit} className="space-y-8">
-          {/* --- General info fields --- */}
+          {/* --- General info --- */}
           {(isFieldAllowed('name') || isFieldAllowed('targetType') || isFieldAllowed('description')) && (
-            <div className="bg-gray-900/40 border border-yellow-400/10 rounded-lg p-5 space-y-4">
-              <h3 className="text-lg font-semibold text-yellow-300">Informations générales</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] p-6 shadow-2xl shadow-black/50">
+              <div className="flex items-center gap-3 mb-6">
+                <FileText className="w-5 h-5 text-emerald-400" />
+                <h2 className="text-lg font-semibold text-[#F8FAFC] tracking-tight">Informations générales</h2>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {isFieldAllowed('name') && renderSimpleField(
                   'name', 'text', formData.name,
                   (e) => setFormData(prev => ({ ...prev, name: e.target.value })),
@@ -491,16 +516,32 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
 
           {/* --- Steps --- */}
           {isFieldAllowed('steps') && (
-            <div className="bg-gray-900/40 border border-yellow-400/10 rounded-lg p-5">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-yellow-300">Étapes du workflow</h3>
-                <button type="button" onClick={addStep} className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">
-                  + Ajouter une étape
+            <div className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] p-6 shadow-2xl shadow-black/50">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+                <div className="flex items-center gap-3">
+                  <List className="w-5 h-5 text-emerald-400" />
+                  <h2 className="text-lg font-semibold text-[#F8FAFC] tracking-tight">Étapes du workflow</h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={addStep}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl shadow-lg shadow-emerald-500/20 transition-all duration-200 text-sm font-medium"
+                >
+                  <Plus className="w-4 h-4" />
+                  Ajouter une étape
                 </button>
               </div>
+
               {formData.steps.length === 0 && (
-                <p className="text-gray-400 italic text-center py-4">Aucune étape. Cliquez sur "Ajouter une étape" pour commencer.</p>
+                <div className="text-center py-12 bg-[#0A0F1C] rounded-xl border border-[rgba(255,255,255,0.06)]">
+                  <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto mb-4">
+                    <Plus className="w-8 h-8 text-emerald-400" />
+                  </div>
+                  <p className="text-[#94A3B8]">Aucune étape définie</p>
+                  <p className="text-[#64748B] text-sm mt-1">Cliquez sur "Ajouter une étape" pour commencer</p>
+                </div>
               )}
+
               {formData.steps.map((step, idx) => {
                 const usersForRole = usersByRole[step.requiredRole] || [];
                 const userOptions = usersForRole.map(u => ({
@@ -508,9 +549,14 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
                   label: `${u.name} ${u.lastname} (${u.email})`
                 }));
                 return (
-                  <div key={idx} className="bg-gray-800/60 border border-gray-700 rounded-xl p-5 mb-5 shadow-md">
-                    <div className="flex justify-between items-center mb-3">
-                      <h4 className="text-md font-semibold text-yellow-200">Étape {step.order}</h4>
+                  <div key={idx} className="bg-[#0A0F1C] rounded-xl border border-[rgba(255,255,255,0.06)] p-5 mb-5 hover:border-[rgba(255,255,255,0.12)] transition-all">
+                    <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+                      <div className="flex items-center gap-3">
+                        <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-emerald-500/10 text-emerald-400 text-sm font-bold border border-emerald-500/20">
+                          {step.order}
+                        </span>
+                        <h3 className="text-lg font-semibold text-[#F8FAFC]">Étape {step.order}</h3>
+                      </div>
                       <div className="flex items-center gap-3">
                         <label className="relative inline-flex items-center cursor-pointer">
                           <input
@@ -519,37 +565,44 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
                             checked={step.required}
                             onChange={e => updateStep(idx, 'required', e.target.checked)}
                           />
-                          <div className="w-9 h-5 bg-gray-600 rounded-full peer peer-checked:bg-green-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4"></div>
-                          <span className="ml-2 text-sm text-gray-300">Requis</span>
+                          <div className="w-9 h-5 bg-[#1F2937] rounded-full peer peer-checked:bg-emerald-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4"></div>
+                          <span className="ml-2 text-sm text-[#94A3B8]">Requis</span>
                         </label>
-                        <button type="button" onClick={() => deleteStep(idx)} className="text-red-400 text-sm hover:text-red-300">Supprimer</button>
+                        <button
+                          type="button"
+                          onClick={() => deleteStep(idx)}
+                          className="p-1.5 rounded-lg hover:bg-rose-500/10 text-rose-400 hover:text-rose-300 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm text-gray-300 mb-1">Nom de l'étape</label>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      <div className="space-y-1">
+                        <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Nom de l'étape</label>
                         <input
                           type="text"
                           value={step.stepName}
                           onChange={e => updateStep(idx, 'stepName', e.target.value)}
                           required
-                          className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-200"
+                          className="w-full px-3 py-2 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
                         />
                       </div>
-                      <div>
-                        <label className="block text-sm text-gray-300 mb-1">Rôle requis</label>
+                      <div className="space-y-1">
+                        <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Rôle requis</label>
                         <select
                           value={step.requiredRole}
                           onChange={(e) => handleRoleChange(idx, e.target.value)}
-                          className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-200"
+                          className="w-full px-3 py-2 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
                         >
                           {STEP_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                         </select>
                       </div>
-                      <div>
-                        <label className="block text-sm text-gray-300 mb-1">Utilisateurs autorisés</label>
+                      <div className="space-y-1">
+                        <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Utilisateurs autorisés</label>
                         {loadingUsers && usersForRole.length === 0 ? (
-                          <div className="text-sm text-gray-400">Chargement...</div>
+                          <div className="text-sm text-[#64748B] py-2">Chargement...</div>
                         ) : (
                           <MultiSelect
                             key={`${step.requiredRole}-${idx}`}
@@ -559,73 +612,89 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
                             placeholder="Sélectionner des utilisateurs..."
                           />
                         )}
-                        <p className="text-xs text-gray-400 mt-1">Laissez vide pour autoriser tout le rôle.</p>
+                        <p className="text-xs text-[#64748B] mt-1">Laissez vide pour autoriser tout le rôle.</p>
                       </div>
-                      <div>
-                        <label className="block text-sm text-gray-300 mb-1">Action en cas de rejet</label>
+                      <div className="space-y-1">
+                        <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Action en cas de rejet</label>
                         <select
                           value={step.rejectAction}
                           onChange={e => updateStep(idx, 'rejectAction', e.target.value)}
-                          className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-200"
+                          className="w-full px-3 py-2 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
                         >
                           {REJECT_ACTIONS.map(a => <option key={a} value={a}>{a}</option>)}
                         </select>
                       </div>
-                      <div>
-                        <label className="block text-sm text-gray-300 mb-1">Rôle d'escalade (si action='escalate')</label>
+                      <div className="space-y-1">
+                        <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Rôle d'escalade</label>
                         <select
                           value={step.escalateToRole || 'admin'}
                           onChange={e => updateStep(idx, 'escalateToRole', e.target.value)}
-                          className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-200"
+                          className="w-full px-3 py-2 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
                         >
                           {STEP_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                         </select>
+                        <p className="text-xs text-[#64748B] mt-1">Utilisé si l'action de rejet est 'escalate'</p>
                       </div>
-                      <div>
-                        <label className="block text-sm text-gray-300 mb-1">Timeout (secondes, 0 = désactivé)</label>
+                      <div className="space-y-1">
+                        <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Timeout (secondes)</label>
                         <input
                           type="number"
                           value={step.timeout.duration}
                           onChange={e => updateStep(idx, 'timeout', { duration: parseInt(e.target.value) || 0 })}
-                          className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-200"
+                          className="w-full px-3 py-2 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
                         />
+                        <p className="text-xs text-[#64748B] mt-1">0 = désactivé</p>
                       </div>
-                      <div>
-                        <label className="block text-sm text-gray-300 mb-1">Action du timeout</label>
+                      <div className="space-y-1">
+                        <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Action du timeout</label>
                         <select
                           value={step.timeout.action}
                           onChange={e => updateStep(idx, 'timeout', { action: e.target.value })}
-                          className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-200"
+                          className="w-full px-3 py-2 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
                         >
                           {TIMEOUT_ACTIONS.map(a => <option key={a} value={a}>{a}</option>)}
                         </select>
                       </div>
                     </div>
-                    <div className="mt-4 pt-3 border-t text-gray-300 border-gray-700">
-                      <div className="flex justify-between items-center mb-2">
-                        <h5 className="text-sm font-semibold text-yellow-300">Conditions d'approbation</h5>
+
+                    {/* Conditions */}
+                    <div className="mt-5 pt-4 border-t border-[rgba(255,255,255,0.06)]">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-emerald-400" />
+                          <h4 className="text-sm font-semibold text-[#F8FAFC]">Conditions d'approbation</h4>
+                        </div>
                         <button
                           type="button"
                           onClick={() => addCondition(idx)}
-                          className="text-xs bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded text-white"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-lg hover:bg-blue-500/20 transition-all text-xs font-medium"
                         >
-                          + Ajouter une condition
+                          <Plus className="w-3.5 h-3.5" />
+                          Ajouter
                         </button>
                       </div>
+
                       {(step.approveConditions || []).length === 0 && (
-                        <p className="text-gray-400 text-xs italic">Aucune condition.</p>
+                        <p className="text-xs text-[#64748B] italic">Aucune condition définie.</p>
                       )}
+
                       {(step.approveConditions || []).map((cond, cidx) => (
-                        <div key={cidx} className="bg-gray-900/60 rounded p-3 mb-2">
-                          <div className="flex justify-between items-start mb-2">
+                        <div key={cidx} className="bg-[#111827] rounded-lg p-3 mb-2 border border-[rgba(255,255,255,0.06)]">
+                          <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
                             <select
                               value={cond.type}
                               onChange={e => updateCondition(idx, cidx, 'type', e.target.value)}
-                              className="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm"
+                              className="bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] rounded-lg px-2 py-1 text-sm text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500"
                             >
                               {CONDITION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                             </select>
-                            <button onClick={() => removeCondition(idx, cidx)} className="text-red-400 text-xs">Supprimer</button>
+                            <button
+                              type="button"
+                              onClick={() => removeCondition(idx, cidx)}
+                              className="text-rose-400 hover:text-rose-300 text-xs p-1 hover:bg-rose-500/10 rounded"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
                           </div>
                           <div className="grid grid-cols-1 gap-1">
                             {renderConditionParams(cond, idx, cidx)}
@@ -633,13 +702,14 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
                         </div>
                       ))}
                     </div>
-                    <div className="mt-3">
-                      <label className="block text-sm text-gray-300 mb-1">Description de l'étape</label>
+
+                    <div className="mt-4 space-y-1">
+                      <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Description de l'étape</label>
                       <textarea
                         value={step.description}
                         onChange={e => updateStep(idx, 'description', e.target.value)}
                         rows="2"
-                        className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-200"
+                        className="w-full px-3 py-2 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all resize-y"
                       />
                     </div>
                   </div>
@@ -648,26 +718,30 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
             </div>
           )}
 
-          {/* --- Global timeout --- */}
+          {/* --- Global configuration --- */}
           {isFieldAllowed('globalTimeout') && (
-            <div className="bg-gray-900/40 border border-yellow-400/10 rounded-lg p-5">
-              <h3 className="text-lg font-semibold text-yellow-300 mb-4">Configuration globale</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Timeout global (heures)</label>
+            <div className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] p-6 shadow-2xl shadow-black/50">
+              <div className="flex items-center gap-3 mb-6">
+                <Settings className="w-5 h-5 text-emerald-400" />
+                <h2 className="text-lg font-semibold text-[#F8FAFC] tracking-tight">Configuration globale</h2>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Timeout global (heures)</label>
                   <input
                     type="number"
                     value={formData.globalTimeout.duration}
                     onChange={e => setFormData(prev => ({ ...prev, globalTimeout: { ...prev.globalTimeout, duration: parseInt(e.target.value) || 0 } }))}
-                    className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-200"
+                    className="w-full px-3 py-2 bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
                   />
+                  <p className="text-xs text-[#64748B]">0 = désactivé</p>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Action globale du timeout</label>
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Action globale du timeout</label>
                   <select
                     value={formData.globalTimeout.action}
                     onChange={e => setFormData(prev => ({ ...prev, globalTimeout: { ...prev.globalTimeout, action: e.target.value } }))}
-                    className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-200"
+                    className="w-full px-3 py-2 bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
                   >
                     <option value="reject">Rejeter la demande</option>
                     <option value="cancel">Annuler la demande</option>
@@ -679,13 +753,19 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
 
           {/* --- Notification configuration --- */}
           {isFieldAllowed('notificationConfig') && (
-            <div className="bg-gray-900/40 border border-yellow-400/10 rounded-lg p-5">
-              <h3 className="text-lg font-semibold text-yellow-300 mb-4">Configuration des notifications</h3>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
+            <div className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] p-6 shadow-2xl shadow-black/50">
+              <div className="flex items-center gap-3 mb-6">
+                <Bell className="w-5 h-5 text-emerald-400" />
+                <h2 className="text-lg font-semibold text-[#F8FAFC] tracking-tight">Configuration des notifications</h2>
+              </div>
+              <div className="space-y-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-4 bg-[#0A0F1C] rounded-xl border border-[rgba(255,255,255,0.06)]">
                   <div>
-                    <span className="text-gray-200 font-medium">Notifications par email</span>
-                    <p className="text-xs text-gray-400">Envoyer un email lorsque cette étape devient active</p>
+                    <span className="text-[#F8FAFC] font-medium flex items-center gap-2">
+                      <Mail className="w-4 h-4 text-emerald-400" />
+                      Notifications par email
+                    </span>
+                    <p className="text-xs text-[#64748B] mt-0.5">Envoyer un email lorsque cette étape devient active</p>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
                     <input
@@ -703,13 +783,17 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
                         }
                       }))}
                     />
-                    <div className="w-11 h-6 bg-gray-600 rounded-full peer peer-checked:bg-yellow-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"></div>
+                    <div className="w-11 h-6 bg-[#1F2937] rounded-full peer peer-checked:bg-emerald-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"></div>
                   </label>
                 </div>
-                <div className="flex items-center justify-between">
+
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-4 bg-[#0A0F1C] rounded-xl border border-[rgba(255,255,255,0.06)]">
                   <div>
-                    <span className="text-gray-200 font-medium">Notifications internes (cloche)</span>
-                    <p className="text-xs text-gray-400">Afficher dans le centre de notifications de l'application</p>
+                    <span className="text-[#F8FAFC] font-medium flex items-center gap-2">
+                      <Database className="w-4 h-4 text-emerald-400" />
+                      Notifications internes
+                    </span>
+                    <p className="text-xs text-[#64748B] mt-0.5">Afficher dans le centre de notifications de l'application</p>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
                     <input
@@ -727,11 +811,12 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
                         }
                       }))}
                     />
-                    <div className="w-11 h-6 bg-gray-600 rounded-full peer peer-checked:bg-yellow-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"></div>
+                    <div className="w-11 h-6 bg-[#1F2937] rounded-full peer peer-checked:bg-emerald-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"></div>
                   </label>
                 </div>
-                <div>
-                  <label className="block text-sm text-gray-300 mb-1">Modèle d'email (optionnel)</label>
+
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Modèle d'email (optionnel)</label>
                   <input
                     type="text"
                     value={formData.notificationConfig?.emailTemplate || ''}
@@ -743,83 +828,91 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
                       }
                     }))}
                     placeholder="Laissez vide pour utiliser le modèle par défaut"
-                    className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-200"
+                    className="w-full px-3 py-2 bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
                   />
-                  <p className="text-xs text-gray-400 mt-1">Permet de personnaliser le contenu des emails pour ce schéma.</p>
+                  <p className="text-xs text-[#64748B] mt-1">Permet de personnaliser le contenu des emails pour ce schéma.</p>
                 </div>
               </div>
             </div>
           )}
 
-          {/* --- Post‑validation actions --- */}
+          {/* --- Post-validation actions --- */}
           {(isFieldAllowed('onApproval') || isFieldAllowed('onRejection')) && (
-            <div className="bg-gray-900/40 border border-yellow-400/10 rounded-lg p-5">
-              <h3 className="text-lg font-semibold text-yellow-300 mb-4">Actions post‑validation</h3>
+            <div className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] p-6 shadow-2xl shadow-black/50">
+              <div className="flex items-center gap-3 mb-6">
+                <Zap className="w-5 h-5 text-emerald-400" />
+                <h2 className="text-lg font-semibold text-[#F8FAFC] tracking-tight">Actions post‑validation</h2>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {isFieldAllowed('onApproval') && (
-                  <div>
-                    <h4 className="text-md font-medium text-yellow-300 mb-3">En cas d'approbation</h4>
-                    <div className="space-y-3">
-                      <div>
-                        <label className="block text-sm text-gray-300 mb-1">Action</label>
+                  <div className="bg-[#0A0F1C] rounded-xl border border-[rgba(255,255,255,0.06)] p-5">
+                    <h3 className="text-sm font-semibold text-emerald-400 mb-4 flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4" />
+                      En cas d'approbation
+                    </h3>
+                    <div className="space-y-4">
+                      <div className="space-y-1">
+                        <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Action</label>
                         <select
                           value={formData.onApproval.action}
                           onChange={e => updateFinalAction('onApproval', 'action', e.target.value)}
-                          className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-200"
+                          className="w-full px-3 py-2 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
                         >
                           {FINAL_ACTIONS.map(act => <option key={act} value={act}>{act}</option>)}
                         </select>
                       </div>
+
                       {formData.onApproval.action === 'setField' && (
                         <>
-                          <div>
-                            <label className="block text-sm text-gray-300 mb-1">Nom du champ</label>
+                          <div className="space-y-1">
+                            <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Nom du champ</label>
                             <input
                               type="text"
                               value={formData.onApproval.params.field || ''}
                               onChange={e => updateFinalActionParam('onApproval', 'field', e.target.value)}
-                              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-200"
+                              className="w-full px-3 py-2 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
                             />
                           </div>
-                          <div>
-                            <label className="block text-sm text-gray-300 mb-1">Valeur</label>
+                          <div className="space-y-1">
+                            <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Valeur</label>
                             <input
                               type="text"
                               value={formData.onApproval.params.value ?? ''}
                               onChange={e => updateFinalActionParam('onApproval', 'value', e.target.value)}
-                              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-200"
+                              className="w-full px-3 py-2 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
                             />
                           </div>
                         </>
                       )}
+
                       {formData.onApproval.action === 'callService' && (
                         <>
-                          <div>
-                            <label className="block text-sm text-gray-300 mb-1">Service</label>
+                          <div className="space-y-1">
+                            <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Service</label>
                             <input
                               type="text"
                               value={formData.onApproval.params.service || ''}
                               onChange={e => updateFinalActionParam('onApproval', 'service', e.target.value)}
-                              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg"
+                              className="w-full px-3 py-2 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
                             />
                           </div>
-                          <div>
-                            <label className="block text-sm text-gray-300 mb-1">Méthode</label>
+                          <div className="space-y-1">
+                            <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Méthode</label>
                             <input
                               type="text"
                               value={formData.onApproval.params.method || ''}
                               onChange={e => updateFinalActionParam('onApproval', 'method', e.target.value)}
-                              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg"
+                              className="w-full px-3 py-2 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
                             />
                           </div>
-                          <div>
-                            <label className="block text-sm text-gray-300 mb-1">Arguments (JSON)</label>
+                          <div className="space-y-1">
+                            <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Arguments (JSON)</label>
                             <textarea
                               value={approvalArgsText}
                               onChange={(e) => setApprovalArgsText(e.target.value)}
                               onBlur={handleApprovalArgsBlur}
                               rows="2"
-                              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg"
+                              className="w-full px-3 py-2 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all font-mono text-sm"
                               placeholder='["arg1", 123]'
                             />
                           </div>
@@ -830,69 +923,74 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
                 )}
 
                 {isFieldAllowed('onRejection') && (
-                  <div>
-                    <h4 className="text-md font-medium text-yellow-300 mb-3">En cas de rejet</h4>
-                    <div className="space-y-3">
-                      <div>
-                        <label className="block text-sm text-gray-300 mb-1">Action</label>
+                  <div className="bg-[#0A0F1C] rounded-xl border border-[rgba(255,255,255,0.06)] p-5">
+                    <h3 className="text-sm font-semibold text-rose-400 mb-4 flex items-center gap-2">
+                      <XCircle className="w-4 h-4" />
+                      En cas de rejet
+                    </h3>
+                    <div className="space-y-4">
+                      <div className="space-y-1">
+                        <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Action</label>
                         <select
                           value={formData.onRejection.action}
                           onChange={e => updateFinalAction('onRejection', 'action', e.target.value)}
-                          className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-200"
+                          className="w-full px-3 py-2 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
                         >
                           {FINAL_ACTIONS.map(act => <option key={act} value={act}>{act}</option>)}
                         </select>
                       </div>
+
                       {formData.onRejection.action === 'setField' && (
                         <>
-                          <div>
-                            <label className="block text-sm text-gray-300 mb-1">Nom du champ</label>
+                          <div className="space-y-1">
+                            <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Nom du champ</label>
                             <input
                               type="text"
                               value={formData.onRejection.params.field || ''}
                               onChange={e => updateFinalActionParam('onRejection', 'field', e.target.value)}
-                              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-200"
+                              className="w-full px-3 py-2 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
                             />
                           </div>
-                          <div>
-                            <label className="block text-sm text-gray-300 mb-1">Valeur</label>
+                          <div className="space-y-1">
+                            <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Valeur</label>
                             <input
                               type="text"
                               value={formData.onRejection.params.value ?? ''}
                               onChange={e => updateFinalActionParam('onRejection', 'value', e.target.value)}
-                              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-200"
+                              className="w-full px-3 py-2 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
                             />
                           </div>
                         </>
                       )}
+
                       {formData.onRejection.action === 'callService' && (
                         <>
-                          <div>
-                            <label className="block text-sm text-gray-300 mb-1">Service</label>
+                          <div className="space-y-1">
+                            <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Service</label>
                             <input
                               type="text"
                               value={formData.onRejection.params.service || ''}
                               onChange={e => updateFinalActionParam('onRejection', 'service', e.target.value)}
-                              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg"
+                              className="w-full px-3 py-2 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
                             />
                           </div>
-                          <div>
-                            <label className="block text-sm text-gray-300 mb-1">Méthode</label>
+                          <div className="space-y-1">
+                            <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Méthode</label>
                             <input
                               type="text"
                               value={formData.onRejection.params.method || ''}
                               onChange={e => updateFinalActionParam('onRejection', 'method', e.target.value)}
-                              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg"
+                              className="w-full px-3 py-2 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
                             />
                           </div>
-                          <div>
-                            <label className="block text-sm text-gray-300 mb-1">Arguments (JSON)</label>
+                          <div className="space-y-1">
+                            <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Arguments (JSON)</label>
                             <textarea
                               value={rejectionArgsText}
                               onChange={(e) => setRejectionArgsText(e.target.value)}
                               onBlur={handleRejectionArgsBlur}
                               rows="2"
-                              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg"
+                              className="w-full px-3 py-2 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all font-mono text-sm"
                               placeholder='["arg1", 123]'
                             />
                           </div>
@@ -906,7 +1004,7 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
           )}
 
           {/* --- Submit buttons --- */}
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-700">
+          <div className="flex flex-col sm:flex-row justify-end gap-3 pt-6 border-t border-[rgba(255,255,255,0.06)]">
             <button
               type="button"
               onMouseDown={(e) => {
@@ -914,16 +1012,27 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
                 e.stopPropagation();
                 handleCancel(e);
               }}
-              className="px-5 py-2 bg-gray-700 rounded-lg hover:bg-gray-600 text-gray-200"
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-[#1F2937] hover:bg-[#182233] text-[#94A3B8] hover:text-[#F8FAFC] rounded-xl transition-all duration-200 border border-[rgba(255,255,255,0.06)] text-sm font-medium"
             >
+              <X className="w-4 h-4" />
               Annuler
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="px-5 py-2 bg-yellow-600 rounded-lg hover:bg-yellow-500 text-white disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 transition-all duration-200 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Enregistrement...' : 'Enregistrer'}
+              {loading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Enregistrement...
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  Enregistrer
+                </>
+              )}
             </button>
           </div>
         </form>

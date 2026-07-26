@@ -1,17 +1,33 @@
 import { useState, useEffect, useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { UserContext } from '../Context/dataCont';
 import { fetchWithRefresh } from '../Components/api';
 import Title from '../Components/Title';
+import {
+  Bell,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  AlertTriangle,
+  Clock,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  Mail,
+  Info,
+  ExternalLink
+} from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_NEST_API_URL;
 
 export default function NotificationsPage() {
   const { authData, setAuthData } = useContext(UserContext);
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
   const [total, setTotal] = useState(0);
-  const limit = 10; // fewer per page for better UX
+  const limit = 10;
 
   useEffect(() => {
     fetchNotifications();
@@ -27,7 +43,7 @@ export default function NotificationsPage() {
         setAuthData
       );
       const data = await res.json();
-      setNotifications(data.data);
+      setNotifications(data.data.data);
       setTotal(data.pagination.total);
     } catch (err) {
       console.error(err);
@@ -52,129 +68,178 @@ export default function NotificationsPage() {
     }
   };
 
-  const getTypeIcon = (type) => {
-    // You can customize icons per notification type
+  const handleNotificationClick = async (notif) => {
+    const { id, type, data } = notif;
+    let navigateUrl = null;
+
+    // Determine the target URL based on type (same logic as dropdown)
     switch (type) {
       case 'validation.request':
-        return '📋';
       case 'validation.rejected':
-        return '❌';
       case 'validation.cancelled':
-        return '🚫';
-      case 'fee.late_warning':
-        return '⚠️';
+      case 'validation.rejection_noted':
+        if (data?.validationRequestId) {
+          navigateUrl = `/dash/validation/requests/${data.validationRequestId}`;
+        }
+        break;
       default:
-        return '🔔';
+        navigateUrl = '/auth/notifications';
+    }
+
+    // Mark as read if unread
+    if (!notif.readAt) {
+      await markAsRead(id);
+    }
+
+    // Navigate if we have a URL
+    if (navigateUrl) {
+      navigate(navigateUrl);
+    }
+  };
+
+  const getTypeIcon = (type) => {
+    const iconClass = 'w-5 h-5 flex-shrink-0';
+    switch (type) {
+      case 'validation.request':
+        return <Bell className={`${iconClass} text-emerald-400`} />;
+      case 'validation.rejected':
+        return <XCircle className={`${iconClass} text-rose-400`} />;
+      case 'validation.cancelled':
+        return <AlertCircle className={`${iconClass} text-yellow-400`} />;
+      case 'fee.late_warning':
+        return <AlertTriangle className={`${iconClass} text-orange-400`} />;
+      default:
+        return <Mail className={`${iconClass} text-[#64748B]`} />;
     }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-yellow-300">Chargement...</div>
+      <div className="min-h-screen bg-[#0A0F1C] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-12 h-12 text-emerald-400 animate-spin" />
+          <p className="text-[#94A3B8] text-sm">Chargement des notifications...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 pb-16">
-      {/* Gold cover (like profile page) */}
-      <div className="h-32 bg-yellow-400/80 shadow-md"></div>
-
-      {/* Main content container */}
-      <div className="w-3/4 mx-auto -mt-16">
-        {/* Card container */}
-        <div className="bg-gray-800/80 backdrop-blur-xl border border-yellow-400/30 rounded-xl shadow-xl p-8">
-          <div className="flex justify-between items-center mb-6">
-            <Title title="Mes notifications" textColor="text-yellow-300" />
-            <div className="text-sm text-gray-400">
-              Total: {total}
-            </div>
+    <div className="min-h-screen bg-[#0A0F1C] p-6 md:p-8">
+      <div className="max-w-4xl mx-auto">
+        {/* Header */}
+        <div className="flex items-center gap-4 mb-8">
+          <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+            <Bell className="w-6 h-6 text-emerald-400" />
           </div>
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-[#F8FAFC] tracking-tight">
+              Mes notifications
+            </h1>
+            <p className="text-[#94A3B8] text-sm mt-1">
+              {total} notification{total > 1 ? 's' : ''} au total
+            </p>
+          </div>
+        </div>
 
-          {/* Notifications list */}
-          <div className="space-y-4">
-            {notifications.length === 0 ? (
-              <div className="text-center py-12 text-gray-400">
-                Aucune notification pour le moment.
-              </div>
-            ) : (
-              notifications.map((notif) => (
-                <div
-                  key={notif.id}
-                  className={`p-5 rounded-xl border transition-all duration-200 cursor-pointer
-                    ${!notif.readAt 
-                      ? 'bg-gray-700/40 border-yellow-400/40 shadow-md hover:shadow-yellow-400/10' 
-                      : 'bg-gray-800/40 border-gray-700 hover:border-yellow-400/20'
-                    }`}
-                  onClick={() => markAsRead(notif.id)}
-                >
-                  <div className="flex items-start gap-4">
-                    <div className="text-2xl">{getTypeIcon(notif.type)}</div>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between gap-3 flex-wrap">
-                        <h3 className={`text-lg font-semibold ${!notif.readAt ? 'text-yellow-300' : 'text-gray-200'}`}>
-                          {notif.title}
-                        </h3>
-                        <span className="text-xs text-gray-500">
-                          {new Date(notif.createdAt).toLocaleString('fr-FR', {
-                            day: '2-digit',
-                            month: '2-digit',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </span>
-                      </div>
-                      <p className="text-gray-300 mt-1">{notif.message}</p>
-                      {notif.data && notif.data.stepName && (
-                        <div className="mt-2 text-sm text-yellow-400/70">
-                          Étape: {notif.data.stepName}
-                        </div>
-                      )}
-                      {!notif.readAt && (
-                        <div className="mt-2 text-xs text-blue-400">
-                          Cliquez pour marquer comme lu
-                        </div>
-                      )}
-                    </div>
+        {/* Notifications list */}
+        <div className="space-y-3">
+          {notifications.length === 0 ? (
+            <div className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] p-12 text-center shadow-2xl shadow-black/50">
+              <Bell className="w-12 h-12 text-[#64748B] opacity-30 mx-auto mb-4" />
+              <p className="text-[#94A3B8] text-lg font-medium">Aucune notification</p>
+              <p className="text-[#64748B] text-sm mt-1">Vous êtes à jour.</p>
+            </div>
+          ) : (
+            notifications.map((notif) => (
+              <div
+                key={notif.id}
+                className={`group bg-[#111827] rounded-2xl border transition-all duration-200 cursor-pointer shadow-lg hover:border-[rgba(255,255,255,0.12)] ${
+                  !notif.readAt
+                    ? 'border-emerald-500/20 bg-emerald-500/5 hover:border-emerald-500/40'
+                    : 'border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)]'
+                }`}
+                onClick={() => handleNotificationClick(notif)}
+              >
+                <div className="p-5 flex items-start gap-4">
+                  <div className="flex-shrink-0 mt-0.5">
+                    {getTypeIcon(notif.type)}
                   </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <h3 className={`text-base font-semibold truncate ${
+                        !notif.readAt ? 'text-[#F8FAFC]' : 'text-[#94A3B8]'
+                      }`}>
+                        {notif.title}
+                      </h3>
+                      <span className="text-xs text-[#64748B] flex items-center gap-1.5 whitespace-nowrap">
+                        <Clock className="w-3.5 h-3.5" />
+                        {new Date(notif.createdAt).toLocaleString('fr-FR', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </span>
+                    </div>
+                    <p className="text-sm text-[#94A3B8] mt-1 leading-relaxed">
+                      {notif.message}
+                    </p>
+                    {notif.data && notif.data.stepName && (
+                      <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        <Info className="w-3 h-3" />
+                        Étape: {notif.data.stepName}
+                      </div>
+                    )}
+                  </div>
+                  {!notif.readAt ? (
+                    <div className="flex-shrink-0 mt-1">
+                      <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                    </div>
+                  ) : (
+                    <div className="flex-shrink-0 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <ExternalLink className="w-4 h-4 text-[#64748B]" />
+                    </div>
+                  )}
                 </div>
-              ))
-            )}
-          </div>
-
-          {/* Pagination (styled like their buttons) */}
-          {total > limit && (
-            <div className="flex justify-between items-center mt-8 pt-4 border-t border-gray-700">
-              <button
-                onClick={() => setPage(p => Math.max(0, p - 1))}
-                disabled={page === 0}
-                className={`px-5 py-2 rounded-lg font-medium transition
-                  ${page === 0 
-                    ? 'bg-gray-700 text-gray-500 cursor-not-allowed' 
-                    : 'bg-gray-700 text-gray-200 hover:bg-yellow-400 hover:text-gray-900'
-                  }`}
-              >
-                ← Précédent
-              </button>
-              <span className="text-yellow-300 text-sm">
-                Page {page + 1} sur {Math.ceil(total / limit)}
-              </span>
-              <button
-                onClick={() => setPage(p => p + 1)}
-                disabled={(page + 1) * limit >= total}
-                className={`px-5 py-2 rounded-lg font-medium transition
-                  ${(page + 1) * limit >= total 
-                    ? 'bg-gray-700 text-gray-500 cursor-not-allowed' 
-                    : 'bg-gray-700 text-gray-200 hover:bg-yellow-400 hover:text-gray-900'
-                  }`}
-              >
-                Suivant →
-              </button>
-            </div>
+              </div>
+            ))
           )}
         </div>
+
+        {/* Pagination */}
+        {total > limit && (
+          <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-[rgba(255,255,255,0.06)]">
+            <button
+              onClick={() => setPage(p => Math.max(0, p - 1))}
+              disabled={page === 0}
+              className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
+                page === 0
+                  ? 'bg-[#1F2937] text-[#64748B] cursor-not-allowed opacity-50'
+                  : 'bg-[#1F2937] text-[#F8FAFC] hover:bg-[#22C55E] hover:text-[#0A0F1C] border border-[rgba(255,255,255,0.06)]'
+              }`}
+            >
+              <ChevronLeft className="w-4 h-4" />
+              Précédent
+            </button>
+            <span className="text-sm text-[#94A3B8]">
+              Page {page + 1} sur {Math.ceil(total / limit)}
+            </span>
+            <button
+              onClick={() => setPage(p => p + 1)}
+              disabled={(page + 1) * limit >= total}
+              className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
+                (page + 1) * limit >= total
+                  ? 'bg-[#1F2937] text-[#64748B] cursor-not-allowed opacity-50'
+                  : 'bg-[#1F2937] text-[#F8FAFC] hover:bg-[#22C55E] hover:text-[#0A0F1C] border border-[rgba(255,255,255,0.06)]'
+              }`}
+            >
+              Suivant
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -113,12 +113,13 @@ export default function ProfilePage({ user }) {
       const uploadData = new FormData();
       uploadData.append("file", file);
       uploadData.append("folder", "uploads");
-      const response = await fetch(`${NEST_API_URL}/files/upload/${displayUser.id}`, {
+      const response = await fetch(`${NEST_API_URL}/files/${displayUser.id}`, {
         method: "POST",
         headers: { Authorization: `Bearer ${authData.token}` },
         body: uploadData,
       });
       const data = await response.json();
+      console.log(data)
       if (response.status === 413) {
         handlePopup("error", data.message || "File is too large");
         return;
@@ -144,7 +145,7 @@ export default function ProfilePage({ user }) {
       const uploadData = new FormData();
       uploadData.append("file", newFile);
       uploadData.append("folder", "uploads");
-      const response = await fetch(`${NEST_API_URL}/files/replace/${file.id}`, {
+      const response = await fetch(`${NEST_API_URL}/files/${file.id}`, {
         method: "PATCH",
         headers: { Authorization: `Bearer ${authData.token}` },
         body: uploadData,
@@ -398,7 +399,7 @@ export default function ProfilePage({ user }) {
           }
 
           const jobData = await jobRes.json();
-           console.log(jobData.data)
+          
           if (!jobData.data.success || !jobData.data.jobId) {
             throw new Error(jobData.data.message || 'Réponse inattendue du serveur');
           }
@@ -490,7 +491,7 @@ export default function ProfilePage({ user }) {
           headers: { Authorization: `Bearer ${authData.token}` }
         });
         const permData = await permRes.json();
-        console.log(permData)
+      
         let fields = [];
         if (permData.data?.fields) {
           fields = permData.data.fields;
@@ -550,6 +551,7 @@ export default function ProfilePage({ user }) {
 
   const PROFILE_URL = displayUser?.profilePicture || sabAvatar;
   const files = displayUser?.files || [];
+  console.log(files)
 
   const roleColors = {
     admin: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
@@ -575,7 +577,6 @@ export default function ProfilePage({ user }) {
   }
 
   const visibleFields = permissions?.fields || [];
-  console.log("visible fields",visibleFields)
   const isVisible = (fieldName) => visibleFields.includes(fieldName);
   const showMenu = isAdmin || isOwner;
 
@@ -607,8 +608,6 @@ export default function ProfilePage({ user }) {
     { key: 'role', label: 'Rôle', isArabic: false, icon: <Crown className="w-4 h-4" /> },
     { key: 'status', label: 'Statut', isArabic: false, icon: <BadgeCheck className="w-4 h-4" /> },
   ];
-
-  console.log(essentialFields)
   const formatValue = (value) => {
     if (value === null || value === undefined) return '-';
     if (typeof value === 'boolean') return value ? 'Oui' : 'Non';
@@ -643,7 +642,7 @@ export default function ProfilePage({ user }) {
 
   return (
     <>
-      <div className="min-h-screen bg-[#0A0F1C] relative">
+      <div className="min-h-screen bg-[#0A0F1C]  relative">
 
         {/* ─── Spinner Overlay ───────────────────────────────────────────── */}
         {isUploading && (
@@ -775,7 +774,7 @@ export default function ProfilePage({ user }) {
                     onClick={handlePrintDegree}
                     className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#1F2937] hover:bg-[#2A3A4A] text-white text-sm font-medium rounded-lg transition-colors border border-white/5"
                   >
-                    <Award className="w-4 h-4" /> Diplôme
+                    <Award className="w-4 h-4" /> Agrément
                   </button>
                   <div className="relative">
                     <button

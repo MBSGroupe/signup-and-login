@@ -5,6 +5,7 @@ import { useError } from '../../../Context/ErrorContext';
 import Title from "../../../Components/Title";
 import BackButton from "../../../Components/Buttons/BackButton";
 import { useModal } from "../../../Context/ModalContext";
+import { Image, Upload, Trash2, Save, Loader2, FileText, AlertCircle } from "lucide-react";
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 const TEMPLATES = ["degree", "attestation"];
@@ -128,7 +129,6 @@ export default function BackgroundManager() {
         throw new Error(err.message || "Échec de la suppression");
       }
 
-      // Clear the database record
       await fetch(`${NEST_API_URL}/pdf/templates/${templateName}/background/clear`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${authData.token}` },
@@ -168,119 +168,167 @@ export default function BackgroundManager() {
 
   if (loading) {
     return (
-      <div className="min-h-screen p-8 bg-gradient-to-br from-gray-900 to-gray-800 text-yellow-400 font-urbanist">
-        <div className="text-center text-yellow-300 mt-10">Chargement...</div>
+      <div className="min-h-screen bg-[#0A0F1C] flex items-center justify-center ml-[30px] mt-16">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-12 h-12 text-emerald-400 animate-spin" />
+          <p className="text-[#94A3B8] text-sm">Chargement des modèles...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen p-8 bg-gradient-to-br from-gray-900 to-gray-800 text-yellow-400 font-urbanist">
-      <div className="mb-4">
-        <BackButton fallbackPath="/dash" />
-      </div>
-      <Title title="Gestion des modèles PDF" />
-
-      <div className="mt-6 space-y-8">
-        {templates.map(template => (
-          <div
-            key={template.name}
-            className="bg-gray-800/60 backdrop-blur-sm border border-yellow-400/20 rounded-xl p-6"
-          >
-            {/* Header */}
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold text-yellow-300 capitalize">{template.name}</h2>
-              <div className="space-x-3">
-                <label
-                  className={`px-4 py-2 rounded-lg transition cursor-pointer inline-block ${
-                    uploading === template.name
-                      ? "bg-gray-600 text-gray-400"
-                      : "bg-yellow-400 text-gray-900 hover:bg-yellow-500"
-                  }`}
-                >
-                  {uploading === template.name ? "Chargement..." : "Image de fond"}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      if (e.target.files?.[0]) handleUpload(template.name, e.target.files[0]);
-                    }}
-                    disabled={uploading === template.name}
-                  />
-                </label>
-                {template.hasBackground && (
-                  <button
-                    onClick={() => handleDelete(template.name)}
-                    className="px-4 py-2 bg-red-600/20 text-red-400 rounded-lg hover:bg-red-600/30 transition"
-                  >
-                    Supprimer
-                  </button>
-                )}
-              </div>
+    <div className="min-h-screen bg-[#0A0F1C] p-6 md:p-8 ml-[30px] mt-16">
+      <div className="max-w-7xl mx-auto">
+        {/* Header with back button */}
+        <div className="flex flex-wrap items-center gap-4 mb-8">
+          <BackButton fallbackPath="/dash" />
+          <div className="flex items-center gap-3">
+            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+              <FileText className="w-6 h-6 text-emerald-400" />
             </div>
-
-            {/* Background preview */}
-            <div className="mb-6">
-              <div className="w-full h-48 bg-gray-700 rounded-lg overflow-hidden border border-gray-600">
-                {template.backgroundUrl ? (
-                  <img
-                    src={template.backgroundUrl}
-                    alt={`Background ${template.name}`}
-                    className="w-full h-full object-contain bg-gray-800"
-                  />
-                ) : (
-                  <div className="flex items-center justify-center h-full text-gray-400 text-sm">
-                    Aucun arrière-plan
-                  </div>
-                )}
-              </div>
-              {template.hasBackground && (
-                <p className="text-xs text-gray-500 mt-1">
-                  Arrière-plan actif. Il sera utilisé dans les nouveaux documents.
-                </p>
-              )}
-            </div>
-
-            {/* CSS editor */}
-            <div className="mb-4">
-              <h3 className="text-sm text-gray-400 mb-2">CSS personnalisé</h3>
-              <textarea
-                value={customCssMap[template.name] || ''}
-                onChange={(e) => setCustomCssMap(prev => ({ ...prev, [template.name]: e.target.value }))}
-                rows={10}
-                className="w-full bg-gray-900 text-gray-200 font-mono text-sm p-3 rounded-lg border border-gray-700 focus:border-amber-400 outline-none resize-none"
-                placeholder=".degree-institution { font-size: 18px; }"
-              />
-            </div>
-
-            {/* HTML editor */}
-            <div className="mb-4">
-              <h3 className="text-sm text-gray-400 mb-2">
-                Modèle HTML <span className="text-xs text-gray-500">(code Handlebars complet)</span>
-              </h3>
-              <textarea
-                value={customHtmlMap[template.name] || ''}
-                onChange={(e) => setCustomHtmlMap(prev => ({ ...prev, [template.name]: e.target.value }))}
-                rows={18}
-                className="w-full bg-gray-900 text-gray-200 font-mono text-sm p-3 rounded-lg border border-gray-700 focus:border-amber-400 outline-none resize-none"
-                placeholder={`<div class="degree-institution">{{institutionName}}</div>\n<div class="degree-recipient">{{recipientName}}</div>\n...`}
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Vous pouvez supprimer le DOCTYPE et mettre uniquement le contenu intérieur. Le système injectera automatiquement la mise en page paysage.
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold text-[#F8FAFC] tracking-tight">
+                Gestion des modèles PDF
+              </h1>
+              <p className="text-[#94A3B8] text-sm mt-1">
+                Personnalisez l'apparence des documents
               </p>
             </div>
-
-            {/* Save button */}
-            <button
-              onClick={() => handleSave(template.name)}
-              disabled={saving === template.name}
-              className="w-full px-6 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-gray-900 font-semibold rounded-xl transition disabled:opacity-50"
-            >
-              {saving === template.name ? "Sauvegarde..." : "Enregistrer le modèle"}
-            </button>
           </div>
-        ))}
+        </div>
+
+        {/* Templates list */}
+        <div className="space-y-8">
+          {templates.map(template => (
+            <div
+              key={template.name}
+              className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] shadow-2xl shadow-black/50 p-6 md:p-8"
+            >
+              {/* Template header */}
+              <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+                <h2 className="text-xl font-semibold text-[#F8FAFC] capitalize flex items-center gap-2">
+                  {template.name === 'degree' ? 'Diplôme' : 'Attestation'}
+                  <span className="text-sm font-normal text-[#64748B] ml-2">({template.name})</span>
+                </h2>
+                <div className="flex flex-wrap gap-3">
+                  <label
+                    className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer transition-all ${
+                      uploading === template.name
+                        ? 'bg-[#1F2937] text-[#64748B] cursor-not-allowed'
+                        : 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/20'
+                    }`}
+                  >
+                    {uploading === template.name ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Chargement...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-4 h-4" />
+                        Image de fond
+                      </>
+                    )}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        if (e.target.files?.[0]) handleUpload(template.name, e.target.files[0]);
+                      }}
+                      disabled={uploading === template.name}
+                    />
+                  </label>
+                  {template.hasBackground && (
+                    <button
+                      onClick={() => handleDelete(template.name)}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-xl hover:bg-rose-500/20 transition-all text-sm font-medium"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Supprimer
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Background preview */}
+              <div className="mb-6">
+                <div className="relative w-full h-48 bg-[#0A0F1C] rounded-xl overflow-hidden border border-[rgba(255,255,255,0.06)]">
+                  {template.backgroundUrl ? (
+                    <img
+                      src={template.backgroundUrl}
+                      alt={`Background ${template.name}`}
+                      className="w-full h-full object-contain"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-full text-[#64748B]">
+                      <Image className="w-10 h-10 mb-2 opacity-30" />
+                      <span className="text-sm">Aucun arrière-plan</span>
+                    </div>
+                  )}
+                </div>
+                {template.hasBackground && (
+                  <p className="text-xs text-[#64748B] mt-2">
+                    ✅ Arrière-plan actif – sera utilisé dans les nouveaux documents.
+                  </p>
+                )}
+              </div>
+
+              {/* CSS Editor */}
+              <div className="mb-5">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xs font-medium text-[#94A3B8] uppercase tracking-wider">CSS personnalisé</span>
+                  <span className="text-[10px] text-[#64748B]">(styles supplémentaires)</span>
+                </div>
+                <textarea
+                  value={customCssMap[template.name] || ''}
+                  onChange={(e) => setCustomCssMap(prev => ({ ...prev, [template.name]: e.target.value }))}
+                  rows={6}
+                  className="w-full bg-[#0A0F1C] text-[#F8FAFC] font-mono text-sm p-4 rounded-xl border border-[rgba(255,255,255,0.06)] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all resize-none"
+                  placeholder=".degree-institution { font-size: 18px; }"
+                />
+              </div>
+
+              {/* HTML Editor */}
+              <div className="mb-5">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Modèle HTML</span>
+                  <span className="text-[10px] text-[#64748B]">(contenu Handlebars)</span>
+                </div>
+                <textarea
+                  value={customHtmlMap[template.name] || ''}
+                  onChange={(e) => setCustomHtmlMap(prev => ({ ...prev, [template.name]: e.target.value }))}
+                  rows={12}
+                  className="w-full bg-[#0A0F1C] text-[#F8FAFC] font-mono text-sm p-4 rounded-xl border border-[rgba(255,255,255,0.06)] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all resize-none"
+                  placeholder={`<div class="degree-institution">{{institutionName}}</div>\n<div class="degree-recipient">{{recipientName}}</div>`}
+                />
+                <p className="text-xs text-[#64748B] mt-2">
+                  ⚠️ Vous pouvez omettre le DOCTYPE et mettre uniquement le contenu intérieur. Le système injectera automatiquement la mise en page paysage.
+                </p>
+              </div>
+
+              {/* Save button */}
+              <button
+                onClick={() => handleSave(template.name)}
+                disabled={saving === template.name}
+                className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 text-sm font-medium text-white bg-emerald-500 hover:bg-emerald-600 rounded-xl shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 transition-all duration-200 disabled:opacity-50"
+              >
+                {saving === template.name ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Sauvegarde...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    Enregistrer le modèle
+                  </>
+                )}
+              </button>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

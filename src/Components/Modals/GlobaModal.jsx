@@ -1,4 +1,6 @@
 // Components/GlobalModal.jsx
+import { AlertCircle, CheckCircle, X, Loader2 } from "lucide-react";
+
 export default function GlobalModal({
   isOpen,
   type,
@@ -16,38 +18,75 @@ export default function GlobalModal({
   const isAlert = type === 'alert';
   const isPrompt = type === 'prompt';
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4 border border-yellow-400/20 shadow-xl animate-fadeIn">
-        <h3 className="text-lg font-semibold text-yellow-400 mb-2">{title}</h3>
-        <p className="text-gray-300 mb-6">{message}</p>
+  // Determine icon and color based on type
+  const getIcon = () => {
+    if (isAlert) return <AlertCircle className="w-6 h-6 text-blue-400" />;
+    if (isConfirm) return <CheckCircle className="w-6 h-6 text-emerald-400" />;
+    return null;
+  };
 
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+      <div 
+        className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] shadow-2xl shadow-black/50 max-w-md w-full mx-4 p-6 animate-fadeIn"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header with icon and title */}
+        <div className="flex items-start gap-4">
+          {getIcon() && (
+            <div className="flex-shrink-0 mt-1">
+              {getIcon()}
+            </div>
+          )}
+          <div className="flex-1">
+            <h3 className="text-xl font-bold text-[#F8FAFC] tracking-tight">
+              {title}
+            </h3>
+            <p className="mt-2 text-[#94A3B8] text-sm leading-relaxed">
+              {message}
+            </p>
+          </div>
+          {/* Optional close button for alerts? Not in original, but we can keep */}
+          {isAlert && (
+            <button
+              onClick={onConfirm}
+              className="p-1 hover:bg-[#1F2937] rounded-lg transition-colors"
+            >
+              <X className="w-5 h-5 text-[#64748B] hover:text-[#F8FAFC]" />
+            </button>
+          )}
+        </div>
+
+        {/* Prompt input */}
         {isPrompt && (
-          <input
-            type="text"
-            value={inputValue}
-            onChange={(e) => onInputChange(e.target.value)}
-            placeholder={inputPlaceholder}
-            className="w-full p-2 mb-4 bg-gray-700 border border-gray-600 rounded text-gray-200 focus:outline-none focus:border-yellow-400"
-            autoFocus
-          />
+          <div className="mt-4">
+            <input
+              type="text"
+              value={inputValue}
+              onChange={(e) => onInputChange(e.target.value)}
+              placeholder={inputPlaceholder}
+              className="w-full px-4 py-2.5 bg-[#0A0F1C] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all duration-200 placeholder-[#64748B]"
+              autoFocus
+            />
+          </div>
         )}
 
-        <div className="flex justify-end gap-3">
+        {/* Action buttons */}
+        <div className="mt-6 flex justify-end gap-3">
           {(isConfirm || isPrompt) && (
             <button
               onClick={onCancel}
-              className="px-4 py-2 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600 transition"
+              className="px-5 py-2.5 text-sm font-medium text-[#94A3B8] bg-[#1F2937] hover:bg-[#182233] rounded-xl transition-all duration-200 border border-[rgba(255,255,255,0.06)]"
             >
               Annuler
             </button>
           )}
           <button
             onClick={isPrompt ? () => onConfirm(inputValue) : onConfirm}
-            className={`px-4 py-2 rounded-lg transition ${
+            className={`px-5 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 shadow-lg ${
               isAlert
-                ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                : 'bg-yellow-600 hover:bg-yellow-700 text-white'
+                ? 'bg-blue-500 hover:bg-blue-600 text-white shadow-blue-500/20'
+                : 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-500/20'
             }`}
           >
             {isAlert ? 'OK' : 'Confirmer'}

@@ -20,7 +20,8 @@ const NotificationBell = () => {
         setAuthData
       );
       const data = await res.json();
-      setUnreadCount(data.count);
+      console.log(data)
+      setUnreadCount(data.data.count);
     } catch (err) {
       console.error('Failed to fetch unread count', err);
     }

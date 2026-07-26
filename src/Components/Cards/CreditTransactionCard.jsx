@@ -1,8 +1,8 @@
 import { useContext, useState } from "react";
 import { UserContext } from "../../Context/dataCont";
-import PDFPreviewModal from '../Modals/pdfPreviexModal';
+import PDFPreviewModal from '../Modals/PdfPreviexModal';   // fixed import
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_NEST_API_URL;
 
 // ─── Design Tokens (Banking Theme) ──────────────────────────────────────────
 
@@ -10,8 +10,6 @@ const CARD_BASE =
   "bg-[#111827] border border-white/5 shadow-xl rounded-xl p-4 transition-all hover:border-emerald-500/30 hover:shadow-emerald-500/5";
 const BTN_PRIMARY =
   "inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg transition-colors shadow-lg shadow-emerald-600/20";
-const BTN_SECONDARY =
-  "inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-[#1F2937] hover:bg-[#2A3A4A] text-white text-sm font-medium rounded-lg transition-colors border border-white/5";
 const BTN_WARNING =
   "inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white text-sm font-medium rounded-lg transition-colors shadow-lg shadow-amber-600/20";
 const BTN_INFO =
@@ -20,6 +18,9 @@ const BTN_INFO =
 export default function CreditTransactionCard({ transaction, handlePopup }) {
   const { authData } = useContext(UserContext);
   const [showPreview, setShowPreview] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+
   const dateTime = new Date(transaction.date).toLocaleString('fr-FR');
   const isPositive = transaction.amount > 0;
   const amountColor = isPositive ? 'text-emerald-400' : 'text-red-400';
@@ -35,8 +36,9 @@ export default function CreditTransactionCard({ transaction, handlePopup }) {
 
   const handleDownloadVersementReceipt = async () => {
     if (transaction.amount <= 0) return;
+    setIsDownloading(true);
     try {
-      const response = await fetch(`${API_URL}/pdf/versement/${transaction._id}/receipt`, {
+      const response = await fetch(`${API_URL}/pdf/versement/${transaction.id}/receipt`, {
         method: 'GET',
         headers: { Authorization: `Bearer ${authData.token}` },
       });
@@ -48,7 +50,7 @@ export default function CreditTransactionCard({ transaction, handlePopup }) {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `recu_versement_${transaction._id}.pdf`);
+      link.setAttribute('download', `recu_versement_${transaction.id}.pdf`);
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -56,25 +58,37 @@ export default function CreditTransactionCard({ transaction, handlePopup }) {
     } catch (err) {
       console.error(err);
       if (handlePopup) handlePopup('error', 'Impossible de télécharger le reçu');
+    } finally {
+      setIsDownloading(false);
     }
   };
 
   const handleEmailVersementReceipt = async () => {
     if (transaction.amount <= 0) return;
+    const defaultEmail = authData?.user?.email || '';
+    const recipient = window.prompt('Adresse email du destinataire :', defaultEmail);
+    if (!recipient) return;
+
+    setIsSendingEmail(true);
     try {
-      const response = await fetch(`${API_URL}/pdf/versement/${transaction._id}/email`, {
-        method: 'GET',
-        headers: { Authorization: `Bearer ${authData.token}` },
+      const res = await fetch(`${API_URL}/pdf/versement/${transaction.id}/email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authData.token}`,
+        },
+        body: JSON.stringify({ recipientEmail: recipient }),
       });
-      const data = await response.json();
-      if (response.ok) {
-        if (handlePopup) handlePopup('success', 'Reçu envoyé par email avec succès');
-      } else {
-        throw new Error(data.error || 'Erreur lors de l\'envoi');
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: 'Échec de l\'envoi' }));
+        throw new Error(err.message);
       }
+      if (handlePopup) handlePopup('success', 'Reçu envoyé par email avec succès');
     } catch (err) {
       console.error(err);
-      if (handlePopup) handlePopup('error', 'Impossible d\'envoyer le reçu par email');
+      if (handlePopup) handlePopup('error', err.message || 'Impossible d\'envoyer le reçu');
+    } finally {
+      setIsSendingEmail(false);
     }
   };
 
@@ -107,26 +121,31 @@ export default function CreditTransactionCard({ transaction, handlePopup }) {
           )}
           {transaction.notes && <div className="text-[#64748B] text-xs mt-1">{transaction.notes}</div>}
         </div>
-        <div className="flex gap-2 mt-3 flex-wrap">
+
+        {/* ─── Button Grid (3 equal columns) ────────────────────────── */}
+        <div className="grid grid-cols-3 gap-2 mt-3">
           <button
             onClick={handleDownloadVersementReceipt}
-            className={BTN_PRIMARY}
+            disabled={isDownloading}
+            className={`${BTN_PRIMARY} w-full disabled:opacity-60 disabled:cursor-not-allowed`}
           >
-            Télécharger
+            {isDownloading ? 'Téléchargement...' : 'Télécharger'}
           </button>
           <button
             onClick={() => setShowPreview(true)}
-            className={BTN_WARNING}
+            className={`${BTN_WARNING} w-full`}
           >
             Aperçu
           </button>
           <button
             onClick={handleEmailVersementReceipt}
-            className={BTN_INFO}
+            disabled={isSendingEmail}
+            className={`${BTN_INFO} w-full disabled:opacity-60 disabled:cursor-not-allowed`}
           >
-            Email
+            {isSendingEmail ? 'Envoi...' : '📧 Email'}
           </button>
         </div>
+
         {showPreview && (
           <PDFPreviewModal
             type="versement"

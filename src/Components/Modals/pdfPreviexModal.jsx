@@ -33,7 +33,7 @@ export default function PDFPreviewModal({ type, data, onClose, onGenerate, onEma
   } else if (type === 'situation') {
     title = data?.title || 'Situation du membre';
   } else if (type === 'degree') {
-    title = data?.title || 'Aperçu du diplôme';
+    title = data?.title || 'Aperçu du Agrément';
   }
 
   // Set the blob URL when data changes
