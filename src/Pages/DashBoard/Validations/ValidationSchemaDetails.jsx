@@ -222,6 +222,13 @@ export default function ValidationSchemaDetails() {
       }
     }
 
+    // New: step type badge
+    const stepType = step.type || 'validation';
+    const stepTypeLabel = stepType === 'verification' ? 'Vérification' : 'Validation';
+    const stepTypeColor = stepType === 'verification'
+      ? 'bg-purple-500/10 text-purple-400 border-purple-500/20'
+      : 'bg-blue-500/10 text-blue-400 border-blue-500/20';
+
     return (
       <div key={idx} className="bg-[#111827] rounded-xl border border-[rgba(255,255,255,0.06)] p-5 mb-4 hover:border-[rgba(255,255,255,0.12)] transition-all duration-200">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-3">
@@ -231,13 +238,21 @@ export default function ValidationSchemaDetails() {
             </span>
             <h4 className="font-semibold text-[#F8FAFC]">{step.stepName}</h4>
           </div>
-          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-            step.required
-              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-              : 'bg-gray-500/10 text-gray-400 border border-gray-500/20'
-          }`}>
-            {step.required ? 'Requis' : 'Optionnel'}
-          </span>
+          <div className="flex items-center gap-2">
+            {/* Existing required/optional badge */}
+            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+              step.required
+                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                : 'bg-gray-500/10 text-gray-400 border border-gray-500/20'
+            }`}>
+              {step.required ? 'Requis' : 'Optionnel'}
+            </span>
+
+            {/* Step type badge */}
+            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${stepTypeColor}`}>
+              {stepTypeLabel}
+            </span>
+          </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
           <div className="flex items-start gap-2">

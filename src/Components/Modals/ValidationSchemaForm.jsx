@@ -66,6 +66,11 @@ const PAYMENT_STATUSES = [
   { value: 'partial', label: 'Partielle' }
 ];
 
+const STEP_TYPES = [
+  { value: 'validation', label: 'Validation' },
+  { value: 'verification', label: 'Verification' },
+];
+
 function MultiSelect({ options, value = [], onChange, placeholder }) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef(null);
@@ -190,7 +195,8 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
           rejectAction: 'reject_request',
           escalateToRole: 'super_admin',
           description: '',
-          approveConditions: []
+          approveConditions: [],
+          type: 'validation', 
         }
       ]
     }));
@@ -568,6 +574,17 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
                           <div className="w-9 h-5 bg-[#1F2937] rounded-full peer peer-checked:bg-emerald-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4"></div>
                           <span className="ml-2 text-sm text-[#94A3B8]">Requis</span>
                         </label>
+                        {/* Mass Validation toggle */}
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            className="sr-only peer"
+                            checked={step.massValidation || false}
+                            onChange={e => updateStep(idx, 'massValidation', e.target.checked)}
+                          />
+                          <div className="w-9 h-5 bg-[#1F2937] rounded-full peer peer-checked:bg-purple-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4"></div>
+                          <span className="ml-2 text-sm text-[#94A3B8]">Validation en masse</span>
+                        </label>
                         <button
                           type="button"
                           onClick={() => deleteStep(idx)}
@@ -613,6 +630,20 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
                           />
                         )}
                         <p className="text-xs text-[#64748B] mt-1">Laissez vide pour autoriser tout le rôle.</p>
+                      </div>
+                      {/* Step Type */}
+                      <div className="space-y-1">
+                        <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Type d'étape</label>
+                        <select
+                          value={step.type || 'validation'}
+                          onChange={e => updateStep(idx, 'type', e.target.value)}
+                          className="w-full px-3 py-2 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                        >
+                          {STEP_TYPES.map(t => (
+                            <option key={t.value} value={t.value}>{t.label}</option>
+                          ))}
+                        </select>
+                        <p className="text-xs text-[#64748B] mt-1">Détermine le comportement de l'étape.</p>
                       </div>
                       <div className="space-y-1">
                         <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Action en cas de rejet</label>

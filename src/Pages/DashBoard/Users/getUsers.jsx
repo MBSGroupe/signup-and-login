@@ -47,7 +47,7 @@ const SERVICE_NATIONAL_OPTIONS = ['Ayant effectué', 'Exempté', 'En cours', 'No
 const STATUS_OPTIONS = ['pending', 'active', 'suspended', 'archived'];
 // Professions and regions remain dynamic (you can hardcode them if needed)
 
-export default function ProfilePage({ mode }) {
+export default function GetUsers({ mode }) {
   const { data, setData } = useContext(UserDataContext);
   const { authData, setAuthData } = useContext(UserContext);
   const { keyWord, handleChange } = useContext(SearchBarContext);

@@ -6,11 +6,13 @@ import { useNavigate } from 'react-router-dom';
 import { useApi } from '../../../hooks/useApi';
 import { useModal } from '../../../Context/ModalContext';
 import BackButton from '../../../Components/Buttons/BackButton';
+import wilayasData from '../../../assets/data/wilayas.json';
 import {
   Loader2,
   Inbox,
   Clock,
   CheckCircle,
+  ChevronRight,
   XCircle,
   AlertCircle,
   Filter,
@@ -18,13 +20,35 @@ import {
   User,
   FileText,
   CreditCard,
-  Eye,
-  ChevronRight,
   X,
-  ListChecks
+  ListChecks,
+  CheckSquare,
+  MapPin,
+  Check,
+  Search,
+  Plus,
+  Download,
+  Shield,
+  Award,
+  BookOpen,
+  Users,
+  Globe,
+  Briefcase
 } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_NEST_API_URL;
+
+// ─── Static filter options (same as GetUsers) ────────────────────────
+const SEXE_OPTIONS = ['M', 'F'];
+const CIVILITY_OPTIONS = ['Mr', 'Mme', 'Mlle'];
+const MARITAL_STATUS_OPTIONS = ['Célibataire', 'Marié(e)', 'Divorcé(e)', 'Veuf(ve)'];
+const DIPLOMA_TYPE_OPTIONS = ['Classique', 'LMD'];
+const REGISTRATION_STATUS_OPTIONS = ['Inscrit', 'Radié', 'Suspendu'];
+const PROFESSIONAL_MODE_OPTIONS = ['Libéral', 'Associé', 'Salarié'];
+const SERVICE_NATIONAL_OPTIONS = ['Ayant effectué', 'Exempté', 'En cours', 'Non concerné'];
+const USER_STATUS_OPTIONS = ['pending', 'active', 'suspended', 'archived'];
+const TARGET_TYPE_OPTIONS = ['User', 'File', 'Cotisation'];
+const REQUEST_STATUS_OPTIONS = ['pending', 'partial', 'approved', 'rejected', 'cancelled', 'expired'];
 
 export default function ValidationRequestsList() {
   const { authData, setAuthData } = useContext(UserContext);
@@ -33,8 +57,81 @@ export default function ValidationRequestsList() {
   const navigate = useNavigate();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all');
+  const [showFilters, setShowFilters] = useState(false);
 
+  // ─── Filter states (all start at "all") ─────────────────────────────
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');           // request.status
+  const [targetTypeFilter, setTargetTypeFilter] = useState('all');
+  const [wilayaFilter, setWilayaFilter] = useState('all');
+  const [sexeFilter, setSexeFilter] = useState('all');
+  const [civilityFilter, setCivilityFilter] = useState('all');
+  const [maritalStatusFilter, setMaritalStatusFilter] = useState('all');
+  const [diplomaTypeFilter, setDiplomaTypeFilter] = useState('all');
+  const [registrationStatusFilter, setRegistrationStatusFilter] = useState('all');
+  const [professionalModeFilter, setProfessionalModeFilter] = useState('all');
+  const [serviceNationalFilter, setServiceNationalFilter] = useState('all');
+  const [userStatusFilter, setUserStatusFilter] = useState('all');   // target user's status
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+
+  // ─── Mass selection ────────────────────────────────────────────────────
+  const [selectedRequests, setSelectedRequests] = useState([]);
+  const [massApproving, setMassApproving] = useState(false);
+
+  // ─── Filter logic ──────────────────────────────────────────────────────
+  const filteredRequests = requests.filter(req => {
+    // Search
+    if (searchTerm) {
+      const targetDisplay = getTargetDisplay(req.targetType, req.targetId).toLowerCase();
+      const searchLower = searchTerm.toLowerCase();
+      if (!targetDisplay.includes(searchLower) && !req.id?.toLowerCase().includes(searchLower)) {
+        return false;
+      }
+    }
+    // Request status
+    if (statusFilter !== 'all' && req.status !== statusFilter) return false;
+    // Target type
+    if (targetTypeFilter !== 'all' && req.targetType !== targetTypeFilter) return false;
+    // Wilaya
+    if (wilayaFilter !== 'all' && req.targetId?.wilaya !== wilayaFilter) return false;
+    // Date range
+    if (dateFrom) {
+      const from = new Date(dateFrom);
+      if (new Date(req.createdAt) < from) return false;
+    }
+    if (dateTo) {
+      const to = new Date(dateTo);
+      to.setHours(23, 59, 59, 999);
+      if (new Date(req.createdAt) > to) return false;
+    }
+
+    // ─── User‑specific filters (only apply if target is a User) ─────
+    const target = req.targetId;
+    if (req.targetType === 'User' && target) {
+      if (sexeFilter !== 'all' && target.sexe !== sexeFilter) return false;
+      if (civilityFilter !== 'all' && target.civility !== civilityFilter) return false;
+      if (maritalStatusFilter !== 'all' && target.maritalStatus !== maritalStatusFilter) return false;
+      if (diplomaTypeFilter !== 'all' && target.diplomaType !== diplomaTypeFilter) return false;
+      if (registrationStatusFilter !== 'all' && target.registrationStatus !== registrationStatusFilter) return false;
+      if (professionalModeFilter !== 'all' && target.professionalMode !== professionalModeFilter) return false;
+      if (serviceNationalFilter !== 'all' && target.serviceNationalStatus !== serviceNationalFilter) return false;
+      if (userStatusFilter !== 'all' && target.status !== userStatusFilter) return false;
+    } else {
+      // If target is not a User, these filters are ignored (keep them)
+      // For simplicity, we skip them when target is not a User.
+    }
+    return true;
+  });
+
+  const activeFilterCount = [
+    searchTerm, statusFilter, targetTypeFilter, wilayaFilter,
+    sexeFilter, civilityFilter, maritalStatusFilter, diplomaTypeFilter,
+    registrationStatusFilter, professionalModeFilter, serviceNationalFilter,
+    userStatusFilter, dateFrom, dateTo
+  ].filter(f => f && f !== 'all').length;
+
+  // ─── Helpers ────────────────────────────────────────────────────────────
   const getTargetDisplay = (targetType, target) => {
     if (!target) return 'N/A';
     switch (targetType) {
@@ -49,11 +146,45 @@ export default function ValidationRequestsList() {
     }
   };
 
+  const getTargetIcon = (type) => {
+    switch (type) {
+      case 'User': return <User className="w-4 h-4" />;
+      case 'File': return <FileText className="w-4 h-4" />;
+      case 'Cotisation': return <CreditCard className="w-4 h-4" />;
+      default: return <FileText className="w-4 h-4" />;
+    }
+  };
+
+  const getStatusBadge = (status) => {
+    const colors = {
+      pending: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
+      partial: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+      approved: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+      rejected: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
+      cancelled: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
+      expired: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
+    };
+    return colors[status] || 'bg-gray-500/10 text-gray-400 border-gray-500/20';
+  };
+
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'pending': return <Clock className="w-3.5 h-3.5" />;
+      case 'partial': return <AlertCircle className="w-3.5 h-3.5" />;
+      case 'approved': return <CheckCircle className="w-3.5 h-3.5" />;
+      case 'rejected': return <XCircle className="w-3.5 h-3.5" />;
+      case 'cancelled': return <X className="w-3.5 h-3.5" />;
+      case 'expired': return <AlertCircle className="w-3.5 h-3.5" />;
+      default: return null;
+    }
+  };
+
+  // ─── API calls ────────────────────────────────────────────────────────────
   const fetchRequests = async () => {
     setLoading(true);
     const result = await callApi(async () => {
       const res = await fetchWithRefresh(
-        `${API_URL}/validation/requests/approver?status=${filter}`,
+        `${API_URL}/validation/requests/approver?status=${statusFilter}`,
         { method: 'GET' },
         authData.token,
         setAuthData
@@ -73,8 +204,60 @@ export default function ValidationRequestsList() {
     if (authData?.token) {
       fetchRequests();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter, authData?.token]);
+  }, [statusFilter, authData?.token]);
+
+  // ─── Actions ──────────────────────────────────────────────────────────────
+  const toggleRequestSelection = (requestId) => {
+    setSelectedRequests(prev =>
+      prev.includes(requestId)
+        ? prev.filter(id => id !== requestId)
+        : [...prev, requestId]
+    );
+  };
+
+  const handleSelectAll = () => {
+    const eligibleIds = filteredRequests
+      .filter(req => {
+        const firstPendingStep = req.steps
+          ?.filter(s => s.status === 'pending')
+          .sort((a, b) => a.order - b.order)[0];
+        return (
+          firstPendingStep &&
+          firstPendingStep.massValidation &&
+          firstPendingStep.allowedUserIds?.some(u => (u.id || u) === authData.user?.id)
+        );
+      })
+      .map(req => req.id);
+    setSelectedRequests(eligibleIds);
+  };
+
+  const handleMassApprove = async () => {
+    if (selectedRequests.length === 0) return;
+    setMassApproving(true);
+    try {
+      const res = await fetchWithRefresh(
+        `${API_URL}/validation/requests/mass-approve`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authData.token}` },
+          body: JSON.stringify({ requestIds: selectedRequests, comments: 'Validation en masse' }),
+        },
+        authData.token,
+        setAuthData
+      );
+      if (res.ok) {
+        const result = await res.json();
+        if (result.success) {
+          setSelectedRequests([]);
+          fetchRequests();
+        }
+      }
+    } catch (err) {
+      console.error('Mass approve error:', err);
+    } finally {
+      setMassApproving(false);
+    }
+  };
 
   const handleCancel = async (requestId) => {
     const confirmed = await confirm({
@@ -89,7 +272,7 @@ export default function ValidationRequestsList() {
         {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ reason: 'Annulée par l\'utilisateur' })
+          body: JSON.stringify({ reason: "Annulée par l'utilisateur" })
         },
         authData.token,
         setAuthData
@@ -105,50 +288,24 @@ export default function ValidationRequestsList() {
     }
   };
 
-  const getStatusBadge = (status) => {
-    const colors = {
-      pending: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
-      partial: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-      approved: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-      rejected: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
-      cancelled: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
-      expired: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
-    };
-    return colors[status] || 'bg-gray-500/10 text-gray-400 border-gray-500/20';
+  const resetFilters = () => {
+    setSearchTerm('');
+    setStatusFilter('all');
+    setTargetTypeFilter('all');
+    setWilayaFilter('all');
+    setSexeFilter('all');
+    setCivilityFilter('all');
+    setMaritalStatusFilter('all');
+    setDiplomaTypeFilter('all');
+    setRegistrationStatusFilter('all');
+    setProfessionalModeFilter('all');
+    setServiceNationalFilter('all');
+    setUserStatusFilter('all');
+    setDateFrom('');
+    setDateTo('');
   };
 
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'pending':
-        return <Clock className="w-3.5 h-3.5" />;
-      case 'partial':
-        return <AlertCircle className="w-3.5 h-3.5" />;
-      case 'approved':
-        return <CheckCircle className="w-3.5 h-3.5" />;
-      case 'rejected':
-        return <XCircle className="w-3.5 h-3.5" />;
-      case 'cancelled':
-        return <X className="w-3.5 h-3.5" />;
-      case 'expired':
-        return <AlertCircle className="w-3.5 h-3.5" />;
-      default:
-        return null;
-    }
-  };
-
-  const getTargetIcon = (type) => {
-    switch (type) {
-      case 'User':
-        return <User className="w-4 h-4" />;
-      case 'File':
-        return <FileText className="w-4 h-4" />;
-      case 'Cotisation':
-        return <CreditCard className="w-4 h-4" />;
-      default:
-        return <FileText className="w-4 h-4" />;
-    }
-  };
-
+  // ─── Loading ──────────────────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0A0F1C] flex items-center justify-center ml-[30px] mt-16">
@@ -160,10 +317,11 @@ export default function ValidationRequestsList() {
     );
   }
 
+  // ─── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-[#0A0F1C] p-6 md:p-8 ml-[30px] mt-16">
       <div className="max-w-7xl mx-auto">
-        {/* Header with Back Button and Title */}
+        {/* ===== HEADER ===== */}
         <div className="flex flex-wrap items-center gap-4 mb-6">
           <BackButton fallbackPath="/dash" />
           <div className="flex items-center gap-3">
@@ -181,28 +339,275 @@ export default function ValidationRequestsList() {
           </div>
         </div>
 
-        {/* Filter bar */}
-        <div className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] p-4 mb-6 shadow-lg flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-2 text-[#94A3B8]">
-            <Filter className="w-4 h-4" />
-            <span className="text-xs uppercase tracking-wider font-medium">Filtrer</span>
+        {/* ===== SEARCH BAR ===== */}
+        <div className="mb-6 flex flex-col md:flex-row md:items-center gap-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748B]" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Rechercher par nom, prénom, email, ID..."
+              className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-[#111827] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] placeholder-[#64748B] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+            />
           </div>
-          <select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            className="flex-1 min-w-[160px] px-4 py-2 bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
-          >
-            <option value="pending">En attente</option>
-            <option value="partial">Partiellement approuvées</option>
-            <option value="all">Toutes</option>
-          </select>
-          <span className="text-xs text-[#64748B] ml-auto">
-            {requests.length} demande{requests.length > 1 ? 's' : ''}
-          </span>
         </div>
 
-        {/* Request list */}
-        {requests.length === 0 ? (
+        {/* ===== QUICK ACTIONS ===== */}
+        <div className="flex flex-wrap gap-3 mb-6">
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all duration-200 ${
+              showFilters || activeFilterCount > 0
+                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                : 'bg-[#182233] hover:bg-[#1F2937] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)]'
+            }`}
+          >
+            <Filter className="w-4 h-4" />
+            Filtres
+            {activeFilterCount > 0 && (
+              <span className="ml-1 bg-emerald-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={resetFilters}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 transition-all duration-200"
+          >
+            <X className="w-4 h-4" />
+            Réinitialiser
+          </button>
+        </div>
+
+        {/* ===== FILTERS PANEL ===== */}
+        {showFilters && (
+          <div className="mb-6 p-5 bg-[#111827] rounded-xl border border-[rgba(255,255,255,0.06)] shadow-xl">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {/* Status (request) */}
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Statut (demande)</label>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                >
+                  <option value="all">Tous les statuts</option>
+                  {REQUEST_STATUS_OPTIONS.map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Target type */}
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Type de cible</label>
+                <select
+                  value={targetTypeFilter}
+                  onChange={(e) => setTargetTypeFilter(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                >
+                  <option value="all">Tous les types</option>
+                  {TARGET_TYPE_OPTIONS.map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Wilaya */}
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Wilaya</label>
+                <select
+                  value={wilayaFilter}
+                  onChange={(e) => setWilayaFilter(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                >
+                  <option value="all">Toutes les wilayas</option>
+                  {wilayasData.map(w => (
+                    <option key={w.code} value={w.code}>
+                      {w.code} - {w.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Sexe */}
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Sexe</label>
+                <select
+                  value={sexeFilter}
+                  onChange={(e) => setSexeFilter(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                >
+                  <option value="all">Tous les sexes</option>
+                  {SEXE_OPTIONS.map(s => (
+                    <option key={s} value={s}>{s === 'M' ? 'Homme' : 'Femme'}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Civilité */}
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Civilité</label>
+                <select
+                  value={civilityFilter}
+                  onChange={(e) => setCivilityFilter(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                >
+                  <option value="all">Toutes les civilités</option>
+                  {CIVILITY_OPTIONS.map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Situation familiale */}
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Situation familiale</label>
+                <select
+                  value={maritalStatusFilter}
+                  onChange={(e) => setMaritalStatusFilter(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                >
+                  <option value="all">Toutes les situations</option>
+                  {MARITAL_STATUS_OPTIONS.map(m => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Type de diplôme */}
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Type de diplôme</label>
+                <select
+                  value={diplomaTypeFilter}
+                  onChange={(e) => setDiplomaTypeFilter(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                >
+                  <option value="all">Tous les types</option>
+                  {DIPLOMA_TYPE_OPTIONS.map(d => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Statut d'inscription */}
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Statut d'inscription</label>
+                <select
+                  value={registrationStatusFilter}
+                  onChange={(e) => setRegistrationStatusFilter(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                >
+                  <option value="all">Tous les statuts</option>
+                  {REGISTRATION_STATUS_OPTIONS.map(r => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Mode d'exercice */}
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Mode d'exercice</label>
+                <select
+                  value={professionalModeFilter}
+                  onChange={(e) => setProfessionalModeFilter(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                >
+                  <option value="all">Tous les modes</option>
+                  {PROFESSIONAL_MODE_OPTIONS.map(p => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Service national */}
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Service national</label>
+                <select
+                  value={serviceNationalFilter}
+                  onChange={(e) => setServiceNationalFilter(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                >
+                  <option value="all">Toutes les situations</option>
+                  {SERVICE_NATIONAL_OPTIONS.map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Statut de l'utilisateur cible */}
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Statut (utilisateur)</label>
+                <select
+                  value={userStatusFilter}
+                  onChange={(e) => setUserStatusFilter(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                >
+                  <option value="all">Tous les statuts</option>
+                  {USER_STATUS_OPTIONS.map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Date from */}
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Créé à partir du</label>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
+
+              {/* Date to */}
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Créé jusqu'au</label>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ===== MASS ACTIONS ===== */}
+        {filteredRequests.some(req => {
+          const firstPending = req.steps?.filter(s => s.status === 'pending').sort((a,b) => a.order - b.order)[0];
+          return firstPending && firstPending.massValidation && firstPending.allowedUserIds?.some(u => (u.id || u) === authData.user?.id);
+        }) && (
+          <div className="flex items-center gap-3 mb-4">
+            {selectedRequests.length > 0 && (
+              <button
+                onClick={handleMassApprove}
+                disabled={massApproving}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl shadow-lg shadow-emerald-500/20 transition-all text-sm font-medium disabled:opacity-50"
+              >
+                {massApproving ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <CheckSquare className="w-4 h-4" />
+                )}
+                {massApproving ? 'Approbation...' : `Approuver la sélection (${selectedRequests.length})`}
+              </button>
+            )}
+            <button
+              onClick={handleSelectAll}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-[#1F2937] hover:bg-[#2A3A4A] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl transition-all text-sm font-medium"
+            >
+              <CheckSquare className="w-4 h-4" />
+              Tout sélectionner (mass validation)
+            </button>
+          </div>
+        )}
+
+        {/* ===== REQUEST LIST ===== */}
+        {filteredRequests.length === 0 ? (
           <div className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] p-12 text-center shadow-2xl shadow-black/50">
             <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto mb-4">
               <Inbox className="w-8 h-8 text-emerald-400" />
@@ -212,72 +617,98 @@ export default function ValidationRequestsList() {
           </div>
         ) : (
           <div className="space-y-4">
-            {requests.map((req, idx) => (
-              <div
-                key={req.id || idx}
-                className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] p-5 hover:border-[rgba(255,255,255,0.12)] hover:bg-[#182233] transition-all duration-200 shadow-lg group"
-              >
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                  {/* Left side - clickable to navigate */}
-                  <div
-                    className="flex-1 min-w-0 cursor-pointer"
-                    onClick={() => navigate(`/dash/validation/requests/${req.id}`)}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
-                        {getTargetIcon(req.targetType)}
-                      </span>
-                      <div>
-                        <h3 className="text-lg font-semibold text-[#F8FAFC] truncate">
-                          {req.targetType} – {getTargetDisplay(req.targetType, req.targetId)}
-                        </h3>
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5">
-                          <span className="text-xs text-[#64748B] flex items-center gap-1">
-                            <Calendar className="w-3 h-3" />
-                            {new Date(req.createdAt).toLocaleDateString('fr-FR')}
-                          </span>
-                          <span className="text-xs text-[#64748B] flex items-center gap-1">
-                            <User className="w-3 h-3" />
-                            {req.createdBy?.name || 'Inconnu'}
-                          </span>
+            {filteredRequests.map((req, idx) => {
+              const firstPendingStep = req.steps
+                ?.filter(s => s.status === 'pending')
+                .sort((a, b) => a.order - b.order)[0];
+
+              const canMassValidate =
+                firstPendingStep &&
+                firstPendingStep.massValidation &&
+                firstPendingStep.allowedUserIds?.some(u => (u.id || u) === authData.user?.id);
+
+              const isSelected = selectedRequests.includes(req.id);
+
+              return (
+                <div
+                  key={req.id || idx}
+                  className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] p-5 hover:border-[rgba(255,255,255,0.12)] hover:bg-[#182233] transition-all duration-200 shadow-lg group"
+                >
+                  <div className="flex items-center gap-4">
+                    {canMassValidate && (
+                      <div className="flex-shrink-0">
+                        <div
+                          onClick={() => toggleRequestSelection(req.id)}
+                          className={`w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer transition-all ${
+                            isSelected
+                              ? 'bg-emerald-500 border-emerald-500'
+                              : 'bg-[#0A0F1C] border-[#64748B] hover:border-[#94A3B8]'
+                          }`}
+                        >
+                          {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
                         </div>
+                      </div>
+                    )}
+
+                    <div
+                      className="flex-1 min-w-0 cursor-pointer"
+                      onClick={() => navigate(`/dash/validation/requests/${req.id}`)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 flex-shrink-0">
+                          {getTargetIcon(req.targetType)}
+                        </span>
+                        <div className="min-w-0">
+                          <h3 className="text-lg font-semibold text-[#F8FAFC] truncate">
+                            {req.targetType} – {getTargetDisplay(req.targetType, req.targetId)}
+                          </h3>
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5">
+                            <span className="text-xs text-[#64748B] flex items-center gap-1">
+                              <Calendar className="w-3 h-3" />
+                              {new Date(req.createdAt).toLocaleDateString('fr-FR')}
+                            </span>
+                            <span className="text-xs text-[#64748B] flex items-center gap-1">
+                              <User className="w-3 h-3" />
+                              {req.createdBy?.name || 'Inconnu'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-2 flex flex-wrap items-center gap-3 ml-12">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadge(req.status)}`}>
+                          {getStatusIcon(req.status)}
+                          {req.status}
+                        </span>
+                        {canMassValidate && (
+                          <span className="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                            Validation en masse
+                          </span>
+                        )}
                       </div>
                     </div>
 
-                    <div className="mt-2 flex flex-wrap items-center gap-3">
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadge(req.status)}`}>
-                        {getStatusIcon(req.status)}
-                        {req.status}
-                      </span>
-                      {req.step && (
-                        <span className="text-xs text-[#64748B]">
-                          Étape : {req.step}
-                        </span>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {['pending', 'partial'].includes(req.status) && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleCancel(req.id); }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-lg hover:bg-rose-500/20 transition-all text-xs font-medium"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                          Annuler
+                        </button>
                       )}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); navigate(`/dash/validation/requests/${req.id}`); }}
+                        className="text-[#64748B] hover:text-emerald-400 transition-colors p-1"
+                      >
+                        <ChevronRight className="w-5 h-5" />
+                      </button>
                     </div>
                   </div>
-
-                  {/* Right side - actions */}
-                  <div className="flex items-center gap-2">
-                    {['pending', 'partial'].includes(req.status) && (
-                      <button
-                        onClick={() => handleCancel(req.id)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-lg hover:bg-rose-500/20 transition-all text-xs font-medium"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                        Annuler
-                      </button>
-                    )}
-                    <button
-                      onClick={() => navigate(`/dash/validation/requests/${req.id}`)}
-                      className="text-[#64748B] hover:text-emerald-400 transition-colors p-1"
-                    >
-                      <ChevronRight className="w-5 h-5" />
-                    </button>
-                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

@@ -4,7 +4,7 @@ import { CheckCircle, AlertCircle, AlertTriangle, Info, X } from 'lucide-react';
 
 const MessagePopup = () => {
   const { messages, removeMessage } = useError();
-
+  console.log(messages)
   if (messages.length === 0) return null;
 
   const getIcon = (type) => {
@@ -53,7 +53,7 @@ const MessagePopup = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+    <div className="fixed inset-0 z-9999 flex items-center justify-center pointer-events-none">
       <div className="absolute inset-0 bg-black/30 backdrop-blur-sm pointer-events-auto" />
       <div className="relative flex flex-col items-center pointer-events-auto">
         {messages.map((msg) => (

@@ -3,6 +3,7 @@ import { useContext, useEffect, useState, useRef } from "react";
 import { UserContext } from "../Context/dataCont";
 import { useParams, useNavigate } from "react-router-dom";
 import PDFPreviewModal from '../Components/Modals/PdfPreviexModal';
+import { useError } from '../Context/ErrorContext';  // ✅ added
 
 import sabAvatar from '../assets/ChatGPT Image Jul 13, 2026, 03_44_20 PM.png';
 import FileCard from '../Components/Cards/FileCrad';
@@ -15,6 +16,7 @@ import {
   User,
   Mail,
   Phone,
+  Eye,
   Calendar,
   MapPin,
   Briefcase,
@@ -46,17 +48,10 @@ import {
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
-// ─── Design Tokens ──────────────────────────────────────────────────────────
-// Dark banking theme (Revolut / Wise inspired)
-// Background: #0A0F1C, Surfaces: #111827, #182233, #1F2937
-// Text: #F8FAFC, #94A3B8, #64748B
-// Accent: Emerald #22C55E, Teal #14B8A6, Info #3B82F6, Warning #F59E0B, Danger #EF4444
-// Borders: rgba(255,255,255,0.06)
-
-// ─── Component ──────────────────────────────────────────────────────────────
 
 export default function ProfilePage({ user }) {
   const { authData, setAuthData } = useContext(UserContext);
+  const { showError, showWarning, showSuccess } = useError(); // ✅ use error context
   const { id } = useParams();
   const navigate = useNavigate();
 
@@ -64,7 +59,6 @@ export default function ProfilePage({ user }) {
   const [permissions, setPermissions] = useState(null);
   const [perform, setPerform] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [popup, setPopup] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [payments, setPayments] = useState([]);
   const [userFees, setUserFees] = useState([]);
@@ -88,6 +82,9 @@ export default function ProfilePage({ user }) {
   const isOwner = authData.user?.id === targetUserId;
   const isAdmin = authData.user?.role === 'admin' || authData.user?.role === 'super_admin';
 
+  const [validationRequests, setValidationRequests] = useState([]);
+  const [validationLoading, setValidationLoading] = useState(false);
+
   // ─── Click outside ────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -99,11 +96,6 @@ export default function ProfilePage({ user }) {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
-  const handlePopup = (type, message, duration = 3000) => {
-    setPopup({ type, message });
-    setTimeout(() => setPopup(null), duration);
-  };
 
   // ─── File handlers ────────────────────────────────────────────────────────
 
@@ -119,21 +111,20 @@ export default function ProfilePage({ user }) {
         body: uploadData,
       });
       const data = await response.json();
-      console.log(data)
       if (response.status === 413) {
-        handlePopup("error", data.message || "File is too large");
+        showError(data.message || "File is too large");
         return;
       }
       if (!response.ok) {
-        handlePopup("error", data.message || "Upload failed");
+        showError(data.message || "Upload failed");
         return;
       }
       if (isOwner) setAuthData(prev => ({ token: data.data.token || prev.token, user: data.data.user || prev.user }));
       else setDisplayUser(data.data.user);
-      handlePopup("success", "File uploaded successfully ✅");
+      showSuccess("File uploaded successfully ✅");
     } catch (err) {
       console.error(err);
-      handlePopup("error", "Network error. Please try again.");
+      showError("Network error. Please try again.");
     } finally {
       setIsUploading(false);
     }
@@ -152,19 +143,19 @@ export default function ProfilePage({ user }) {
       });
       const data = await response.json();
       if (response.status === 413) {
-        handlePopup("error", data.message || "File is too large");
+        showError(data.message || "File is too large");
         return;
       }
       if (!response.ok) {
-        handlePopup("error", data.message || "Replace failed");
+        showError(data.message || "Replace failed");
         return;
       }
       if (isOwner) setAuthData(prev => ({ token: data.data.token || prev.token, user: data.data.user || prev.user }));
       else setDisplayUser(data.data.user);
-      handlePopup("success", "File replaced successfully ✅");
+      showSuccess("File replaced successfully ✅");
     } catch (err) {
       console.error(err);
-      handlePopup("error", "Network error. Please try again.");
+      showError("Network error. Please try again.");
     } finally {
       setIsUploading(false);
     }
@@ -179,15 +170,15 @@ export default function ProfilePage({ user }) {
       });
       const data = await response.json();
       if (!response.ok) {
-        handlePopup("error", data.message || "Delete failed");
+        showError(data.message || "Delete failed");
         return;
       }
       if (isOwner) setAuthData(prev => ({ token: data.data.token || prev.token, user: data.data.user || prev.user }));
       else setDisplayUser(data.data.user);
-      handlePopup("success", "File deleted successfully ✅");
+      showSuccess("File deleted successfully ✅");
     } catch (err) {
       console.error(err);
-      handlePopup("error", "Network error. Please try again.");
+      showError("Network error. Please try again.");
     } finally {
       setIsUploading(false);
     }
@@ -195,6 +186,7 @@ export default function ProfilePage({ user }) {
 
   // ─── Refresh functions ──────────────────────────────────────────────────
 
+  
   const refreshUserAndFees = async () => {
     try {
       const userRes = await fetch(`${NEST_API_URL}/users/${targetUserId}`, {
@@ -256,11 +248,12 @@ export default function ProfilePage({ user }) {
         body: JSON.stringify({ userId: targetUserId, amount: finalAmount, paymentMethod: method, notes })
       });
       const data = await res.json();
+      console.log(dataX)
       if (res.ok && data.success) {
         if (type === 'deposit') {
-          handlePopup('success', `${data.data.usedForFees} DA utilisé pour les cotisations, ${data.data.creditAdded} DA ajoutés au crédit.`);
+          showSuccess(`${data.data.usedForFees} DA utilisé pour les cotisations, ${data.data.creditAdded} DA ajoutés au crédit.`);
         } else {
-          handlePopup('success', `Retrait de ${Math.abs(finalAmount)} DA effectué. Nouveau crédit : ${data.data.newCreditBalance} DA.`);
+          showSuccess(`Retrait de ${Math.abs(finalAmount)} DA effectué. Nouveau crédit : ${data.data.newCreditBalance} DA.`);
         }
         await refreshUserAndFees();
         setShowTransactionModal(false);
@@ -268,11 +261,11 @@ export default function ProfilePage({ user }) {
         setTransactionMethod('cash');
         setTransactionNotes('');
       } else {
-        handlePopup('error', data.message || data.error);
+        showError(data.message || data.error);
       }
     } catch (err) {
       console.error(err);
-      handlePopup('error', 'Erreur réseau');
+      showError('Erreur réseau');
     }
   };
 
@@ -290,14 +283,14 @@ export default function ProfilePage({ user }) {
       });
       const data = await response.json();
       if (response.ok && data.success) {
-        handlePopup('success', 'Utilisateur validé avec succès');
+        showSuccess('Utilisateur validé avec succès');
         await refreshUserAndFees();
       } else {
-        handlePopup('error', data.message || 'Erreur lors de la validation');
+        showError(data.message || 'Erreur lors de la validation');
       }
     } catch (err) {
       console.error(err);
-      handlePopup('error', 'Erreur réseau');
+      showError('Erreur réseau');
     }
   };
 
@@ -336,10 +329,10 @@ export default function ProfilePage({ user }) {
         },
       });
 
-      handlePopup('success', 'Aperçu généré avec succès!');
+      showSuccess('Aperçu généré avec succès!');
     } catch (error) {
       console.error('❌ Error generating preview:', error);
-      handlePopup('error', error.message || 'Erreur réseau');
+      showError(error.message || 'Erreur réseau');
     }
   };
 
@@ -464,13 +457,33 @@ export default function ProfilePage({ user }) {
         },
       });
 
-      handlePopup('success', 'Aperçu du diplôme généré avec succès!');
+      showSuccess('Aperçu du diplôme généré avec succès!');
     } catch (error) {
       console.error('❌ Error generating degree preview:', error);
-      handlePopup('error', error.message || 'Erreur réseau');
+      showError(error.message || 'Erreur réseau');
     }
   };
 
+  //  ─── Validations fetch ──────────────────────────────────────────────────
+
+  const fetchValidationRequests = async () => {
+  if (!targetUserId) return;
+  setValidationLoading(true);
+  try {
+    const res = await fetch(`${NEST_API_URL}/validation/requests/user/${targetUserId}`, {
+      headers: { Authorization: `Bearer ${authData.token}` },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const requests = data?.data;
+      setValidationRequests(Array.isArray(requests) ? requests : []);
+    }
+  } catch (error) {
+    console.error('Error fetching validation requests:', error);
+  } finally {
+    setValidationLoading(false);
+  }
+};
   // ─── Initial data fetch ──────────────────────────────────────────────────
 
   useEffect(() => {
@@ -533,9 +546,10 @@ export default function ProfilePage({ user }) {
         }
 
         await fetchCreditTransactions();
+        await fetchValidationRequests();
       } catch (error) {
         console.error("Error fetching data:", error);
-        handlePopup("error", "Erreur lors du chargement des données");
+        showError("Erreur lors du chargement des données");
       } finally {
         setLoading(false);
       }
@@ -551,7 +565,7 @@ export default function ProfilePage({ user }) {
 
   const PROFILE_URL = displayUser?.profilePicture || sabAvatar;
   const files = displayUser?.files || [];
-  console.log(files)
+  
 
   const roleColors = {
     admin: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
@@ -630,19 +644,20 @@ export default function ProfilePage({ user }) {
 
   // ─── Tabs config ──────────────────────────────────────────────────────────
 
-  const tabs = [
-    { id: 'info', label: 'Informations', icon: <User className="w-4 h-4" /> },
-    { id: 'files', label: 'Fichiers', icon: <FileArchive className="w-4 h-4" /> },
-    { id: 'fees', label: 'Cotisations', icon: <Award className="w-4 h-4" /> },
-    { id: 'payments', label: 'Paiements', icon: <CreditCard className="w-4 h-4" /> },
-    { id: 'transactions', label: 'Crédits', icon: <Clock className="w-4 h-4" /> },
-  ];
+const tabs = [
+  { id: 'info', label: 'Informations', icon: <User className="w-4 h-4" /> },
+  { id: 'files', label: 'Fichiers', icon: <FileArchive className="w-4 h-4" /> },
+  { id: 'fees', label: 'Cotisations', icon: <Award className="w-4 h-4" /> },
+  { id: 'payments', label: 'Paiements', icon: <CreditCard className="w-4 h-4" /> },
+  { id: 'transactions', label: 'Crédits', icon: <Clock className="w-4 h-4" /> },
+  { id: 'validation', label: 'Validation', icon: <Shield className="w-4 h-4" /> },
+];
 
   // ─── Render ──────────────────────────────────────────────────────────────
 
   return (
     <>
-      <div className="min-h-screen bg-[#0A0F1C]  relative">
+      <div className="min-h-screen bg-[#0A0F1C] relative">
 
         {/* ─── Spinner Overlay ───────────────────────────────────────────── */}
         {isUploading && (
@@ -650,33 +665,6 @@ export default function ProfilePage({ user }) {
             <div className="flex flex-col items-center gap-3">
               <div className="w-12 h-12 border-2 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
               <p className="text-[#64748B] text-sm">En cours…</p>
-            </div>
-          </div>
-        )}
-
-        {/* ─── Toast Popup ────────────────────────────────────────────────── */}
-        {popup && (
-          <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
-            <div className={`
-              pointer-events-auto flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-2xl border bg-[#111827]
-              animate-in slide-in-from-top-4 duration-300
-              ${popup.type === "error"
-                ? "border-red-500/30 text-red-400"
-                : "border-emerald-500/30 text-emerald-400"
-              }
-            `}>
-              {popup.type === "error" ? (
-                <AlertCircle className="w-5 h-5" />
-              ) : (
-                <CheckCircle className="w-5 h-5" />
-              )}
-              <span className="text-sm font-medium">{popup.message}</span>
-              <button
-                onClick={() => setPopup(null)}
-                className="ml-2 text-[#64748B] hover:text-[#94A3B8] transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
             </div>
           </div>
         )}
@@ -940,7 +928,7 @@ export default function ProfilePage({ user }) {
                   {payments.length > 0 ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {payments.map((payment) => (
-                        <PaymentCard key={payment.id} payment={payment} handlePopup={handlePopup} />
+                        <PaymentCard key={payment.id} payment={payment} handlePopup={showSuccess} />
                       ))}
                     </div>
                   ) : (
@@ -962,13 +950,167 @@ export default function ProfilePage({ user }) {
                   {creditTransactions.length > 0 ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {creditTransactions.map((tx) => (
-                        <CreditTransactionCard key={tx.id} transaction={tx} handlePopup={handlePopup} />
+                        <CreditTransactionCard key={tx.id} transaction={tx} handlePopup={showSuccess} />
                       ))}
                     </div>
                   ) : (
                     <div className="flex flex-col items-center gap-2 py-8 text-[#64748B]">
                       <Clock className="w-8 h-8" />
                       <p className="text-sm">Aucune transaction de crédit trouvée</p>
+                    </div>
+                  )}
+                </div>
+              )}
+              {/* ─── Validations Tab ──────────────────────────────── */}
+              {activeTab === 'validation' && (
+                <div className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-6">
+                  <h2 className="text-lg font-semibold text-white mb-6 flex items-center gap-3">
+                    <Shield className="w-5 h-5 text-emerald-400" />
+                    Parcours de validation
+                  </h2>
+
+                  {validationLoading ? (
+                    <div className="flex justify-center py-12">
+                      <Loader2 className="w-8 h-8 text-emerald-400 animate-spin" />
+                    </div>
+                  ) : validationRequests.length > 0 ? (
+                    <div className="space-y-8">
+                      {validationRequests.slice(0, 1).map((req) => {
+                        const totalSteps = req.steps?.length || 0;
+                        const approvedSteps = req.steps?.filter(s => s.status === 'approved').length || 0;
+                        const progressPercent = totalSteps > 0 ? Math.round((approvedSteps / totalSteps) * 100) : 0;
+
+                        return (
+                          <div key={req.id}>
+                            {/* Request header & overall progress */}
+                            <div className="mb-6">
+                              <div className="flex items-center justify-between mb-2">
+                                <div>
+                                  <p className="text-sm font-medium text-[#F8FAFC]">
+                                    Demande #{req.id.slice(-6)} – {req.targetType}
+                                  </p>
+                                  <p className="text-xs text-[#94A3B8]">
+                                    Créée le {new Date(req.createdAt).toLocaleDateString('fr-FR')}
+                                  </p>
+                                </div>
+                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${
+                                  req.status === 'approved' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                                  req.status === 'rejected' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
+                                  'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
+                                }`}>
+                                  {req.status}
+                                </span>
+                              </div>
+                              <div className="w-full bg-[#1F2937] rounded-full h-2.5">
+                                <div
+                                  className="bg-emerald-500 h-2.5 rounded-full transition-all duration-500"
+                                  style={{ width: `${progressPercent}%` }}
+                                />
+                              </div>
+                              <p className="text-xs text-[#64748B] mt-1">
+                                {approvedSteps} / {totalSteps} étapes terminées
+                              </p>
+                            </div>
+
+                            {/* Timeline */}
+                            <div className="relative pl-8">
+                              {/* Vertical line */}
+                              <div className="absolute left-[11px] top-2 bottom-2 w-0.5 bg-[#1F2937]" />
+
+                              {req.steps?.map((step, idx) => {
+                                const isDone = step.status === 'approved';
+                                const isPending = step.status === 'pending';
+                                const isRejected = step.status === 'rejected' || step.status === 'expired';
+                                const isSkipped = step.status === 'skipped';
+
+                                let icon = <Clock className="w-4 h-4 text-yellow-400" />;
+                                let circleBg = 'bg-yellow-500/20 border-yellow-500/40';
+                                if (isDone) {
+                                  icon = <CheckCircle className="w-4 h-4 text-emerald-400" />;
+                                  circleBg = 'bg-emerald-500/20 border-emerald-500/40';
+                                } else if (isRejected) {
+                                  icon = <XCircle className="w-4 h-4 text-rose-400" />;
+                                  circleBg = 'bg-rose-500/20 border-rose-500/40';
+                                } else if (isSkipped) {
+                                  icon = <SkipForward className="w-4 h-4 text-gray-400" />;
+                                  circleBg = 'bg-gray-500/20 border-gray-500/40';
+                                }
+
+                                return (
+                                  <div key={idx} className="relative pb-6 last:pb-0">
+                                    {/* Circle icon */}
+                                    <div className={`absolute -left-[29px] z-10 flex items-center justify-center w-6 h-6 rounded-full border-2 ${circleBg}`}>
+                                      {icon}
+                                    </div>
+
+                                    <div className="bg-[#0A0F1C] rounded-xl border border-[rgba(255,255,255,0.06)] p-4 hover:border-[rgba(255,255,255,0.12)] transition-all">
+                                      <div className="flex items-center justify-between mb-2">
+                                        <p className="text-sm font-semibold text-[#F8FAFC]">
+                                          {step.stepName}
+                                        </p>
+                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${
+                                          isDone ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                                          isRejected ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
+                                          isSkipped ? 'bg-gray-500/10 text-gray-400 border-gray-500/20' :
+                                          'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
+                                        }`}>
+                                          {step.status}
+                                        </span>
+                                      </div>
+
+                                      <p className="text-xs text-[#94A3B8]">
+                                        Rôle requis : {step.requiredRole}
+                                      </p>
+
+                                      {step.allowedUserIds?.length > 0 && (
+                                        <p className="text-xs text-[#94A3B8] mt-1">
+                                          Assignée à : {step.allowedUserIds.map(u => u.name || u.email || u.id).join(', ')}
+                                        </p>
+                                      )}
+
+                                      {step.comments && (
+                                        <div className="mt-2 p-2 bg-[#111827] rounded-lg border border-[rgba(255,255,255,0.06)]">
+                                          <p className="text-xs text-[#64748B] uppercase tracking-wider">Commentaire</p>
+                                          <p className="text-xs text-[#F8FAFC] mt-0.5">{step.comments}</p>
+                                        </div>
+                                      )}
+
+                                      {step.approvedBy && (
+                                        <p className="text-xs text-[#64748B] mt-2">
+                                          Traitée par {step.approvedBy.name || step.approvedBy.email || step.approvedBy}
+                                          {step.approvedAt ? ` le ${new Date(step.approvedAt).toLocaleString('fr-FR')}` : ''}
+                                        </p>
+                                      )}
+
+                                      {step.timeout?.duration > 0 && step.status === 'pending' && (
+                                        <div className="mt-2 flex items-center gap-1.5 text-xs text-orange-400">
+                                          <Clock className="w-3.5 h-3.5" />
+                                          <span>Délai : {step.timeout.duration}h – {step.timeout.action}</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {/* Link to full progress */}
+                            <div className="mt-4 text-right">
+                              <button
+                                onClick={() => navigate(`/dash/validation/requests/${req.id}/`)}
+                                className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
+                              >
+                                Voir le détail complet →
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-3 py-12 text-[#64748B]">
+                      <Shield className="w-10 h-10" />
+                      <p className="text-sm">Aucune demande de validation en cours.</p>
                     </div>
                   )}
                 </div>
@@ -1037,11 +1179,11 @@ export default function ProfilePage({ user }) {
                   onClick={() => {
                     const amountNum = parseFloat(transactionAmount);
                     if (isNaN(amountNum) || amountNum <= 0) {
-                      handlePopup('error', 'Montant invalide (doit être positif)');
+                      showError('Montant invalide (doit être positif)');
                       return;
                     }
                     if (transactionType === 'withdraw' && amountNum > displayUser.credit) {
-                      handlePopup('error', 'Crédit insuffisant');
+                      showError('Crédit insuffisant');
                       return;
                     }
                     handleTransaction(amountNum, transactionMethod, transactionNotes, transactionType);
