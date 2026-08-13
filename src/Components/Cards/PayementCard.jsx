@@ -1,6 +1,6 @@
 import { useContext, useState } from "react";
 import { UserContext } from "../../Context/dataCont";
-import PDFPreviewModal from '../Modals/PdfPreviexModal';
+import PDFPreviewModal from '../Modals/pdfPreviexModal';
 import { Download, Eye, Mail, CreditCard, Calendar, AlertCircle } from "lucide-react";
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;

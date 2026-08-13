@@ -1,7 +1,7 @@
 import { useState, useContext, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UserContext } from '../../Context/dataCont';
-import { useApi } from '../../hooks/useApi';
+import { useApi } from '../../Hooks/useApi';
 import { useModal } from '../../Context/ModalContext';
 import {
   Plus,

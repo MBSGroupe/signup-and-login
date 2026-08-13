@@ -1,6 +1,6 @@
 import { useContext, useState } from "react";
 import { UserContext } from "../../Context/dataCont";
-import PDFPreviewModal from '../Modals/PdfPreviexModal';   // fixed import
+import PDFPreviewModal from '../Modals/pdfPreviexModal';   // fixed import
 
 const API_URL = import.meta.env.VITE_NEST_API_URL;
 

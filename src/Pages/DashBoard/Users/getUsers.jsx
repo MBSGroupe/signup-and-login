@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import { fetchWithRefresh } from '../../../Components/api';
 import UserDetailsModal from '../../../Components/Modals/userDetailsModal';
-import PDFPreviewModal from '../../../Components/Modals/PdfPreviexModal';
+import PDFPreviewModal from '../../../Components/Modals/pdfPreviexModal';
 import { useNavigate } from 'react-router-dom';
 import wilayasData from '../../../assets/data/wilayas.json';   // static Wilaya list
 

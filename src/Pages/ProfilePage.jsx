@@ -2,7 +2,7 @@ import Title from '../Components/Title';
 import { useContext, useEffect, useState, useRef } from "react";
 import { UserContext } from "../Context/dataCont";
 import { useParams, useNavigate } from "react-router-dom";
-import PDFPreviewModal from '../Components/Modals/PdfPreviexModal';
+import PDFPreviewModal from '../Components/Modals/pdfPreviexModal';
 import { useError } from '../Context/ErrorContext';  // ✅ added
 
 import sabAvatar from '../assets/ChatGPT Image Jul 13, 2026, 03_44_20 PM.png';
