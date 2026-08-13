@@ -9,8 +9,7 @@ export default function MarkFeePaidModal({
   authData,
   setAuthData
 }) {
-  const API_URL = import.meta.env.VITE_API_URL;
-
+  const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
   // Use computed data (dynamic penalty)
   const computed = cotisation.computed || {};
   const totalDue = computed.totalDue || cotisation.amount;
@@ -52,7 +51,7 @@ export default function MarkFeePaidModal({
 
     try {
       const response = await fetchWithRefresh(
-        `${API_URL}/fee/pay/${cotisation._id}`,
+        `${NEST_API_URL}/fee/pay/${cotisation._id}`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },

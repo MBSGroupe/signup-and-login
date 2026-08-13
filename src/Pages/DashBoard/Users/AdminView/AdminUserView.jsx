@@ -1,7 +1,7 @@
 import { useEffect, useState, useContext } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import ProfilePage from "../../../ProfilePage";
-const API_URL = import.meta.env.VITE_API_URL;
+
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 import { UserContext } from "../../../../Context/dataCont";
 export default function AdminUserView() {
@@ -40,7 +40,7 @@ export default function AdminUserView() {
   const handleValidate = async () => {
     setValidating(true);
     try {
-      const res = await fetch(`${API_URL}/user/validate/${id}`, {
+      const res = await fetch(`${NEST_API_URL}/user/validate/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
       });

@@ -31,7 +31,7 @@ import PDFPreviewModal from '../../../Components/Modals/PdfPreviexModal';
 import { useNavigate } from 'react-router-dom';
 import wilayasData from '../../../assets/data/wilayas.json';   // static Wilaya list
 
-const API_URL = import.meta.env.VITE_API_URL;
+
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
 // ─────────────────────────────────────────────────

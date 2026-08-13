@@ -21,7 +21,8 @@ import {
 } from "lucide-react";
 
 export default function AdminDashboard() {
-  const API_URL = import.meta.env.VITE_API_URL;
+  const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
+  
   const { data, setData } = useContext(UserDataContext);
   const { authData } = useContext(UserContext);
   const navigate = useNavigate();
@@ -31,7 +32,7 @@ export default function AdminDashboard() {
 
     const getElements = async () => {
       try {
-        const response = await fetch(`${API_URL}/admin/allUsers`, {
+        const response = await fetch(`${NEST_API_URL}/admin/allUsers`, {
           method: "GET",
           headers: {
             "Content-Type": "application/json",

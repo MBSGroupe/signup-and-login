@@ -4,7 +4,7 @@ import { UserContext } from "../Context/dataCont";
 import SectionTitle from "../Components/Title";
 import { Mail, Lock, LogIn, Shield, AlertCircle } from "lucide-react";
 
-const API_URL = import.meta.env.VITE_API_URL;
+
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
 const LoginForm = () => {

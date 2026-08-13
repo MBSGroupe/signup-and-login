@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { UserContext } from "../../Context/dataCont";
 import MarkFeePaidModal from "../Modals/PayFee";
 
-const API_URL = import.meta.env.VITE_API_URL;
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
 // ─── Design Tokens (Banking Theme) ──────────────────────────────────────────

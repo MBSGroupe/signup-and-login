@@ -24,7 +24,7 @@ import {
   ChevronLeft
 } from "lucide-react";
 
-const API_URL = import.meta.env.VITE_API_URL;
+
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
 // Wilaya data
@@ -136,8 +136,8 @@ const [formData, setFormData] = useState({
   adresseProArabe: "10 شارع الإخوة بوكريف، الجزائر الوسطى",
 
   // Security
-  password: "AZERTY123",
-  secondPassword: "AZERTY123",
+  password: "",
+  secondPassword: "",
   role: "user",
   status: "pending",
 });
