@@ -1,4 +1,4 @@
-import { React, useState, useContext, useRef, useEffect } from "react";
+import { React, useState, useContext, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { UserContext } from "../Context/dataCont";
 import SectionTitle from "../Components/Title";
@@ -20,14 +20,13 @@ import {
   Loader2,
   CheckCircle,
   AlertCircle,
-  ChevronRight,
-  ChevronLeft
+  Plus,
+  Trash2
 } from "lucide-react";
-
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
-// Wilaya data
+// Wilaya data (unchanged)
 const WILAYAS = [
   "01 - Adrar", "02 - Chlef", "03 - Laghouat", "04 - Oum El Bouaghi",
   "05 - Batna", "06 - Béjaïa", "07 - Biskra", "08 - Béchar",
@@ -47,13 +46,29 @@ const WILAYAS = [
   "56 - Djanet", "57 - El M'ghair", "58 - El Meniaa"
 ];
 
+// Document types (as before)
+const FILE_TYPES = [
+  { key: 'photo', label: 'Photo' },
+  { key: 'CNRC', label: 'Carte Nationale' },
+  { key: 'recu2026', label: 'Reçu 2026' },
+  { key: 'ACTENAISSANCE', label: 'Acte de naissance' },
+  { key: 'DIPLOMES', label: 'Diplôme(s)' },
+  { key: 'c20', label: 'Certificat d\'existence' },
+  { key: 'nonAffiliationcnas', label: 'Non-affiliation CNAS' },
+  { key: 'affiliationcnas', label: 'Affiliation CNAS' },
+  { key: 'contrattravail', label: 'Contrat de travail' },
+  { key: 'PIECEIDENTITE', label: 'Pièce d\'identité' },
+  { key: 'SERMENTTABLE', label: 'Serment' },
+  { key: 'statut', label: 'Statut' },
+  { key: 'RECUDUS', label: 'Reçu divers' },
+];
+
 export default function FormulaireCNOA() {
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const { setAuthData, authData } = useContext(UserContext);
   const navigate = useNavigate();
-  const fileInputRef = useRef(null);
   const formRef = useRef(null);
 
   const today = new Date();
@@ -62,146 +77,193 @@ export default function FormulaireCNOA() {
   const dd = String(today.getDate()).padStart(2, "0");
   const maxDate = `${yyyy}-${mm}-${dd}`;
 
-const [formData, setFormData] = useState({
-  // Personal Info
-  name: "BENALI",
-  lastname: "Samir",
-  nomArabe: "بن علي",
-  prenomArabe: "سمير",
-  email: "saabimm@gmail.com",
-  emailPro: "saabimm@gmail.com",
-  phone: "0698123456",
-  fixe: "",
-  fax: "",
-  dateOfBirth: "1985-03-15",
-  lieuNaissance: "Alger",
-  sexe: "M",
-  enfants: "2",
+  // ─── FORM STATE ──────────────────────────────────────────────────────────
+  const [formData, setFormData] = useState({
+    // Personal
+    name: "",
+    lastname: "",
+    nomArabe: "",
+    prenomArabe: "",
+    email: "",
+    emailPro: "",
+    phone: "",
+    fixe: "",
+    fax: "",
+    dateOfBirth: "",
+    lieuNaissance: "",
+    sexe: "",
+    enfants: "",
 
-  // Family Info
-  prenomPere: "Mohamed",
-  prenomPereArabe: "محمد",
-  nomPrenomMere: "yasmine ait ouali",
-  nomPrenomMereArabe: "ياسمين آيت واعلي",
-  situationFamiliale: "",
-  maritalStatus: "Marié(e)",
-  nationality: "Algérienne",
-  serviceNationalStatus: "Ayant effectué",
+    // Family
+    prenomPere: "",
+    prenomPereArabe: "",
+    nomPrenomMere: "",
+    nomPrenomMereArabe: "",
+    maritalStatus: "",
+    nationality: "",
+    serviceNationalStatus: "",
 
-  // Professional Info
-  profession: "Architecte",
-  specialty: "Génie civil",
-  registrationNumber: "12345/01/20L",
-  nif: "291050700123456",
-  cachet: "12345",
-  gps: "",
-  loi: "",
-  dispositif: "",
-  professionalMode: "Libéral",
-  activityStartDate: "2020-01-15",
-  startDate: "2020-01-15",
-  companyStatus: "",
-  declarationExistence: "",
-  moyensHumains: "",
-  humanResources: "",
-  isAccredited: "",
-  benefitStateAid: "",
+    // Professional
+    profession: "",
+    specialty: "",
+    registrationNumber: "",
+    nif: "",
+    cachet: "",
+    gps: "", // will be a text input for now; we can later add a map picker
+    professionalMode: "",
+    // activityStartDate removed – calculated in backend
+    startDate: "",
+    moyensHumains: "",
+    isAccredited: "",
+    benefitStateAid: "",
+    registrationDate: "",
+    installationDate: "",
+    recruitmentDate: "",
+    numeroActeNaissance: "",
+    nin: "",
 
-  // CNOA
-  civility: "Mr",
-  oathLocation: "16",
-  oathDate: "2020-01-10",
-  diplomaType: "LMD",
-  sessionClassique: "",
-  anneeClassique: "",
-  universiteClassique: "",
-  sessionLMDL: "062",
-  anneeLMDL: "2007",
-  universiteLMDL: "usthb",
-  sessionLMDM: "021",
-  anneeLMDM: "2009",
-  universiteLMDM: "usthb",
-  otherDiplomas: "",
-  otherTrainings: "",
-  registrationStatus: "",
-  registrationDate: "",
+    // CNOA
+    oathLocation: "",
+    oathDate: "",
+    diplomaType: "",
+    sessionClassique: "",
+    anneeClassique: "",
+    universiteClassique: "",
+    sessionLMDL: "",
+    anneeLMDL: "",
+    universiteLMDL: "",
+    sessionLMDM: "",
+    anneeLMDM: "",
+    universiteLMDM: "",
+    otherTrainings: "",
 
-  // Address
-  wilaya: "16 - Alger",
-  commune: "Alger Centre",
-  region: "",
-  adressePersonnelle: "10 rue des frères boukrif, Alger Centre",
-  adressePersonnelleArabe: "",
-  adressePro: "10 rue des frères boukrif, Alger Centre",
-  adresseProArabe: "10 شارع الإخوة بوكريف، الجزائر الوسطى",
+    // Address
+    wilaya: "",
+    commune: "",
+    region: "",
+    adressePersonnelle: "",
+    adressePersonnelleArabe: "",
+    adressePro: "",
+    adresseProArabe: "",
 
-  // Security
-  password: "",
-  secondPassword: "",
-  role: "user",
-  status: "pending",
-});
+    // Security
+    password: "",
+    secondPassword: "",
+    role: "user",
+    status: "pending",
+  });
 
-  const [uploadedFiles, setUploadedFiles] = useState([]);
-  const [uploadingFiles, setUploadingFiles] = useState(false);
+  // ─── Other Diplomas ──────────────────────────────────────────────────────
+  const [otherDiplomas, setOtherDiplomas] = useState([]);
+  const [newDiploma, setNewDiploma] = useState({ name: "", institution: "", year: "" });
+  const [diplomaFile, setDiplomaFile] = useState(null);
 
+  const addDiploma = () => {
+    if (!newDiploma.name || !newDiploma.institution || !newDiploma.year) {
+      setMessage("Veuillez remplir tous les champs du diplôme.");
+      setMessageType("error");
+      return;
+    }
+    const entry = { ...newDiploma };
+    if (diplomaFile) {
+      entry.fileId = diplomaFile.id;
+      entry.fileName = diplomaFile.name;
+    }
+    setOtherDiplomas([...otherDiplomas, entry]);
+    setNewDiploma({ name: "", institution: "", year: "" });
+    setDiplomaFile(null);
+  };
+
+  const removeDiploma = (index) => {
+    setOtherDiplomas(otherDiplomas.filter((_, i) => i !== index));
+  };
+
+  // ─── Per‑type File uploads ──────────────────────────────────────────────
+  const [fileUploads, setFileUploads] = useState(
+    FILE_TYPES.reduce((acc, ft) => ({ ...acc, [ft.key]: null }), {})
+  );
+  const [uploadingFileType, setUploadingFileType] = useState(null);
+
+  const handleFileUploadForType = async (typeKey, file) => {
+    if (!file) return;
+    setUploadingFileType(typeKey);
+    try {
+      const uploadData = new FormData();
+      uploadData.append("file", file);
+      uploadData.append("folder", "uploads");
+
+      const response = await fetch(`${NEST_API_URL}/files/upload/temp`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${authData?.token || ''}`,
+        },
+        body: uploadData,
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        setFileUploads(prev => ({
+          ...prev,
+          [typeKey]: {
+            id: data.data.id,
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            url: data.data.url,
+          }
+        }));
+      } else {
+        setMessage(`Erreur upload ${typeKey}: ${data.message}`);
+        setMessageType("error");
+      }
+    } catch (err) {
+      console.error("Upload error:", err);
+      setMessage(`Erreur réseau pour ${typeKey}`);
+      setMessageType("error");
+    } finally {
+      setUploadingFileType(null);
+    }
+  };
+
+  const removeFileForType = (typeKey) => {
+    setFileUploads(prev => ({ ...prev, [typeKey]: null }));
+  };
+
+  // ─── Handlers ─────────────────────────────────────────────────────────────
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: value,
+      [name]: type === 'checkbox' ? checked : value,
     }));
   };
 
-  // Conditional visibility rules (unchanged)
   const shouldShowField = (fieldName) => {
-    const { sexe, civility, professionalMode, diplomaType } = formData;
+    const { sexe, professionalMode, diplomaType } = formData;
 
-    if (fieldName === 'civility' && sexe === 'M') {
-      return ['', 'Mr'].includes(civility) ? '' : 'Mr';
-    }
-    if (fieldName === 'civility' && sexe === 'F') {
-      return ['', 'Mme', 'Mlle'].includes(civility) ? civility : '';
-    }
+    if (fieldName === 'serviceNationalStatus' && sexe === 'F') return false;
 
-    if (fieldName === 'serviceNationalStatus' && sexe === 'F') {
-      return false;
-    }
-
-    if (fieldName === 'sessionClassique' || fieldName === 'anneeClassique' || fieldName === 'universiteClassique') {
+    if (['sessionClassique','anneeClassique','universiteClassique'].includes(fieldName)) {
       return diplomaType === 'Classique' || diplomaType === '';
     }
-    if (fieldName === 'sessionLMDL' || fieldName === 'anneeLMDL' || fieldName === 'universiteLMDL') {
+    if (['sessionLMDL','anneeLMDL','universiteLMDL'].includes(fieldName)) {
       return diplomaType === 'LMD' || diplomaType === '';
     }
-    if (fieldName === 'sessionLMDM' || fieldName === 'anneeLMDM' || fieldName === 'universiteLMDM') {
+    if (['sessionLMDM','anneeLMDM','universiteLMDM'].includes(fieldName)) {
       return diplomaType === 'LMD' || diplomaType === '';
     }
 
-    if (fieldName === 'companyStatus' && professionalMode === 'Associé') {
-      return true;
+    if (fieldName === 'installationDate') {
+      return professionalMode === 'Libéral' || professionalMode === 'Associé' || professionalMode === '';
     }
-    if (fieldName === 'employerId' && (professionalMode === 'Salarié' || professionalMode === 'Associé')) {
-      return true;
+    if (fieldName === 'recruitmentDate') {
+      return professionalMode === 'Salarié' || professionalMode === '';
     }
+
+    // activityStartDate is removed from UI, so we don't show it
+    if (fieldName === 'activityStartDate') return false;
 
     return true;
-  };
-
-  const getCivilityOptions = () => {
-    if (formData.sexe === 'M') {
-      return [{ value: 'Mr', label: 'Mr' }];
-    } else if (formData.sexe === 'F') {
-      return [
-        { value: 'Mme', label: 'Mme' },
-        { value: 'Mlle', label: 'Mlle' }
-      ];
-    }
-    return [
-      { value: 'Mr', label: 'Mr' },
-      { value: 'Mme', label: 'Mme' },
-      { value: 'Mlle', label: 'Mlle' }
-    ];
   };
 
   const getServiceNationalOptions = () => {
@@ -224,158 +286,15 @@ const [formData, setFormData] = useState({
     return [];
   };
 
-  const handleFileUpload = async (e) => {
-    const files = Array.from(e.target.files);
-    if (files.length === 0) return;
-
-    setUploadingFiles(true);
-    const uploaded = [];
-
-    for (const file of files) {
-      try {
-        const uploadData = new FormData();
-        uploadData.append("file", file);
-        uploadData.append("folder", "uploads");
-
-        const response = await fetch(`${NEST_API_URL}/files/upload/temp`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${authData?.token || ''}`,
-          },
-          body: uploadData,
-        });
-
-        const data = await response.json();
-        if (response.ok) {
-          uploaded.push({
-            id: data.data.id,
-            name: file.name,
-            size: file.size,
-            type: file.type,
-            url: data.data.url,
-          });
-        } else {
-          setMessage(`Erreur lors de l'upload: ${data.message}`);
-          setMessageType("error");
-        }
-      } catch (err) {
-        console.error("Upload error:", err);
-        setMessage("Erreur réseau lors de l'upload");
-        setMessageType("error");
-      }
-    }
-
-    setUploadedFiles((prev) => [...prev, ...uploaded]);
-    setUploadingFiles(false);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
-
-  const removeFile = (fileId) => {
-    setUploadedFiles((prev) => prev.filter(f => f.id !== fileId));
-  };
-
-  const getFileIcon = (type) => {
-    if (type?.startsWith('image/')) return <Image className="w-5 h-5 text-emerald-400" />;
-    if (type === 'application/pdf') return <FileText className="w-5 h-5 text-rose-400" />;
-    return <File className="w-5 h-5 text-[#64748B]" />;
-  };
-
-  const formatFileSize = (bytes) => {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    if (formData.password !== formData.secondPassword) {
-      setMessage("Les mots de passe ne correspondent pas.");
-      setMessageType("error");
-      return;
-    }
-
-    if (formData.password.length < 8) {
-      setMessage("Le mot de passe doit contenir au moins 8 caractères.");
-      setMessageType("error");
-      return;
-    }
-
-    setIsLoading(true);
-    setMessage("");
-
-    try {
-      const { secondPassword, ...submitData } = formData;
-      
-      const cleanedData = Object.keys(submitData).reduce((acc, key) => {
-        if (submitData[key] !== '' && submitData[key] !== null && submitData[key] !== undefined) {
-          acc[key] = submitData[key];
-        }
-        return acc;
-      }, {});
-      
-      const finalData = {
-        ...cleanedData,
-        enfants: cleanedData.enfants ? parseInt(cleanedData.enfants) : null,
-        humanResources: cleanedData.humanResources ? parseInt(cleanedData.humanResources) : null,
-        isAccredited: cleanedData.isAccredited === "true" ? true : cleanedData.isAccredited === "false" ? false : null,
-        benefitStateAid: cleanedData.benefitStateAid === "true" ? true : cleanedData.benefitStateAid === "false" ? false : null,
-        files: uploadedFiles.map(f => f.id),
-      };
-
-      Object.keys(finalData).forEach(key => {
-        if (finalData[key] === null || finalData[key] === undefined) {
-          delete finalData[key];
-        }
-      });
-
-      const response = await fetch(`${NEST_API_URL}/auth/signup`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(finalData),
-      });
-
-      const data = await response.json();
-      console.log('Signup response:', data);
-
-      if (response.ok) {
-        // Token and user are nested inside data.data
-        const token = data?.data?.token || data.token;
-        const user = data?.data?.user || data.user;
-
-        if (!token || !user) {
-          setMessage('Réponse serveur incorrecte');
-          setMessageType('error');
-          return;
-        }
-
-        // Save to context – the provider will auto-persist to localStorage
-        setAuthData({ user, token });
-
-        setMessage('Inscription réussie ! Vérification en cours...');
-        setMessageType('success');
-        setTimeout(() => navigate('/auth/verify-pending'), 2000);
-      } else {
-        setMessage(data.message || "Erreur lors de l'inscription");
-        setMessageType('error');
-}
-    } catch (err) {
-      console.error("Signup error:", err);
-      setMessage("⚠️ Erreur réseau. Veuillez réessayer.");
-      setMessageType("error");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
+  // ─── renderField ──────────────────────────────────────────────────────────
   const renderField = (label, name, type = "text", options = null, required = false, placeholder = "", icon = null) => {
     if (!shouldShowField(name)) return null;
 
     const isArabicField = name.includes('Arabe') || name.includes('arab');
-    const isTextarea = type === "textarea";
     const isSelect = type === "select";
     const isDate = type === "date";
     const isPassword = type === "password";
+    const isTextarea = type === "textarea";
 
     return (
       <div key={name} className="space-y-1.5">
@@ -389,11 +308,9 @@ const [formData, setFormData] = useState({
             value={formData[name] || ""}
             onChange={handleChange}
             required={required}
-            className={`w-full px-4 py-2.5 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl 
+            className="w-full px-4 py-2.5 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl 
               focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 
-              transition-all duration-200 hover:border-[rgba(255,255,255,0.12)]
-              ${isArabicField ? 'text-right font-arabic' : ''}`}
-            dir={isArabicField ? 'rtl' : 'ltr'}
+              transition-all duration-200 hover:border-[rgba(255,255,255,0.12)]"
           >
             <option value="">Sélectionnez</option>
             {options.map((opt) => (
@@ -407,11 +324,9 @@ const [formData, setFormData] = useState({
             value={formData[name] || ""}
             onChange={handleChange}
             rows="3"
-            className={`w-full px-4 py-2.5 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl 
+            className="w-full px-4 py-2.5 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl 
               focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 
-              transition-all duration-200 hover:border-[rgba(255,255,255,0.12)] resize-y
-              ${isArabicField ? 'text-right font-arabic' : ''}`}
-            dir={isArabicField ? 'rtl' : 'ltr'}
+              transition-all duration-200 hover:border-[rgba(255,255,255,0.12)] resize-y"
           />
         ) : isDate ? (
           <input
@@ -457,41 +372,95 @@ const [formData, setFormData] = useState({
     );
   };
 
-  // Group sections with icons
-  const sections = [
-    { id: 'personal', title: 'Informations Personnelles', icon: User, fields: ['name','lastname','nomArabe','prenomArabe','email','emailPro','phone','fixe','fax','sexe','dateOfBirth','lieuNaissance','enfants'] },
-    { id: 'family', title: 'Informations Familiales', icon: Home, fields: ['prenomPere','prenomPereArabe','nomPrenomMere','nomPrenomMereArabe','maritalStatus','nationality','serviceNationalStatus'] },
-    { id: 'professional', title: 'Informations Professionnelles', icon: Briefcase, fields: ['profession','specialty','registrationNumber','nif','cachet','gps','loi','dispositif','professionalMode','activityStartDate','startDate','companyStatus','declarationExistence','moyensHumains','humanResources','isAccredited','benefitStateAid','registrationStatus','registrationDate'] },
-    { id: 'diplomas', title: 'Diplômes', icon: GraduationCap, fields: ['diplomaType','sessionClassique','anneeClassique','universiteClassique','sessionLMDL','anneeLMDL','universiteLMDL','sessionLMDM','anneeLMDM','universiteLMDM','otherDiplomas','otherTrainings'] },
-    { id: 'cnoa', title: 'Informations CNOA', icon: Shield, fields: ['civility','oathLocation','oathDate'] },
-    { id: 'address', title: 'Adresse', icon: MapPin, fields: ['wilaya','commune','region','adressePersonnelle','adressePersonnelleArabe','adressePro','adresseProArabe'] },
-    { id: 'security', title: 'Sécurité', icon: Shield, fields: ['password','secondPassword'] },
-  ];
+  // ─── Submit ──────────────────────────────────────────────────────────────
+  const handleSubmit = async (e) => {
+    e.preventDefault();
 
-  // Group fields by section to render
-  const getSectionFields = (sectionId) => {
-    const section = sections.find(s => s.id === sectionId);
-    if (!section) return [];
-    // For simplicity, we use the existing userFields definition but we'll render fields individually.
-    // Since we have renderField that takes label etc., we need to define field configs.
-    // To avoid duplication, we'll keep the existing field rendering logic from the original code.
-    // However, we need to restructure rendering to use the sections with icons.
-    // We'll keep the existing renderField calls but wrap them in section containers.
-    // We'll restructure by creating a mapping of field keys to their labels, types, etc.
-    // Actually the original has a big renderField calls inline in the JSX. We'll reorganize to use a field configuration array and render sections dynamically.
-    // But since it's a large component, we can keep the original structure but change the visual styles.
-    // To reduce complexity, we'll keep the original JSX with the same renderField calls but wrap each section with new styling.
-    // However the original is already structured with sections. We'll just update the container styles and remove the old progress indicator.
-    // We'll keep the same renderField calls but change the CSS classes to the new theme.
-    // So we'll edit the JSX part to update the section wrappers.
-    return [];
+    // Check loi checkbox
+    if (!formData.loi) {
+      setMessage("Vous devez accepter la déclaration légale pour continuer.");
+      setMessageType("error");
+      return;
+    }
+
+    if (formData.password !== formData.secondPassword) {
+      setMessage("Les mots de passe ne correspondent pas.");
+      setMessageType("error");
+      return;
+    }
+
+    if (formData.password.length < 8) {
+      setMessage("Le mot de passe doit contenir au moins 8 caractères.");
+      setMessageType("error");
+      return;
+    }
+
+    setIsLoading(true);
+    setMessage("");
+
+    try {
+      const { secondPassword, ...submitData } = formData;
+
+      const cleanedData = Object.keys(submitData).reduce((acc, key) => {
+        if (submitData[key] !== '' && submitData[key] !== null && submitData[key] !== undefined) {
+          acc[key] = submitData[key];
+        }
+        return acc;
+      }, {});
+
+      const finalData = {
+        ...cleanedData,
+        enfants: cleanedData.enfants ? parseInt(cleanedData.enfants) : null,
+        isAccredited: cleanedData.isAccredited === "true" ? true : cleanedData.isAccredited === "false" ? false : null,
+        benefitStateAid: cleanedData.benefitStateAid === "true" ? true : cleanedData.benefitStateAid === "false" ? false : null,
+        otherDiplomas: otherDiplomas,
+        files: Object.fromEntries(
+          Object.entries(fileUploads)
+            .filter(([_, val]) => val !== null)
+            .map(([key, val]) => [key, val.id])
+        ),
+      };
+
+      Object.keys(finalData).forEach(key => {
+        if (finalData[key] === null || finalData[key] === undefined) {
+          delete finalData[key];
+        }
+      });
+
+      const response = await fetch(`${NEST_API_URL}/auth/signup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(finalData),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        const token = data?.data?.token || data.token;
+        const user = data?.data?.user || data.user;
+        if (!token || !user) {
+          setMessage('Réponse serveur incorrecte');
+          setMessageType('error');
+          return;
+        }
+        setAuthData({ user, token });
+        setMessage('Inscription réussie ! Vérification en cours...');
+        setMessageType('success');
+        setTimeout(() => navigate('/auth/verify-pending'), 2000);
+      } else {
+        setMessage(data.message || "Erreur lors de l'inscription");
+        setMessageType('error');
+      }
+    } catch (err) {
+      console.error("Signup error:", err);
+      setMessage("⚠️ Erreur réseau. Veuillez réessayer.");
+      setMessageType("error");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  // We'll keep the original JSX structure but update all styles.
-  // To avoid a huge rewrite, we'll keep the same renderField calls and section containers but change classes and colors.
-  // We'll replace the background, border, text colors, and add emerald accent.
-  // Also replace Io icons with Lucide equivalents in the section titles.
-
+  // ─── Render ──────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-[#0A0F1C] py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-6xl mx-auto">
@@ -499,23 +468,13 @@ const [formData, setFormData] = useState({
 
         <div className="mt-8 bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] shadow-2xl shadow-black/50 overflow-hidden">
           <div className="p-6 sm:p-8 lg:p-10">
-            <div className="flex items-center justify-between mb-8">
-              <h2 className="text-2xl font-bold text-[#F8FAFC] tracking-tight">
-                Remplir le Formulaire
-              </h2>
-              <div className="flex items-center gap-2 text-sm text-[#64748B]">
-                <span>Étape</span>
-                <span className="px-2 py-1 bg-emerald-500/10 text-emerald-400 rounded-lg font-medium">1/6</span>
-              </div>
-            </div>
-
             <form ref={formRef} className="space-y-10" onSubmit={handleSubmit}>
-              {/* ===== SECTION: Informations Personnelles ===== */}
-              <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)] transition-all duration-300">
+
+              {/* ─── Personal Info ─── */}
+              <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)]">
                 <div className="flex items-center gap-3 mb-6">
                   <User className="w-5 h-5 text-emerald-400" />
-                  <h3 className="text-lg font-semibold text-[#F8FAFC] tracking-tight">Informations Personnelles</h3>
-                  <span className="ml-auto text-xs text-[#64748B]">Section 1/6</span>
+                  <h3 className="text-lg font-semibold text-[#F8FAFC]">Informations Personnelles</h3>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   {renderField("Nom", "name", "text", null, true, "Votre nom", <User className="w-4 h-4 text-emerald-400" />)}
@@ -523,9 +482,9 @@ const [formData, setFormData] = useState({
                   {renderField("Nom (Arabe)", "nomArabe", "text", null, false, "الاسم", <User className="w-4 h-4 text-emerald-400" />)}
                   {renderField("Prénom (Arabe)", "prenomArabe", "text", null, false, "اللقب", <User className="w-4 h-4 text-emerald-400" />)}
                   {renderField("Email", "email", "email", null, true, "email@exemple.com", <Mail className="w-4 h-4 text-emerald-400" />)}
-                  {renderField("Email Professionnel", "emailPro", "email", null, false, "pro@exemple.com", <Mail className="w-4 h-4 text-emerald-400" />)}
+                  {renderField("Email Pro", "emailPro", "email", null, false, "pro@exemple.com", <Mail className="w-4 h-4 text-emerald-400" />)}
                   {renderField("Téléphone", "phone", "text", null, false, "0555 55 55 55", <Phone className="w-4 h-4 text-emerald-400" />)}
-                  {renderField("Téléphone Fixe", "fixe", "text", null, false, "023 45 67 89", <Phone className="w-4 h-4 text-emerald-400" />)}
+                  {renderField("Fixe", "fixe", "text", null, false, "023 45 67 89", <Phone className="w-4 h-4 text-emerald-400" />)}
                   {renderField("Fax", "fax", "text", null, false, "Fax", <File className="w-4 h-4 text-emerald-400" />)}
                   {renderField("Sexe", "sexe", "select", [
                     { value: "M", label: "Homme" },
@@ -537,12 +496,11 @@ const [formData, setFormData] = useState({
                 </div>
               </div>
 
-              {/* ===== SECTION: Informations Familiales ===== */}
-              <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)] transition-all duration-300">
+              {/* ─── Family ─── */}
+              <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)]">
                 <div className="flex items-center gap-3 mb-6">
                   <Home className="w-5 h-5 text-emerald-400" />
-                  <h3 className="text-lg font-semibold text-[#F8FAFC] tracking-tight">Informations Familiales</h3>
-                  <span className="ml-auto text-xs text-[#64748B]">Section 2/6</span>
+                  <h3 className="text-lg font-semibold text-[#F8FAFC]">Informations Familiales</h3>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   {renderField("Prénom du père", "prenomPere", "text", null, false, "Prénom du père")}
@@ -561,12 +519,11 @@ const [formData, setFormData] = useState({
                 </div>
               </div>
 
-              {/* ===== SECTION: Informations Professionnelles ===== */}
-              <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)] transition-all duration-300">
+              {/* ─── Professional ─── */}
+              <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)]">
                 <div className="flex items-center gap-3 mb-6">
                   <Briefcase className="w-5 h-5 text-emerald-400" />
-                  <h3 className="text-lg font-semibold text-[#F8FAFC] tracking-tight">Informations Professionnelles</h3>
-                  <span className="ml-auto text-xs text-[#64748B]">Section 3/6</span>
+                  <h3 className="text-lg font-semibold text-[#F8FAFC]">Informations Professionnelles</h3>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   {renderField("Profession", "profession", "select", [
@@ -576,46 +533,38 @@ const [formData, setFormData] = useState({
                     { value: "Paysagiste", label: "Paysagiste" }
                   ], false)}
                   {renderField("Spécialité", "specialty", "text", null, false, "Spécialité")}
-                  {renderField("N° d'inscription", "registrationNumber", "text", null, true, "N° d'inscription à l'ordre")}
+                  {renderField("N° d'inscription", "registrationNumber", "text", null, true, "N° d'inscription")}
                   {renderField("NIF", "nif", "text", null, false, "NIF")}
                   {renderField("Cachet", "cachet", "text", null, false, "Numéro de cachet")}
-                  {renderField("GPS", "gps", "text", null, false, "Coordonnées GPS")}
-                  {renderField("Loi", "loi", "text", null, false, "Loi")}
-                  {renderField("Dispositif", "dispositif", "text", null, false, "Dispositif")}
+                  {renderField("GPS", "gps", "text", null, false, "Coordonnées GPS (ex: 36.8,3.08)")}
                   {renderField("Mode d'exercice", "professionalMode", "select", [
                     { value: "Libéral", label: "Libéral" },
                     { value: "Associé", label: "Associé" },
                     { value: "Salarié", label: "Salarié" }
                   ], false)}
-                  {renderField("Date de début d'activité", "activityStartDate", "date", null, false)}
                   {renderField("Date de début de cotisation", "startDate", "date", null, false)}
-                  {renderField("Statut de la SCP", "companyStatus", "text", null, false, "Statut SCP")}
-                  {renderField("Déclaration d'existence", "declarationExistence", "text", null, false, "Déclaration d'existence")}
+                  {renderField("Date d'installation", "installationDate", "date", null, false)}
+                  {renderField("Date de recrutement", "recruitmentDate", "date", null, false)}
                   {renderField("Moyens humains", "moyensHumains", "text", null, false, "Moyens humains")}
-                  {renderField("Ressources humaines", "humanResources", "number", null, false)}
                   {renderField("Architecte agréé", "isAccredited", "select", [
                     { value: "true", label: "Oui" },
                     { value: "false", label: "Non" }
                   ], false)}
-                  {renderField("Bénéficiaire aide d'État", "benefitStateAid", "select", [
+                  {renderField("Aide d'État", "benefitStateAid", "select", [
                     { value: "true", label: "Oui" },
                     { value: "false", label: "Non" }
                   ], false)}
-                  {renderField("Statut d'inscription", "registrationStatus", "select", [
-                    { value: "Inscrit", label: "Inscrit" },
-                    { value: "Radié", label: "Radié" },
-                    { value: "Suspendu", label: "Suspendu" }
-                  ], false)}
                   {renderField("Date d'inscription", "registrationDate", "date", null, false)}
+                  {renderField("N° acte de naissance", "numeroActeNaissance", "text", null, false)}
+                  {renderField("NIN", "nin", "text", null, false, "Numéro d'identité nationale")}
                 </div>
               </div>
 
-              {/* ===== SECTION: Diplômes ===== */}
-              <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)] transition-all duration-300">
+              {/* ─── Diplomas ─── */}
+              <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)]">
                 <div className="flex items-center gap-3 mb-6">
                   <GraduationCap className="w-5 h-5 text-emerald-400" />
-                  <h3 className="text-lg font-semibold text-[#F8FAFC] tracking-tight">Diplômes</h3>
-                  <span className="ml-auto text-xs text-[#64748B]">Section 4/6</span>
+                  <h3 className="text-lg font-semibold text-[#F8FAFC]">Diplômes</h3>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   {renderField("Type de diplôme", "diplomaType", "select", [
@@ -634,43 +583,108 @@ const [formData, setFormData] = useState({
                     getDiplomaSessionOptions('LMD').map(s => ({ value: s, label: s })), false)}
                   {renderField("Année LMD (Master)", "anneeLMDM", "text", null, false, "Année")}
                   {renderField("Université LMD (Master)", "universiteLMDM", "text", null, false, "Université")}
-                  <div className="sm:col-span-2 lg:col-span-3">
-                    {renderField("Autres diplômes (JSON)", "otherDiplomas", "textarea", null, false, 
-                      '[{"name": "Diplôme", "institution": "Université", "year": "2020"}]')}
+                  {renderField("Autres formations (JSON)", "otherTrainings", "textarea", null, false,
+                    '[{"name": "Formation", "institution": "Institut", "year": "2020"}]')}
+                </div>
+
+                {/* Other Diplomas dynamic list */}
+                <div className="mt-6 border-t border-[rgba(255,255,255,0.06)] pt-6">
+                  <h4 className="text-sm font-medium text-[#94A3B8] uppercase tracking-wider mb-4">Autres diplômes</h4>
+                  <div className="flex flex-wrap gap-3 items-end mb-4">
+                    <div className="flex-1 min-w-[120px]">
+                      <label className="block text-xs text-[#64748B]">Nom du diplôme</label>
+                      <input
+                        type="text"
+                        value={newDiploma.name}
+                        onChange={(e) => setNewDiploma({ ...newDiploma, name: e.target.value })}
+                        className="w-full px-3 py-2 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-lg focus:ring-2 focus:ring-emerald-500/50"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-[120px]">
+                      <label className="block text-xs text-[#64748B]">Institution</label>
+                      <input
+                        type="text"
+                        value={newDiploma.institution}
+                        onChange={(e) => setNewDiploma({ ...newDiploma, institution: e.target.value })}
+                        className="w-full px-3 py-2 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-lg focus:ring-2 focus:ring-emerald-500/50"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-[80px]">
+                      <label className="block text-xs text-[#64748B]">Année</label>
+                      <input
+                        type="text"
+                        value={newDiploma.year}
+                        onChange={(e) => setNewDiploma({ ...newDiploma, year: e.target.value })}
+                        className="w-full px-3 py-2 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-lg focus:ring-2 focus:ring-emerald-500/50"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-[100px]">
+                      <label className="block text-xs text-[#64748B]">Fichier (optionnel)</label>
+                      <input
+                        type="file"
+                        onChange={(e) => {
+                          const file = e.target.files[0];
+                          if (file) {
+                            handleFileUploadForType('diploma_' + Date.now(), file);
+                          }
+                        }}
+                        className="w-full text-xs text-[#64748B] file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:bg-emerald-500/10 file:text-emerald-400 hover:file:bg-emerald-500/20"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={addDiploma}
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg flex items-center gap-1"
+                    >
+                      <Plus className="w-4 h-4" /> Ajouter
+                    </button>
                   </div>
-                  <div className="sm:col-span-2 lg:col-span-3">
-                    {renderField("Autres formations (JSON)", "otherTrainings", "textarea", null, false,
-                      '[{"name": "Formation", "institution": "Institut", "year": "2020"}]')}
-                  </div>
+                  {otherDiplomas.length > 0 && (
+                    <div className="space-y-2">
+                      {otherDiplomas.map((dip, idx) => (
+                        <div key={idx} className="flex items-center justify-between bg-[#111827] p-3 rounded-lg border border-[rgba(255,255,255,0.06)]">
+                          <div>
+                            <span className="text-[#F8FAFC] font-medium">{dip.name}</span>
+                            <span className="text-[#94A3B8] text-sm ml-2">({dip.institution}, {dip.year})</span>
+                            {dip.fileName && <span className="text-emerald-400 text-xs ml-2">📎 {dip.fileName}</span>}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeDiploma(idx)}
+                            className="text-rose-400 hover:text-rose-300 p-1"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* ===== SECTION: CNOA ===== */}
-              <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)] transition-all duration-300">
+              {/* ─── CNOA ─── */}
+              <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)]">
                 <div className="flex items-center gap-3 mb-6">
                   <Shield className="w-5 h-5 text-emerald-400" />
-                  <h3 className="text-lg font-semibold text-[#F8FAFC] tracking-tight">Informations CNOA</h3>
-                  <span className="ml-auto text-xs text-[#64748B]">Section 5/6</span>
+                  <h3 className="text-lg font-semibold text-[#F8FAFC]">Informations CNOA</h3>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {renderField("Civilité", "civility", "select", getCivilityOptions(), false)}
                   {renderField("Lieu du serment", "oathLocation", "text", null, false, "Lieu du serment")}
                   {renderField("Date du serment", "oathDate", "date", null, false)}
                 </div>
               </div>
 
-              {/* ===== SECTION: Adresse ===== */}
-              <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)] transition-all duration-300">
+              {/* ─── Address ─── */}
+              <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)]">
                 <div className="flex items-center gap-3 mb-6">
                   <MapPin className="w-5 h-5 text-emerald-400" />
-                  <h3 className="text-lg font-semibold text-[#F8FAFC] tracking-tight">Adresse</h3>
-                  <span className="ml-auto text-xs text-[#64748B]">Section 6/6</span>
+                  <h3 className="text-lg font-semibold text-[#F8FAFC]">Adresse</h3>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   {renderField("Wilaya", "wilaya", "select", 
                     WILAYAS.map(w => ({ value: w, label: w })), false)}
                   {renderField("Commune", "commune", "text", null, false, "Commune")}
-                  {renderField("Région", "region", "text", null, false, "Région")}
+                  {renderField("CLOA d'installation", "region", "text", null, false, "CLOA d'installation")}
                   <div className="sm:col-span-2 lg:col-span-3">
                     {renderField("Adresse personnelle", "adressePersonnelle", "text", null, false, "Adresse personnelle")}
                   </div>
@@ -686,66 +700,66 @@ const [formData, setFormData] = useState({
                 </div>
               </div>
 
-              {/* ===== SECTION: Fichiers ===== */}
-              <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)] transition-all duration-300">
+              {/* ─── Files ─── */}
+              <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)]">
                 <div className="flex items-center gap-3 mb-6">
                   <Paperclip className="w-5 h-5 text-emerald-400" />
-                  <h3 className="text-lg font-semibold text-[#F8FAFC] tracking-tight">Fichiers</h3>
+                  <h3 className="text-lg font-semibold text-[#F8FAFC]">Documents obligatoires</h3>
                 </div>
-                <div className="space-y-4">
-                  <div className="border-2 border-dashed border-[rgba(255,255,255,0.06)] rounded-xl p-8 text-center hover:border-emerald-500/40 transition-all duration-300 hover:bg-emerald-500/5">
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      multiple
-                      onChange={handleFileUpload}
-                      className="hidden"
-                      id="file-upload"
-                    />
-                    <label htmlFor="file-upload" className="cursor-pointer block">
-                      <Upload className="w-12 h-12 text-emerald-400 mx-auto mb-4 transition-transform duration-300 hover:scale-110" />
-                      <p className="text-[#F8FAFC] text-lg font-medium">Cliquez ou glissez des fichiers ici</p>
-                      <p className="text-[#64748B] text-sm mt-2">PNG, JPG, PDF, DOC - Max 10MB par fichier</p>
-                    </label>
-                  </div>
-
-                  {uploadingFiles && (
-                    <div className="flex items-center justify-center gap-3 text-emerald-400 py-4">
-                      <Loader2 className="w-6 h-6 animate-spin" />
-                      <span>Upload en cours...</span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {FILE_TYPES.map((ft) => (
+                    <div key={ft.key} className="bg-[#111827] p-3 rounded-xl border border-[rgba(255,255,255,0.06)]">
+                      <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider mb-1">
+                        {ft.label}
+                      </label>
+                      <div className="flex items-center gap-2">
+                        {fileUploads[ft.key] ? (
+                          <>
+                            <span className="text-sm text-[#F8FAFC] truncate flex-1">{fileUploads[ft.key].name}</span>
+                            <button
+                              type="button"
+                              onClick={() => removeFileForType(ft.key)}
+                              className="text-rose-400 hover:text-rose-300"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <input
+                              type="file"
+                              id={`file-${ft.key}`}
+                              onChange={(e) => {
+                                const file = e.target.files[0];
+                                if (file) handleFileUploadForType(ft.key, file);
+                                e.target.value = null;
+                              }}
+                              className="hidden"
+                            />
+                            <label
+                              htmlFor={`file-${ft.key}`}
+                              className="flex-1 text-center py-2 border-2 border-dashed border-[rgba(255,255,255,0.06)] rounded-lg cursor-pointer hover:border-emerald-500/40 transition-all hover:bg-emerald-500/5"
+                            >
+                              {uploadingFileType === ft.key ? (
+                                <Loader2 className="w-5 h-5 animate-spin mx-auto text-emerald-400" />
+                              ) : (
+                                <Upload className="w-5 h-5 mx-auto text-[#64748B] hover:text-emerald-400 transition-colors" />
+                              )}
+                              <span className="text-xs text-[#64748B] mt-1 block">Ajouter</span>
+                            </label>
+                          </>
+                        )}
+                      </div>
                     </div>
-                  )}
-
-                  {uploadedFiles.length > 0 && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {uploadedFiles.map((file) => (
-                        <div key={file.id} className="flex items-center justify-between bg-[#111827] p-4 rounded-xl border border-[rgba(255,255,255,0.06)] hover:border-emerald-500/30 transition-all duration-300 group">
-                          <div className="flex items-center gap-3 flex-1 min-w-0">
-                            {getFileIcon(file.type)}
-                            <div className="flex-1 min-w-0">
-                              <p className="text-[#F8FAFC] text-sm font-medium truncate">{file.name}</p>
-                              <p className="text-[#64748B] text-xs">{formatFileSize(file.size)}</p>
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => removeFile(file.id)}
-                            className="text-rose-400 hover:text-rose-300 transition-colors p-1 hover:bg-rose-400/10 rounded-lg"
-                          >
-                            <X className="w-5 h-5" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  ))}
                 </div>
               </div>
 
-              {/* ===== SECTION: Sécurité ===== */}
-              <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)] transition-all duration-300">
+              {/* ─── Security ─── */}
+              <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)]">
                 <div className="flex items-center gap-3 mb-6">
                   <Shield className="w-5 h-5 text-emerald-400" />
-                  <h3 className="text-lg font-semibold text-[#F8FAFC] tracking-tight">Sécurité</h3>
+                  <h3 className="text-lg font-semibold text-[#F8FAFC]">Sécurité</h3>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   {renderField("Mot de passe", "password", "password", null, true, "Minimum 8 caractères")}
@@ -753,15 +767,43 @@ const [formData, setFormData] = useState({
                 </div>
               </div>
 
-              {/* Submit Button */}
+              {/* ─── Loi (Declaration) ─── */}
+              <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)]">
+                <div className="flex items-start gap-3 mb-4">
+                  <Shield className="w-5 h-5 text-emerald-400 mt-1" />
+                  <div>
+                    <h3 className="text-lg font-semibold text-[#F8FAFC]">Déclaration légale</h3>
+                    <p className="text-sm text-[#94A3B8] mt-1 leading-relaxed">
+                      Je déclare vouloir exercer la profession d'architecte pour l'année 2026,<br />
+                      et déclare sur l'honneur que les renseignements ci-dessus sont exacts,<br />
+                      et j'autorise l'Ordre des Architectes à utiliser mes renseignements<br />
+                      dans le respect des lois en vigueur, et des Règlements de l'Ordre des Architectes.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    name="loi"
+                    checked={formData.loi}
+                    onChange={handleChange}
+                    className="w-5 h-5 rounded border-[rgba(255,255,255,0.1)] bg-[#111827] text-emerald-500 focus:ring-emerald-500 focus:ring-offset-0"
+                  />
+                  <label className="text-sm text-[#F8FAFC]">
+                    J'accepte les termes de la déclaration ci-dessus.
+                  </label>
+                </div>
+              </div>
+
+              {/* Submit */}
               <div className="pt-4">
                 <button
                   type="submit"
-                  disabled={isLoading}
+                  disabled={isLoading || !formData.loi}
                   className={`w-full py-4 text-lg font-semibold text-white bg-emerald-500 hover:bg-emerald-600 
                     rounded-xl shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 
                     transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98]
-                    ${isLoading ? 'opacity-50 cursor-not-allowed hover:scale-100' : ''}`}
+                    ${(isLoading || !formData.loi) ? 'opacity-50 cursor-not-allowed hover:scale-100' : ''}`}
                 >
                   {isLoading ? (
                     <span className="flex items-center justify-center gap-3">
@@ -773,6 +815,7 @@ const [formData, setFormData] = useState({
                   )}
                 </button>
               </div>
+
             </form>
 
             {message && (
@@ -797,30 +840,6 @@ const [formData, setFormData] = useState({
           </p>
         </div>
       </div>
-
-      {/* Custom Scrollbar Styles */}
-      <style>{`
-        .overflow-y-auto::-webkit-scrollbar {
-          width: 8px;
-        }
-        .overflow-y-auto::-webkit-scrollbar-track {
-          background: rgba(31, 41, 55, 0.5);
-          border-radius: 10px;
-        }
-        .overflow-y-auto::-webkit-scrollbar-thumb {
-          background: #22C55E;
-          border-radius: 10px;
-          transition: all 0.3s ease;
-        }
-        .overflow-y-auto::-webkit-scrollbar-thumb:hover {
-          background: #16A34A;
-        }
-        .overflow-y-auto {
-          scrollbar-width: thin;
-          scrollbar-color: #22C55E rgba(31, 41, 55, 0.5);
-          scroll-behavior: smooth;
-        }
-      `}</style>
     </div>
   );
 }

@@ -1,17 +1,56 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { IoClose } from 'react-icons/io5';
 
-export default function UserDetailsModal({ user, onClose }) {
+const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
+
+export default function UserDetailsModal({ user, onClose, authToken }) {
   const modalRef = useRef(null);
+  const [visibleFields, setVisibleFields] = useState([]);
+  const [fieldConfigs, setFieldConfigs] = useState({});
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const handleEsc = (e) => {
-      if (e.key === 'Escape') onClose();
-    };
-    const handleClickOutside = (e) => {
-      if (modalRef.current && !modalRef.current.contains(e.target)) {
-        onClose();
+    const fetchPermissions = async () => {
+      if (!authToken) {
+        // No token → no fields, no loading
+        setVisibleFields([]);
+        setFieldConfigs({});
+        setLoading(false);
+        return;
       }
+      try {
+        const res = await fetch(
+          `${NEST_API_URL}/permissions/user/${user.id}/viewable-fields?model=User`,
+          {
+            headers: { Authorization: `Bearer ${authToken}` },
+          }
+        );
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+
+        // Extract fields and configs
+        const fields = data?.data?.fields || data?.fields || [];
+        const configs = data?.data?.configs || data?.configs || {};
+
+        setVisibleFields(fields);
+        setFieldConfigs(configs);
+      } catch (err) {
+        console.error('Permission fetch error:', err);
+        // On error: show nothing
+        setVisibleFields([]);
+        setFieldConfigs({});
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPermissions();
+  }, [user, authToken]);
+
+  useEffect(() => {
+    const handleEsc = (e) => { if (e.key === 'Escape') onClose(); };
+    const handleClickOutside = (e) => {
+      if (modalRef.current && !modalRef.current.contains(e.target)) onClose();
     };
     document.addEventListener('keydown', handleEsc);
     document.addEventListener('mousedown', handleClickOutside);
@@ -21,126 +60,105 @@ export default function UserDetailsModal({ user, onClose }) {
     };
   }, [onClose]);
 
-  // Helper to format values
   const formatValue = (value) => {
     if (value === null || value === undefined) return '-';
     if (typeof value === 'boolean') return value ? 'Oui' : 'Non';
-    if (value instanceof Date || (typeof value === 'string' && value.includes('T'))) {
+    if (typeof value === 'string' && (value.includes('T') || /^\d{4}-\d{2}-\d{2}/.test(value))) {
       try {
-        return new Date(value).toLocaleDateString('fr-FR', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric'
-        });
-      } catch {
-        return value;
+        const d = new Date(value);
+        if (!isNaN(d.getTime())) {
+          return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        }
+      } catch {}
+    }
+    if (value instanceof Date) {
+      if (!isNaN(value.getTime())) {
+        return value.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
       }
+      return 'Date invalide';
     }
     if (typeof value === 'object') return JSON.stringify(value);
-    return value;
+    return String(value);
   };
 
-  // Get sexe label
   const getSexeLabel = (value) => {
     if (value === 'M') return 'Homme';
     if (value === 'F') return 'Femme';
     return value || '-';
   };
 
-  // All user fields organized by category
-  const userFields = {
-    'Informations Personnelles': [
-      { key: 'name', label: 'Nom' },
-      { key: 'lastname', label: 'Prénom' },
-      { key: 'nomArabe', label: 'Nom (Arabe)', isArabic: true },
-      { key: 'prenomArabe', label: 'Prénom (Arabe)', isArabic: true },
-      { key: 'email', label: 'Email' },
-      { key: 'emailPro', label: 'Email Professionnel' },
-      { key: 'phone', label: 'Téléphone' },
-      { key: 'fixe', label: 'Téléphone Fixe' },
-      { key: 'fax', label: 'Fax' },
-      { key: 'sexe', label: 'Sexe', formatter: getSexeLabel },
-      { key: 'dateOfBirth', label: 'Date de naissance' },
-      { key: 'lieuNaissance', label: 'Lieu de naissance' },
-      { key: 'enfants', label: 'Nombre d\'enfants' },
-    ],
-    'Informations Familiales': [
-      { key: 'prenomPere', label: 'Prénom du père' },
-      { key: 'prenomPereArabe', label: 'Prénom du père (Arabe)', isArabic: true },
-      { key: 'nomPrenomMere', label: 'Nom et prénom de la mère' },
-      { key: 'nomPrenomMereArabe', label: 'Nom et prénom de la mère (Arabe)', isArabic: true },
-      { key: 'maritalStatus', label: 'Situation familiale' },
-      { key: 'nationality', label: 'Nationalité' },
-      { key: 'serviceNationalStatus', label: 'Service national' },
-    ],
-    'Informations Professionnelles': [
-      { key: 'profession', label: 'Profession' },
-      { key: 'specialty', label: 'Spécialité' },
-      { key: 'wilaya', label: 'CLOA' },
-      { key: 'registrationNumber', label: 'N° d\'inscription' },
-      { key: 'nif', label: 'NIF' },
-      { key: 'cachet', label: 'Cachet' },
-      { key: 'gps', label: 'Coordonnées GPS' },
-      { key: 'loi', label: 'Loi' },
-      { key: 'dispositif', label: 'Dispositif' },
-      { key: 'professionalMode', label: 'Mode d\'exercice' },
-      { key: 'activityStartDate', label: 'Date de début d\'activité' },
-      { key: 'startDate', label: 'Date de début de cotisation' },
-      { key: 'employerId', label: 'ID Employeur' },
-      { key: 'companyStatus', label: 'Statut SCP' },
-      { key: 'declarationExistence', label: 'Déclaration d\'existence' },
-      { key: 'moyensHumains', label: 'Moyens humains' },
-      { key: 'humanResources', label: 'Ressources humaines' },
-      { key: 'isAccredited', label: 'Architecte agréé' },
-      { key: 'benefitStateAid', label: 'Bénéficiaire aide d\'État' },
-      { key: 'registrationStatus', label: 'Statut d\'inscription' },
-      { key: 'registrationDate', label: 'Date d\'inscription' },
-    ],
-    'Adresses': [
-      
-      { key: 'commune', label: 'Commune' },
-      { key: 'region', label: 'Région' },
-      { key: 'adressePersonnelle', label: 'Adresse personnelle' },
-      { key: 'adressePersonnelleArabe', label: 'Adresse personnelle (Arabe)', isArabic: true },
-      { key: 'adressePro', label: 'Adresse professionnelle' },
-      { key: 'adresseProArabe', label: 'Adresse professionnelle (Arabe)', isArabic: true },
-    ],
-    'CNOA': [
-      { key: 'civility', label: 'Civilité' },
-      { key: 'oathLocation', label: 'Lieu du serment' },
-      { key: 'oathDate', label: 'Date du serment' },
-      { key: 'diplomaType', label: 'Type de diplôme' },
-      { key: 'sessionClassique', label: 'Session Classique' },
-      { key: 'anneeClassique', label: 'Année Classique' },
-      { key: 'universiteClassique', label: 'Université Classique' },
-      { key: 'sessionLMDL', label: 'Session LMD (Licence)' },
-      { key: 'anneeLMDL', label: 'Année LMD (Licence)' },
-      { key: 'universiteLMDL', label: 'Université LMD (Licence)' },
-      { key: 'sessionLMDM', label: 'Session LMD (Master)' },
-      { key: 'anneeLMDM', label: 'Année LMD (Master)' },
-      { key: 'universiteLMDM', label: 'Université LMD (Master)' },
-      { key: 'otherDiplomas', label: 'Autres diplômes' },
-      { key: 'otherTrainings', label: 'Autres formations' },
-      { key: 'lastAgreementDate', label: 'Date du dernier agrément' },
-      { key: 'lastAgreementFileId', label: 'ID du fichier agrément' },
-      { key: 'paymentReceipts', label: 'Reçus de paiement' },
-      { key: 'isLateForYear', label: 'Année de retard' },
-      { key: 'latePenalties', label: 'Pénalités de retard' },
-    ],
-    'Sécurité & Système': [
-      { key: 'role', label: 'Rôle' },
-      { key: 'status', label: 'Statut' },
-      { key: 'credit', label: 'Crédit (DA)' },
-      { key: 'isVerified', label: 'Vérifié' },
-      { key: 'isAdminVerified', label: 'Validé par admin' },
-      { key: 'isActive', label: 'Actif' },
-      { key: 'loginAttempts', label: 'Tentatives de connexion' },
-      { key: 'lastLogin', label: 'Dernière connexion' },
-      { key: 'lastActivity', label: 'Dernière activité' },
-      { key: 'createdAt', label: 'Créé le' },
-      { key: 'updatedAt', label: 'Mis à jour le' },
-    ],
+  // Build grouped fields from configs + visibleFields
+  const buildGroupedFields = () => {
+    const groups = {};
+
+    // Only include fields that are visible and have a config
+    visibleFields.forEach((fieldKey) => {
+      const config = fieldConfigs[fieldKey];
+      if (!config) return;
+
+      const groupKey = config.ui?.group || 'Autres';
+      if (!groups[groupKey]) {
+        groups[groupKey] = {
+          label: config.ui?.groupLabel || groupKey,
+          fields: [],
+        };
+      }
+
+      groups[groupKey].fields.push({
+        key: fieldKey,
+        label: config.label || fieldKey,
+        labelAr: config.labelAr || '',
+        isArabic: false, // we can detect from labelAr if needed, but keep false
+        formatter: fieldKey === 'sexe' ? getSexeLabel : null,
+      });
+    });
+
+    // Sort fields within each group by ui.order
+    Object.keys(groups).forEach((groupKey) => {
+      groups[groupKey].fields.sort((a, b) => {
+        const orderA = fieldConfigs[a.key]?.ui?.order || 999;
+        const orderB = fieldConfigs[b.key]?.ui?.order || 999;
+        return orderA - orderB;
+      });
+    });
+
+    return groups;
   };
+
+  if (loading) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+        <div className="bg-[#111827] rounded-2xl p-8 border border-[rgba(255,255,255,0.06)] shadow-2xl">
+          <div className="w-10 h-10 border-2 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin mx-auto" />
+          <p className="text-[#64748B] mt-4 text-center">Chargement des permissions…</p>
+        </div>
+      </div>
+    );
+  }
+
+  // If no visible fields, show an empty state
+  if (visibleFields.length === 0) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+        <div className="bg-[#111827] rounded-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto border border-[rgba(255,255,255,0.06)] shadow-2xl shadow-black/50 p-6">
+          <div className="flex flex-col items-center gap-3 py-12 text-[#64748B]">
+            <IoClose size={24} className="text-[#64748B]" />
+            <p className="text-sm">Aucune information disponible</p>
+          </div>
+          <div className="sticky bottom-0 bg-[#111827] border-t border-[rgba(255,255,255,0.06)] p-4 flex justify-end">
+            <button
+              onClick={onClose}
+              className="px-6 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-medium transition-all duration-200 shadow-lg shadow-emerald-500/20"
+            >
+              Fermer
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const groupedFields = buildGroupedFields();
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
@@ -171,26 +189,23 @@ export default function UserDetailsModal({ user, onClose }) {
 
         {/* Content */}
         <div className="p-6 space-y-8">
-          {Object.entries(userFields).map(([category, fields]) => {
-            // Check if any field in this category has a value
-            const hasValue = fields.some(f => {
-              const val = user[f.key];
+          {Object.entries(groupedFields).map(([groupKey, group]) => {
+            // Filter fields that have a non-empty value
+            const fieldsWithValue = group.fields.filter((field) => {
+              const val = user[field.key];
               return val !== undefined && val !== null && val !== '';
             });
-            if (!hasValue) return null;
+            if (fieldsWithValue.length === 0) return null;
 
             return (
-              <div key={category}>
+              <div key={groupKey}>
                 <h3 className="text-lg font-semibold text-emerald-400 border-b border-[rgba(255,255,255,0.06)] pb-2 mb-4 tracking-wide">
-                  {category}
+                  {group.label}
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {fields.map((field) => {
+                  {fieldsWithValue.map((field) => {
                     const value = user[field.key];
-                    if (value === undefined || value === null || value === '') return null;
-
                     let displayValue = field.formatter ? field.formatter(value) : formatValue(value);
-
                     return (
                       <div
                         key={field.key}
@@ -225,7 +240,6 @@ export default function UserDetailsModal({ user, onClose }) {
         </div>
       </div>
 
-      {/* Custom Scrollbar Styles */}
       <style jsx>{`
         .modal-scrollbar::-webkit-scrollbar {
           width: 8px;
@@ -238,7 +252,6 @@ export default function UserDetailsModal({ user, onClose }) {
         .modal-scrollbar::-webkit-scrollbar-thumb {
           background: #22C55E;
           border-radius: 10px;
-          transition: all 0.3s ease;
         }
         .modal-scrollbar::-webkit-scrollbar-thumb:hover {
           background: #16A34A;
