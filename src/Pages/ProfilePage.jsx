@@ -4,6 +4,7 @@ import { UserContext } from "../Context/dataCont";
 import { useParams, useNavigate } from "react-router-dom";
 import PDFPreviewModal from '../Components/Modals/pdfPreviexModal';
 import { useError } from '../Context/ErrorContext';
+import { useModal } from '../Context/ModalContext';
 
 import sabAvatar from '../assets/ChatGPT Image Jul 13, 2026, 03_44_20 PM.png';
 import FileCard from '../Components/Cards/FileCrad';
@@ -44,9 +45,12 @@ import {
   TrendingDown,
   AlertCircle,
   X,
+  ChevronDown,
+  ChevronUp,
   Loader2,
   XCircle,
-  SkipForward
+  SkipForward,
+  ClipboardList
 } from 'lucide-react';
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
@@ -54,6 +58,7 @@ const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 export default function ProfilePage({ user }) {
   const { authData, setAuthData } = useContext(UserContext);
   const { showError, showWarning, showSuccess } = useError();
+  const { confirm, alert } = useModal();
   const { id } = useParams();
   const navigate = useNavigate();
 
@@ -86,14 +91,22 @@ export default function ProfilePage({ user }) {
 
   const [validationRequests, setValidationRequests] = useState([]);
   const [validationLoading, setValidationLoading] = useState(false);
+  const [expandedRequests, setExpandedRequests] = useState({});
+  const [demandSubmitting, setDemandSubmitting] = useState(false);
+  const [availableSchemas, setAvailableSchemas] = useState([]);
 
+  const toggleRequestExpand = (reqId) => {
+    setExpandedRequests(prev => ({
+      ...prev,
+      [reqId]: prev[reqId] !== undefined ? !prev[reqId] : false
+    }));
+  };
 
   const [canUpdateUser, setCanUpdateUser] = useState(false);
-const [canDeleteUser, setCanDeleteUser] = useState(false);
-const [canCreateFile, setCanCreateFile] = useState(false);
-const [canUpdateFile, setCanUpdateFile] = useState(false);
-const [canDeleteFile, setCanDeleteFile] = useState(false);
-
+  const [canDeleteUser, setCanDeleteUser] = useState(false);
+  const [canCreateFile, setCanCreateFile] = useState(false);
+  const [canUpdateFile, setCanUpdateFile] = useState(false);
+  const [canDeleteFile, setCanDeleteFile] = useState(false);
 
   // ─── Click outside ────────────────────────────────────────────────────────
 
@@ -441,11 +454,14 @@ const [canDeleteFile, setCanDeleteFile] = useState(false);
   };
 
   const fetchPdfBlob = async (finalPdfUrl) => {
-    const isCloudinary =
-      finalPdfUrl.startsWith('https://res.cloudinary.com');
+    // If the URL is relative, prepend the backend URL
+    const isAbsolute = finalPdfUrl.startsWith('http://') || finalPdfUrl.startsWith('https://');
+    const fullUrl = isAbsolute ? finalPdfUrl : `${NEST_API_URL}${finalPdfUrl.startsWith('/') ? '' : '/'}${finalPdfUrl}`;
+
+    const isCloudinary = fullUrl.startsWith('https://res.cloudinary.com');
 
     const pdfRes = await fetch(
-      finalPdfUrl,
+      fullUrl,
       isCloudinary
         ? {}
         : {
@@ -572,26 +588,16 @@ const [canDeleteFile, setCanDeleteFile] = useState(false);
 
   const fetchValidationRequests = async () => {
     if (!targetUserId) return;
-
     setValidationLoading(true);
-
     try {
-      const res = await fetch(
-        `${NEST_API_URL}/validation/requests/user/${targetUserId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${authData.token}`
-          },
-        }
-      );
-
+      const res = await fetch(`${NEST_API_URL}/validation/requests/user/${targetUserId}`, {
+        headers: { Authorization: `Bearer ${authData.token}` },
+      });
       if (res.ok) {
         const data = await res.json();
+        console.log('Validation requests:', data);
         const requests = data?.data;
-
-        setValidationRequests(
-          Array.isArray(requests) ? requests : []
-        );
+        setValidationRequests(Array.isArray(requests) ? requests : []);
       }
     } catch (error) {
       console.error('Error fetching validation requests:', error);
@@ -599,7 +605,125 @@ const [canDeleteFile, setCanDeleteFile] = useState(false);
       setValidationLoading(false);
     }
   };
+  const getRequestName = (req) => {
+    if (!req) return 'Demande';
+    if (req.schemaName) return req.schemaName;
+    if (req.schema?.name) return req.schema.name;
+    if (req.schemaVersion?.name) return req.schemaVersion.name;
+    if (req.schemaVersion?.schema?.name) return req.schemaVersion.schema.name;
+    if (req.validationSchema?.name) return req.validationSchema.name;
+    if (req.title) return req.title;
+    if (req.name) return req.name;
 
+    const targetSchemaId = req.schemaId || req.schemaVersionId || req.schemaVersion?.schemaId || req.validationSchemaId;
+    if (targetSchemaId && availableSchemas?.length > 0) {
+      const found = availableSchemas.find(s =>
+        s.id === targetSchemaId ||
+        s.schemaId === targetSchemaId ||
+        s.versions?.some(v => v.id === targetSchemaId)
+      );
+      if (found?.name) return found.name;
+    }
+
+    if (req.steps?.length > 0 && availableSchemas?.length > 0) {
+      const stepNames = req.steps.map(s => s.stepName).filter(Boolean);
+      const matchingSchema = availableSchemas.find(s =>
+        s.steps?.some(st => stepNames.includes(st.stepName || st.name))
+      );
+      if (matchingSchema?.name) return matchingSchema.name;
+    }
+
+    return req.targetType ? `Validation ${req.targetType}` : 'Demande';
+  };
+
+  const fetchSchemas = async () => {
+    try {
+      const res = await fetch(`${NEST_API_URL}/validation/schemas`, {
+        headers: { Authorization: `Bearer ${authData.token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const schemasList = data?.schemas || data?.data || data || [];
+        setAvailableSchemas(Array.isArray(schemasList) ? schemasList : []);
+      }
+    } catch (err) {
+      console.error('Error fetching validation schemas:', err);
+    }
+  };
+
+  // 🟢 [MODIFICATION] : Création dynamique de demande à partir du schéma
+  const handleCreateDemand = async (schemaOrName) => {
+    if (demandSubmitting) return;
+
+    const schemaName = typeof schemaOrName === 'object' ? (schemaOrName.name || schemaOrName.title) : schemaOrName;
+    const schemaId = typeof schemaOrName === 'object' ? (schemaOrName.id || schemaOrName._id) : null;
+    const targetType = typeof schemaOrName === 'object' ? (schemaOrName.targetType || 'User') : 'User';
+
+    const confirmed = await confirm({
+      title: 'Confirmer la demande',
+      message: `Êtes-vous sûr de vouloir initier la "${schemaName}" ?`,
+    });
+    if (!confirmed) return;
+
+    // Vérifier si une demande active existe déjà
+    const existingRequest = validationRequests.find(req => {
+      const reqName = (getRequestName(req) || '').toLowerCase();
+      const defName = (schemaName || '').toLowerCase();
+      const reqSchemaName = (req.schemaName || req.schema?.name || req.validationSchema?.name || '').toLowerCase();
+      const matchesName = reqName === defName || reqSchemaName === defName ||
+                          (schemaId && (req.schemaId === schemaId || req.validationSchemaId === schemaId || req.schemaVersion?.schemaId === schemaId));
+      const isActive = !['rejected', 'cancelled'].includes(req.status?.toLowerCase());
+      return matchesName && isActive;
+    });
+
+    if (existingRequest) {
+      await alert({
+        title: 'Demande déjà existante',
+        message: `Cette demande existe déjà. Vous pouvez suivre son avancement dans l'onglet "Validation".`,
+      });
+      return;
+    }
+
+    try {
+      setDemandSubmitting(true);
+      const payload = {
+        targetId: targetUserId,
+        targetType: targetType,
+        schemaName: schemaName,
+      };
+      if (schemaId) payload.schemaId = schemaId;
+
+      const res = await fetch(`${NEST_API_URL}/validation/requests`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authData.token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (res.ok && (data.success || data.id || data.data)) {
+        showSuccess(`Demande "${schemaName}" initiée avec succès !`);
+        await fetchValidationRequests();
+      } else {
+        const errMsg = (data.message || data.error || '').toLowerCase();
+        if (errMsg.includes('already') || errMsg.includes('exist') || errMsg.includes('déjà') || errMsg.includes('en cours') || res.status === 409) {
+          await alert({
+            title: 'Demande déjà existante',
+            message: `Cette demande existe déjà. Vous pouvez suivre son avancement dans l'onglet "Validation".`,
+          });
+        } else {
+          showError(data.message || data.error || 'Erreur lors de la création de la demande');
+        }
+      }
+    } catch (err) {
+      console.error('Error submitting demand:', err);
+      showError('Erreur réseau lors de la création de la demande');
+    } finally {
+      setDemandSubmitting(false);
+    }
+  };
   // ─── Initial data fetch ──────────────────────────────────────────────────
 
       useEffect(() => {
@@ -673,21 +797,18 @@ const [canDeleteFile, setCanDeleteFile] = useState(false);
               setPayments(paymentsData.data);
             }
 
-            await fetchCreditTransactions();
-            await fetchValidationRequests();
-
-          } catch (error) {
-            console.error("Error fetching data:", error);
-            showError("Erreur lors du chargement des données");
-          } finally {
-            setLoading(false);
-          }
-        };
-
-        if (authData?.token && targetUserId) {
-          fetchData();
-        }
-      }, [id, user, authData, targetUserId]);
+        await fetchCreditTransactions();
+        await fetchValidationRequests();
+        await fetchSchemas();
+      } catch (error) {
+        console.error("Error fetching data:", error);
+        showError("Erreur lors du chargement des données");
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (authData?.token && targetUserId) fetchData();
+  }, [id, user, authData, targetUserId]);
 
   const totalDebt = userFees.reduce((sum, fee) => {
     const computed = fee.computed || {};
@@ -844,6 +965,8 @@ const [canDeleteFile, setCanDeleteFile] = useState(false);
     return value || '-';
   };
 
+  // ─── Tabs config ──────────────────────────────────────────────────────────
+
   const tabs = [
     { id: 'info', label: 'Informations', icon: <User className="w-4 h-4" /> },
     { id: 'files', label: 'Fichiers', icon: <FileArchive className="w-4 h-4" /> },
@@ -851,6 +974,7 @@ const [canDeleteFile, setCanDeleteFile] = useState(false);
     { id: 'payments', label: 'Paiements', icon: <CreditCard className="w-4 h-4" /> },
     { id: 'transactions', label: 'Crédits', icon: <Clock className="w-4 h-4" /> },
     { id: 'validation', label: 'Validation', icon: <Shield className="w-4 h-4" /> },
+    { id: 'Demandes', label: 'Demandes', icon: <ClipboardList className="w-4 h-4" /> },
   ];
 
   // ─── Render ──────────────────────────────────────────────────────────────
@@ -949,224 +1073,207 @@ return (
               {canUpdateUser && (
                 <>
                   <button
-                    onClick={() => { setTransactionType('deposit'); setShowTransactionModal(true); }}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg transition-colors shadow-lg shadow-emerald-600/20"
+                    onClick={() => setMenuOpen(!menuOpen)}
+                    className="p-2.5 bg-[#1F2937] hover:bg-[#2A3A4A] text-[#94A3B8] hover:text-white rounded-lg transition-colors border border-white/5"
+                    title="Plus d'actions"
                   >
-                    <Plus className="w-4 h-4" /> Versement
+                    <MoreVertical className="w-5 h-5" />
                   </button>
-                  <button
-                    onClick={() => { setTransactionType('withdraw'); setShowTransactionModal(true); }}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#1F2937] hover:bg-[#2A3A4A] text-white text-sm font-medium rounded-lg transition-colors border border-white/5"
-                  >
-                    <Minus className="w-4 h-4" /> Retrait
-                  </button>
+                  {menuOpen && (
+                    <div className="absolute right-0 mt-2 w-48 bg-[#182233] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-20 py-1 divide-y divide-white/5">
+                      <div className="py-1">
+                        <button
+                          onClick={() => { setMenuOpen(false); setTransactionType('deposit'); setShowTransactionModal(true); }}
+                          className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
+                        >
+                          <Plus className="w-4 h-4 text-emerald-400" /> Versement
+                        </button>
+                        <button
+                          onClick={() => { setMenuOpen(false); setTransactionType('withdraw'); setShowTransactionModal(true); }}
+                          className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
+                        >
+                          <Minus className="w-4 h-4 text-rose-400" /> Retrait
+                        </button>
+                        <button
+                          onClick={() => { setMenuOpen(false); handlePrintSituation(); }}
+                          className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
+                        >
+                          <FileText className="w-4 h-4 text-sky-400" /> Situation
+                        </button>
+                        <button
+                          onClick={() => { setMenuOpen(false); handlePrintDegree(); }}
+                          className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
+                        >
+                          <Award className="w-4 h-4 text-amber-400" /> Agrément
+                        </button>
+                      </div>
+                      <div className="py-1">
+                        <button
+                          onClick={() => { setMenuOpen(false); handleEditUser(); }}
+                          className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
+                        >
+                          <Edit className="w-4 h-4 text-slate-400" /> Modifier
+                        </button>
+                        {!displayUser?.isAdminVerified && isAdmin && (
+                          <button
+                            onClick={() => { setMenuOpen(false); handleValidateUser(); }}
+                            className="w-full px-4 py-2 text-left text-sm text-emerald-400 hover:bg-white/5 flex items-center gap-2.5 transition-colors"
+                          >
+                            <CheckCircle className="w-4 h-4" /> Valider
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
-
-              {/* Situation / Agrément – still based on isOwner/isAdmin (not yet in permission system) */}
-              {(isOwner || isAdmin) && (
-                <>
-                  <button
-                    onClick={handlePrintSituation}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#1F2937] hover:bg-[#2A3A4A] text-white text-sm font-medium rounded-lg transition-colors border border-white/5"
-                  >
-                    <FileText className="w-4 h-4" /> Situation
-                  </button>
-                  <button
-                    onClick={handlePrintDegree}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#1F2937] hover:bg-[#2A3A4A] text-white text-sm font-medium rounded-lg transition-colors border border-white/5"
-                  >
-                    <Award className="w-4 h-4" /> Agrément
-                  </button>
-                </>
-              )}
-
-              {/* More options menu */}
-              <div className="relative">
-                <button
-                  onClick={() => setMenuOpen(!menuOpen)}
-                  className="p-2 bg-[#1F2937] hover:bg-[#2A3A4A] text-[#94A3B8] rounded-lg transition-colors border border-white/5"
-                >
-                  <MoreVertical className="w-4 h-4" />
-                </button>
-                {menuOpen && (
-                  <div className="absolute right-0 mt-2 w-48 bg-[#182233] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-10">
-                    {/* Edit – if canUpdateUser */}
-                    {canUpdateUser && (
-                      <button
-                        onClick={() => { setMenuOpen(false); handleEditUser(); }}
-                        className="w-full px-4 py-2.5 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2"
-                      >
-                        <Edit className="w-4 h-4" /> Modifier
-                      </button>
-                    )}
-                    {/* Validate – only admins (since we don't have a 'validate' permission check yet) */}
-                    {!displayUser?.isAdminVerified && isAdmin && (
-                      <button
-                        onClick={() => { setMenuOpen(false); handleValidateUser(); }}
-                        className="w-full px-4 py-2.5 text-left text-sm text-emerald-400 hover:bg-white/5 flex items-center gap-2"
-                      >
-                        <CheckCircle className="w-4 h-4" /> Valider
-                      </button>
-                    )}
-                    {/* Delete – if canDeleteUser */}
-                    {canDeleteUser && (
-                      <button
-                        onClick={() => { /* handleDeleteUser */ }}
-                        className="w-full px-4 py-2.5 text-left text-sm text-red-400 hover:bg-white/5 flex items-center gap-2"
-                      >
-                        <Trash2 className="w-4 h-4" /> Supprimer
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
             </div>
           </div>
         </div>
       </header>
 
-      {/* ─── Main Layout: Sidebar + Content ────────────────────────────── */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
-        <div className="flex flex-col md:flex-row gap-6">
-          <aside className="md:w-64 shrink-0">
-            <nav className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-2 sticky top-6">
-              {tabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                    activeTab === tab.id
-                      ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/20"
-                      : "text-[#94A3B8] hover:bg-white/5 hover:text-white"
-                  }`}
-                >
-                  {tab.icon} {tab.label}
-                </button>
-              ))}
-            </nav>
-          </aside>
+    {/* ─── Main Layout: Sidebar + Content ────────────────────────────── */}
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+      <div className="flex flex-col md:flex-row gap-6">
+        <aside className="md:w-64 shrink-0">
+          <nav className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-2 sticky top-6">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  activeTab === tab.id
+                    ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/20"
+                    : "text-[#94A3B8] hover:bg-white/5 hover:text-white"
+                }`}
+              >
+                {tab.icon} {tab.label}
+              </button>
+            ))}
+          </nav>
+        </aside>
 
-          <main className="flex-1 min-w-0">
-            {/* ─── Information Tab ────────────────────────────────────── */}
-            {activeTab === 'info' && (
-              <div className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-6">
-                <h2 className="text-lg font-semibold text-white mb-6 flex items-center gap-3">
-                  <User className="w-5 h-5 text-emerald-400" /> Informations personnelles
-                </h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {essentialFields.map((field) => {
-                    if (!isVisible(field.key)) return null;
-                    const value = displayUser?.[field.key];
-                    if (value === undefined || value === null || value === '') return null;
-                    let displayValue = field.key === 'sexe' ? getSexeLabel(value) : formatValue(value);
-                    return (
-                      <div key={field.key} className="border-b border-white/5 pb-2 last:border-0">
-                        <p className="text-xs text-[#64748B] uppercase tracking-wider flex items-center gap-1.5">
-                          {field.icon} {field.label}
-                        </p>
-                        <p className={`text-[#F8FAFC] font-medium ${field.isArabic ? 'font-arabic text-right' : ''}`}>
-                          {displayValue}
-                        </p>
-                      </div>
-                    );
-                  })}
-                  {essentialFields.every(f => !isVisible(f.key) || !displayUser?.[f.key]) && (
-                    <div className="col-span-full flex flex-col items-center gap-2 py-8 text-[#64748B]">
-                      <User className="w-8 h-8" />
-                      <p className="text-sm">Aucune information disponible</p>
+        <main className="flex-1 min-w-0">
+          {/* ─── Information Tab ────────────────────────────────────── */}
+          {activeTab === 'info' && (
+            <div className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-6">
+              <h2 className="text-lg font-semibold text-white mb-6 flex items-center gap-3">
+                <User className="w-5 h-5 text-emerald-400" /> Informations personnelles
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {essentialFields.map((field) => {
+                  if (!isVisible(field.key)) return null;
+                  const value = displayUser?.[field.key];
+                  if (value === undefined || value === null || value === '') return null;
+                  let displayValue = field.key === 'sexe' ? getSexeLabel(value) : formatValue(value);
+                  return (
+                    <div key={field.key} className="border-b border-white/5 pb-2 last:border-0">
+                      <p className="text-xs text-[#64748B] uppercase tracking-wider flex items-center gap-1.5">
+                        {field.icon} {field.label}
+                      </p>
+                      <p className={`text-[#F8FAFC] font-medium ${field.isArabic ? 'font-arabic text-right' : ''}`}>
+                        {displayValue}
+                      </p>
                     </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* ─── Files Tab ──────────────────────────────────────────── */}
-            {activeTab === 'files' && (
-              <div className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-lg font-semibold text-white flex items-center gap-3">
-                    <FileArchive className="w-5 h-5 text-emerald-400" /> Documents
-                  </h2>
-                  <span className="text-sm text-[#64748B]">{files.filter(f => f.folder !== "profile").length} fichier(s)</span>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                  {files
-                    .filter(file => file.folder !== "profile")
-                    .map((file) => (
-                      <FileCard
-                        key={file.id}
-                        file={file}
-                        handleDelete={handleDelete}
-                        handleReplace={handleReplace}
-                        canReplace={canUpdateFile}
-                        canDelete={canDeleteFile}
-                        canPreview={true} // always allow preview if the file is accessible
-                      />
-                    ))}
-                  {canCreateFile && <AddFileCard onUpload={handleUpload} />}
-                </div>
-                {files.filter(file => file.folder !== "profile").length === 0 && !canCreateFile && (
-                  <div className="flex flex-col items-center gap-2 py-8 text-[#64748B]">
-                    <FileArchive className="w-8 h-8" />
-                    <p className="text-sm">Aucun document disponible</p>
+                  );
+                })}
+                {essentialFields.every(f => !isVisible(f.key) || !displayUser?.[f.key]) && (
+                  <div className="col-span-full flex flex-col items-center gap-2 py-8 text-[#64748B]">
+                    <User className="w-8 h-8" />
+                    <p className="text-sm">Aucune information disponible</p>
                   </div>
                 )}
               </div>
-            )}
+            </div>
+          )}
 
-            {/* ─── Fees Tab ───────────────────────────────────────────── */}
-            {activeTab === 'fees' && (
-              <div className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-6">
-                <h2 className="text-lg font-semibold text-white mb-6 flex items-center gap-3">
-                  <Award className="w-5 h-5 text-emerald-400" /> Cotisations
+          {/* ─── Files Tab ──────────────────────────────────────────── */}
+          {activeTab === 'files' && (
+            <div className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-lg font-semibold text-white flex items-center gap-3">
+                  <FileArchive className="w-5 h-5 text-emerald-400" /> Documents
                 </h2>
-                {userFees && userFees.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {userFees.map((fee) => (
-                      <CotisationCard
-                        key={fee.id}
-                        cotisation={fee}
-                        isOwner={isOwner}
-                        onCotisationUpdated={refreshUserFees}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center gap-2 py-8 text-[#64748B]">
-                    <Award className="w-8 h-8" />
-                    <p className="text-sm">Aucune cotisation trouvée</p>
-                  </div>
-                )}
+                <span className="text-sm text-[#64748B]">{files.filter(f => f.folder !== "profile").length} fichier(s)</span>
               </div>
-            )}
-
-            {/* ─── Payments Tab ───────────────────────────────────────── */}
-            {activeTab === 'payments' && (
-              <div className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-6">
-                <h2 className="text-lg font-semibold text-white mb-6 flex items-center gap-3">
-                  <CreditCard className="w-5 h-5 text-emerald-400" /> Historique des paiements
-                </h2>
-                {payments.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {payments.map((payment) => (
-                      <PaymentCard key={payment.id} payment={payment} handlePopup={showSuccess} />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center gap-2 py-8 text-[#64748B]">
-                    <CreditCard className="w-8 h-8" />
-                    <p className="text-sm">Aucun paiement enregistré</p>
-                  </div>
-                )}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                {files
+                  .filter(file => file.folder !== "profile")
+                  .map((file) => (
+                    <FileCard
+                      key={file.id}
+                      file={file}
+                      handleDelete={handleDelete}
+                      handleReplace={handleReplace}
+                      canReplace={canUpdateFile}
+                      canDelete={canDeleteFile}
+                      canPreview={true} // always allow preview if the file is accessible
+                    />
+                  ))}
+                {canCreateFile && <AddFileCard onUpload={handleUpload} />}
               </div>
-            )}
+              {files.filter(file => file.folder !== "profile").length === 0 && !canCreateFile && (
+                <div className="flex flex-col items-center gap-2 py-8 text-[#64748B]">
+                  <FileArchive className="w-8 h-8" />
+                  <p className="text-sm">Aucun document disponible</p>
+                </div>
+              )}
+            </div>
+          )}
 
-            {/* ─── Credit Transactions Tab ────────────────────────────── */}
+          {/* ─── Fees Tab ───────────────────────────────────────────── */}
+          {activeTab === 'fees' && (
+            <div className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-6">
+              <h2 className="text-lg font-semibold text-white mb-6 flex items-center gap-3">
+                <Award className="w-5 h-5 text-emerald-400" /> Cotisations
+              </h2>
+              {userFees && userFees.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {userFees.map((fee) => (
+                    <CotisationCard
+                      key={fee.id}
+                      cotisation={fee}
+                      isOwner={isOwner}
+                      onCotisationUpdated={refreshUserFees}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-2 py-8 text-[#64748B]">
+                  <Award className="w-8 h-8" />
+                  <p className="text-sm">Aucune cotisation trouvée</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ─── Payments Tab ───────────────────────────────────────── */}
+          {activeTab === 'payments' && (
+            <div className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-6">
+              <h2 className="text-lg font-semibold text-white mb-6 flex items-center gap-3">
+                <CreditCard className="w-5 h-5 text-emerald-400" /> Historique des paiements
+              </h2>
+              {payments.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {payments.map((payment) => (
+                    <PaymentCard key={payment.id} payment={payment} handlePopup={showSuccess} />
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-2 py-8 text-[#64748B]">
+                  <CreditCard className="w-8 h-8" />
+                  <p className="text-sm">Aucun paiement enregistré</p>
+                </div>
+              )}
+            </div>
+          )}
+
+            {/* ─── Credit Transactions Tab ──────────────────────────────── */}
             {activeTab === 'transactions' && (
               <div className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-6">
                 <h2 className="text-lg font-semibold text-white mb-6 flex items-center gap-3">
-                  <Clock className="w-5 h-5 text-emerald-400" /> Historique des crédits
+                  <Clock className="w-5 h-5 text-emerald-400" />
+                  Historique des crédits
                 </h2>
                 {creditTransactions.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1182,119 +1289,213 @@ return (
                 )}
               </div>
             )}
-
-            {/* ─── Validations Tab ────────────────────────────────────── */}
+            {/* ─── Validations Tab ──────────────────────────────── */}
             {activeTab === 'validation' && (
               <div className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-6">
                 <h2 className="text-lg font-semibold text-white mb-6 flex items-center gap-3">
-                  <Shield className="w-5 h-5 text-emerald-400" /> Parcours de validation
+                  <Shield className="w-5 h-5 text-emerald-400" />
+                  Parcours de validation
                 </h2>
+
                 {validationLoading ? (
                   <div className="flex justify-center py-12">
                     <Loader2 className="w-8 h-8 text-emerald-400 animate-spin" />
                   </div>
                 ) : validationRequests.length > 0 ? (
-                  <div className="space-y-8">
-                    {validationRequests.slice(0, 1).map((req) => {
+                  <div className="space-y-6">
+                    {validationRequests.map((req, reqIdx) => {
                       const totalSteps = req.steps?.length || 0;
                       const approvedSteps = req.steps?.filter(s => s.status === 'approved').length || 0;
                       const progressPercent = totalSteps > 0 ? Math.round((approvedSteps / totalSteps) * 100) : 0;
+                      const isExpanded = expandedRequests[req.id] ?? true;
+                      const requestName = getRequestName(req);
 
                       return (
-                        <div key={req.id}>
-                          <div className="mb-6">
-                            <div className="flex items-center justify-between mb-2">
+                        <div key={req.id || reqIdx} className="bg-[#0A0F1C] rounded-xl border border-white/10 p-5 transition-all">
+                          {/* Request header with name & collapsible trigger */}
+                          <div>
+                            <div className="flex items-center justify-between gap-4 mb-3">
                               <div>
-                                <p className="text-sm font-medium text-[#F8FAFC]">
-                                  Demande #{req.id.slice(-6)} – {req.targetType}
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <p className="text-base font-semibold text-[#F8FAFC]">
+                                    {requestName}
+                                  </p>
+                                  {req.targetType && (
+                                    <span className="text-xs px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[#94A3B8]">
+                                      {req.targetType}
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-xs text-[#94A3B8] mt-1">
+                                  Créée le {new Date(req.createdAt).toLocaleDateString('fr-FR')}
                                 </p>
-                                <p className="text-xs text-[#94A3B8]">Créée le {new Date(req.createdAt).toLocaleDateString('fr-FR')}</p>
                               </div>
-                              <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${
-                                req.status === 'approved'
-                                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                                  : req.status === 'rejected'
-                                  ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
-                                  : 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
-                              }`}>
-                                {req.status}
-                              </span>
+                              <div className="flex items-center gap-3">
+                                {/* 🟢 [MODIFICATION 1] : Badge adapté pour le statut 'changes_requested' */}
+                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${req.status === 'approved' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                                  req.status === 'rejected' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
+                                    req.status === 'changes_requested' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                                      'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
+                                  }`}>
+                                  {req.status === 'changes_requested' ? 'Modifications requises' : req.status}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => toggleRequestExpand(req.id)}
+                                  className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-[#94A3B8] hover:text-white transition-colors"
+                                  title={isExpanded ? "Masquer les étapes" : "Afficher les étapes"}
+                                >
+                                  {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                                </button>
+                              </div>
                             </div>
-                            <div className="w-full bg-[#1F2937] rounded-full h-2.5">
-                              <div className="bg-emerald-500 h-2.5 rounded-full transition-all duration-500" style={{ width: `${progressPercent}%` }} />
+
+                            {/* 🟢 [MODIFICATION 2] : Bannière d'alerte et bouton de renvoi si des modifications sont requises */}
+                            {req.status === 'changes_requested' && (
+                              <div className="mb-4 p-3.5 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+                                <div className="flex items-start justify-between gap-3 flex-wrap">
+                                  <div>
+                                    <p className="text-xs font-semibold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                                      <AlertCircle className="w-4 h-4" /> Action requise sur votre dossier
+                                    </p>
+                                    <p className="text-sm text-[#F8FAFC] mt-1">
+                                      {req.steps?.find(s => s.status === 'changes_requested' || s.comments)?.comments || 'Veuillez corriger ou compléter vos informations/documents.'}
+                                    </p>
+                                  </div>
+                                  <button
+                                    onClick={async () => {
+                                      const confirmed = await confirm({
+                                        title: 'Renvoyer la demande',
+                                        message: 'Avez-vous bien mis à jour vos informations et documents avant de renvoyer ?',
+                                      });
+                                      if (!confirmed) return;
+                                      try {
+                                        const res = await fetch(`${NEST_API_URL}/validation/requests/${req.id}/resubmit`, {
+                                          method: 'PATCH',
+                                          headers: {
+                                            'Content-Type': 'application/json',
+                                            Authorization: `Bearer ${authData.token}`,
+                                          },
+                                          body: JSON.stringify({ comments: 'Corrections apportées par l\'utilisateur' }),
+                                        });
+                                        const data = await res.json();
+                                        if (res.ok) {
+                                          showSuccess('Dossier renvoyé avec succès pour vérification !');
+                                          await fetchValidationRequests();
+                                        } else {
+                                          showError(data.message || 'Erreur lors du renvoi de la demande');
+                                        }
+                                      } catch (err) {
+                                        console.error('Error resubmitting:', err);
+                                        showError('Erreur réseau lors du renvoi');
+                                      }
+                                    }}
+                                    className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 shadow-lg shadow-emerald-500/20 shrink-0"
+                                  >
+                                    <CheckCircle className="w-3.5 h-3.5" />
+                                    Renvoyer mon dossier
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Progress bar */}
+                            <div className="w-full bg-[#1F2937] rounded-full h-2">
+                              <div
+                                className="bg-emerald-500 h-2 rounded-full transition-all duration-500"
+                                style={{ width: `${progressPercent}%` }}
+                              />
                             </div>
-                            <p className="text-xs text-[#64748B] mt-1">{approvedSteps} / {totalSteps} étapes terminées</p>
+                            <p className="mt-1.5 text-xs text-[#64748B]">
+                              {approvedSteps} / {totalSteps} étapes terminées
+                            </p>
                           </div>
 
-                          <div className="relative pl-8">
-                            <div className="absolute left-[11px] top-2 bottom-2 w-0.5 bg-[#1F2937]" />
-                            {req.steps?.map((step, idx) => {
-                              const isDone = step.status === 'approved';
-                              const isRejected = step.status === 'rejected' || step.status === 'expired';
-                              const isSkipped = step.status === 'skipped';
-                              let icon = <Clock className="w-4 h-4 text-yellow-400" />;
-                              let circleBg = 'bg-yellow-500/20 border-yellow-500/40';
-                              if (isDone) {
-                                icon = <CheckCircle className="w-4 h-4 text-emerald-400" />;
-                                circleBg = 'bg-emerald-500/20 border-emerald-500/40';
-                              } else if (isRejected) {
-                                icon = <XCircle className="w-4 h-4 text-rose-400" />;
-                                circleBg = 'bg-rose-500/20 border-rose-500/40';
-                              } else if (isSkipped) {
-                                icon = <SkipForward className="w-4 h-4 text-gray-400" />;
-                                circleBg = 'bg-gray-500/20 border-gray-500/40';
-                              }
-                              return (
-                                <div key={idx} className="relative pb-6 last:pb-0">
-                                  <div className={`absolute -left-[29px] z-10 flex items-center justify-center w-6 h-6 rounded-full border-2 ${circleBg}`}>
-                                    {icon}
-                                  </div>
-                                  <div className="bg-[#0A0F1C] rounded-xl border border-[rgba(255,255,255,0.06)] p-4 hover:border-[rgba(255,255,255,0.12)] transition-all">
-                                    <div className="flex items-center justify-between mb-2">
-                                      <p className="text-sm font-semibold text-[#F8FAFC]">{step.stepName}</p>
-                                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${
-                                        isDone
-                                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                                          : isRejected
-                                          ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
-                                          : isSkipped
-                                          ? 'bg-gray-500/10 text-gray-400 border-gray-500/20'
-                                          : 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
-                                      }`}>
-                                        {step.status}
-                                      </span>
+                          {/* Collapsible Steps Timeline */}
+                          {isExpanded && (
+                            <div className="mt-6 pt-6 border-t border-white/5">
+                              <div className="relative pl-8">
+                                {/* Vertical line */}
+                                <div className="absolute left-[11px] top-2 bottom-2 w-0.5 bg-[#1F2937]" />
+
+                                {req.steps?.map((step, idx) => {
+                                  const isDone = step.status === 'approved';
+                                  const isPending = step.status === 'pending';
+                                  const isRejected = step.status === 'rejected' || step.status === 'expired';
+                                  const isSkipped = step.status === 'skipped';
+
+                                  let icon = <Clock className="w-4 h-4 text-yellow-400" />;
+                                  let circleBg = 'bg-yellow-500/20 border-yellow-500/40';
+                                  if (isDone) {
+                                    icon = <CheckCircle className="w-4 h-4 text-emerald-400" />;
+                                    circleBg = 'bg-emerald-500/20 border-emerald-500/40';
+                                  } else if (isRejected) {
+                                    icon = <XCircle className="w-4 h-4 text-rose-400" />;
+                                    circleBg = 'bg-rose-500/20 border-rose-500/40';
+                                  } else if (isSkipped) {
+                                    icon = <SkipForward className="w-4 h-4 text-gray-400" />;
+                                    circleBg = 'bg-gray-500/20 border-gray-500/40';
+                                  }
+
+                                  return (
+                                    <div key={idx} className="relative pb-6 last:pb-0">
+                                      {/* Circle icon */}
+                                      <div className={`absolute -left-[29px] z-10 flex items-center justify-center w-6 h-6 rounded-full border-2 ${circleBg}`}>
+                                        {icon}
+                                      </div>
+
+                                      <div className="bg-[#111827] rounded-xl border border-[rgba(255,255,255,0.06)] p-4 hover:border-[rgba(255,255,255,0.12)] transition-all">
+                                        <div className="flex items-center justify-between mb-2">
+                                          <p className="text-sm font-semibold text-[#F8FAFC]">
+                                            {step.stepName}
+                                          </p>
+                                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${isDone ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                                            isRejected ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
+                                              isSkipped ? 'bg-gray-500/10 text-gray-400 border-gray-500/20' :
+                                                'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
+                                            }`}>
+                                            {step.status}
+                                          </span>
+                                        </div>
+
+                                        <p className="text-xs text-[#94A3B8]">
+                                          Rôle requis : {step.requiredRole}
+                                        </p>
+
+                                        {step.allowedUserIds?.length > 0 && (
+                                          <p className="text-xs text-[#94A3B8] mt-1">
+                                            Assignée à : {step.allowedUserIds.map(u => u.name || u.email || u.id).join(', ')}
+                                          </p>
+                                        )}
+                                        {step.comments && (
+                                          <div className="mt-2 p-2 bg-[#111827] rounded-lg border border-[rgba(255,255,255,0.06)]">
+                                            <p className="text-xs text-[#64748B] uppercase tracking-wider">Commentaire</p>
+                                            <p className="text-xs text-[#F8FAFC] mt-0.5">{step.comments}</p>
+                                          </div>
+                                        )}
+                                        {step.approvedBy && (
+                                          <p className="text-xs text-[#64748B] mt-2">Traitée par {step.approvedBy.name || step.approvedBy.email || step.approvedBy}{step.approvedAt ? ` le ${new Date(step.approvedAt).toLocaleString('fr-FR')}` : ''}</p>
+                                        )}
+                                        {step.timeout?.duration > 0 && step.status === 'pending' && (
+                                          <div className="mt-2 flex items-center gap-1.5 text-xs text-orange-400">
+                                            <Clock className="w-3.5 h-3.5" /> <span>Délai : {step.timeout.duration}h – {step.timeout.action}</span>
+                                          </div>
+                                        )}
+                                      </div>
                                     </div>
-                                    <p className="text-xs text-[#94A3B8]">Rôle requis : {step.requiredRole}</p>
-                                    {step.allowedUserIds?.length > 0 && (
-                                      <p className="text-xs text-[#94A3B8] mt-1">Assignée à : {step.allowedUserIds.map(u => u.name || u.email || u.id).join(', ')}</p>
-                                    )}
-                                    {step.comments && (
-                                      <div className="mt-2 p-2 bg-[#111827] rounded-lg border border-[rgba(255,255,255,0.06)]">
-                                        <p className="text-xs text-[#64748B] uppercase tracking-wider">Commentaire</p>
-                                        <p className="text-xs text-[#F8FAFC] mt-0.5">{step.comments}</p>
-                                      </div>
-                                    )}
-                                    {step.approvedBy && (
-                                      <p className="text-xs text-[#64748B] mt-2">Traitée par {step.approvedBy.name || step.approvedBy.email || step.approvedBy}{step.approvedAt ? ` le ${new Date(step.approvedAt).toLocaleString('fr-FR')}` : ''}</p>
-                                    )}
-                                    {step.timeout?.duration > 0 && step.status === 'pending' && (
-                                      <div className="mt-2 flex items-center gap-1.5 text-xs text-orange-400">
-                                        <Clock className="w-3.5 h-3.5" /> <span>Délai : {step.timeout.duration}h – {step.timeout.action}</span>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                          <div className="mt-4 text-right">
-                            <button
-                              onClick={() => navigate(`/dash/validation/requests/${req.id}/`)}
-                              className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
-                            >
-                              Voir le détail complet →
-                            </button>
-                          </div>
+                                  );
+                                })}
+                              </div>
+                              <div className="mt-4 text-right">
+                                <button
+                                  onClick={() => navigate(`/dash/validation/requests/${req.id}/`)}
+                                  className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
+                                >
+                                  Voir le détail complet →
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       );
                     })}

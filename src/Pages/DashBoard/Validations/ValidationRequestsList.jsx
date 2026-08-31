@@ -47,7 +47,8 @@ const REGISTRATION_STATUS_OPTIONS = ['Inscrit', 'Radié', 'Suspendu'];
 const PROFESSIONAL_MODE_OPTIONS = ['Libéral', 'Associé', 'Salarié'];
 const SERVICE_NATIONAL_OPTIONS = ['Ayant effectué', 'Exempté', 'En cours', 'Non concerné'];
 const USER_STATUS_OPTIONS = ['pending', 'active', 'suspended', 'archived'];
-const TARGET_TYPE_OPTIONS = ['User', 'File', 'Cotisation'];
+// 🟢 [MODIFICATION] : Types par défaut étendus dynamiquement à partir des données reçues de l'API
+const DEFAULT_TARGET_TYPES = ['User', 'File', 'Cotisation'];
 const REQUEST_STATUS_OPTIONS = ['pending', 'partial', 'approved', 'rejected', 'cancelled', 'expired'];
 
 export default function ValidationRequestsList() {
@@ -79,20 +80,37 @@ export default function ValidationRequestsList() {
   const [selectedRequests, setSelectedRequests] = useState([]);
   const [massApproving, setMassApproving] = useState(false);
 
+  // 🟢 [MODIFICATION] : Extraction dynamique de tous les types de cibles et schémas existants
+  const availableTargetTypes = Array.from(
+    new Set([
+      ...DEFAULT_TARGET_TYPES,
+      ...requests.map(r => r.targetType).filter(Boolean),
+      ...requests.map(r => r.validationSchema?.name || r.schemaName).filter(Boolean)
+    ])
+  );
+
   // ─── Filter logic ──────────────────────────────────────────────────────
   const filteredRequests = requests.filter(req => {
     // Search
     if (searchTerm) {
-      const targetDisplay = getTargetDisplay(req.targetType, req.targetId).toLowerCase();
+      const targetDisplay = getTargetDisplay(req.targetType, req.targetId, req).toLowerCase();
+      const schemaName = (req.validationSchema?.name || req.schemaName || '').toLowerCase();
       const searchLower = searchTerm.toLowerCase();
-      if (!targetDisplay.includes(searchLower) && !req.id?.toLowerCase().includes(searchLower)) {
+      if (!targetDisplay.includes(searchLower) && !schemaName.includes(searchLower) && !req.id?.toLowerCase().includes(searchLower)) {
         return false;
       }
     }
     // Request status
     if (statusFilter !== 'all' && req.status !== statusFilter) return false;
-    // Target type
-    if (targetTypeFilter !== 'all' && req.targetType !== targetTypeFilter) return false;
+    
+    // 🟢 [MODIFICATION] : Filtrage dynamique par type de cible OU nom de schéma
+    if (targetTypeFilter !== 'all') {
+      const currentSchema = req.validationSchema?.name || req.schemaName;
+      if (req.targetType !== targetTypeFilter && currentSchema !== targetTypeFilter) {
+        return false;
+      }
+    }
+
     // Wilaya
     if (wilayaFilter !== 'all' && req.targetId?.wilaya !== wilayaFilter) return false;
     // Date range
@@ -117,9 +135,6 @@ export default function ValidationRequestsList() {
       if (professionalModeFilter !== 'all' && target.professionalMode !== professionalModeFilter) return false;
       if (serviceNationalFilter !== 'all' && target.serviceNationalStatus !== serviceNationalFilter) return false;
       if (userStatusFilter !== 'all' && target.status !== userStatusFilter) return false;
-    } else {
-      // If target is not a User, these filters are ignored (keep them)
-      // For simplicity, we skip them when target is not a User.
     }
     return true;
   });
@@ -132,8 +147,15 @@ export default function ValidationRequestsList() {
   ].filter(f => f && f !== 'all').length;
 
   // ─── Helpers ────────────────────────────────────────────────────────────
-  const getTargetDisplay = (targetType, target) => {
-    if (!target) return 'N/A';
+  // 🟢 [MODIFICATION] : Helper dynamique capable d'extraire les données d'un schéma générique ou d'une entité
+  const getTargetDisplay = (targetType, target, fullReq = null) => {
+    // Si c'est un schéma avec des données de payload directes
+    if (fullReq?.payload?.title || fullReq?.data?.title) {
+      return fullReq.payload?.title || fullReq.data?.title;
+    }
+    if (!target) {
+      return fullReq?.validationSchema?.name || fullReq?.schemaName || 'Demande';
+    }
     switch (targetType) {
       case 'User':
         return target.fullName || `${target.name || ''} ${target.lastname || ''}`.trim() || target.id;
@@ -142,16 +164,20 @@ export default function ValidationRequestsList() {
       case 'Cotisation':
         return target.type || target.feeType || `Cotisation ${target.year || ''}` || target.id;
       default:
-        return typeof target === 'object' ? target.id : target;
+        if (typeof target === 'object') {
+          return target.name || target.title || target.fullName || target.id || fullReq?.validationSchema?.name || 'Demande';
+        }
+        return target;
     }
   };
 
+  // 🟢 [MODIFICATION] : Icône dynamique basée sur le type ou fallback
   const getTargetIcon = (type) => {
     switch (type) {
       case 'User': return <User className="w-4 h-4" />;
       case 'File': return <FileText className="w-4 h-4" />;
       case 'Cotisation': return <CreditCard className="w-4 h-4" />;
-      default: return <FileText className="w-4 h-4" />;
+      default: return <Layers className="w-4 h-4" />;
     }
   };
 
@@ -357,11 +383,10 @@ export default function ValidationRequestsList() {
         <div className="flex flex-wrap gap-3 mb-6">
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all duration-200 ${
-              showFilters || activeFilterCount > 0
-                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                : 'bg-[#182233] hover:bg-[#1F2937] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)]'
-            }`}
+            className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all duration-200 ${showFilters || activeFilterCount > 0
+              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+              : 'bg-[#182233] hover:bg-[#1F2937] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)]'
+              }`}
           >
             <Filter className="w-4 h-4" />
             Filtres
@@ -399,16 +424,16 @@ export default function ValidationRequestsList() {
                 </select>
               </div>
 
-              {/* Target type */}
+              {/* 🟢 [MODIFICATION] : Type de cible ou Schéma dynamique */}
               <div>
-                <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Type de cible</label>
+                <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Type / Schéma</label>
                 <select
                   value={targetTypeFilter}
                   onChange={(e) => setTargetTypeFilter(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500"
                 >
-                  <option value="all">Tous les types</option>
-                  {TARGET_TYPE_OPTIONS.map(t => (
+                  <option value="all">Tous les types & schémas</option>
+                  {availableTargetTypes.map(t => (
                     <option key={t} value={t}>{t}</option>
                   ))}
                 </select>
@@ -578,33 +603,33 @@ export default function ValidationRequestsList() {
 
         {/* ===== MASS ACTIONS ===== */}
         {filteredRequests.some(req => {
-          const firstPending = req.steps?.filter(s => s.status === 'pending').sort((a,b) => a.order - b.order)[0];
+          const firstPending = req.steps?.filter(s => s.status === 'pending').sort((a, b) => a.order - b.order)[0];
           return firstPending && firstPending.massValidation && firstPending.allowedUserIds?.some(u => (u.id || u) === authData.user?.id);
         }) && (
-          <div className="flex items-center gap-3 mb-4">
-            {selectedRequests.length > 0 && (
+            <div className="flex items-center gap-3 mb-4">
+              {selectedRequests.length > 0 && (
+                <button
+                  onClick={handleMassApprove}
+                  disabled={massApproving}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl shadow-lg shadow-emerald-500/20 transition-all text-sm font-medium disabled:opacity-50"
+                >
+                  {massApproving ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <CheckSquare className="w-4 h-4" />
+                  )}
+                  {massApproving ? 'Approbation...' : `Approuver la sélection (${selectedRequests.length})`}
+                </button>
+              )}
               <button
-                onClick={handleMassApprove}
-                disabled={massApproving}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl shadow-lg shadow-emerald-500/20 transition-all text-sm font-medium disabled:opacity-50"
+                onClick={handleSelectAll}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-[#1F2937] hover:bg-[#2A3A4A] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl transition-all text-sm font-medium"
               >
-                {massApproving ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <CheckSquare className="w-4 h-4" />
-                )}
-                {massApproving ? 'Approbation...' : `Approuver la sélection (${selectedRequests.length})`}
+                <CheckSquare className="w-4 h-4" />
+                Tout sélectionner (mass validation)
               </button>
-            )}
-            <button
-              onClick={handleSelectAll}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-[#1F2937] hover:bg-[#2A3A4A] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl transition-all text-sm font-medium"
-            >
-              <CheckSquare className="w-4 h-4" />
-              Tout sélectionner (mass validation)
-            </button>
-          </div>
-        )}
+            </div>
+          )}
 
         {/* ===== REQUEST LIST ===== */}
         {filteredRequests.length === 0 ? (
@@ -639,11 +664,10 @@ export default function ValidationRequestsList() {
                       <div className="flex-shrink-0">
                         <div
                           onClick={() => toggleRequestSelection(req.id)}
-                          className={`w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer transition-all ${
-                            isSelected
-                              ? 'bg-emerald-500 border-emerald-500'
-                              : 'bg-[#0A0F1C] border-[#64748B] hover:border-[#94A3B8]'
-                          }`}
+                          className={`w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer transition-all ${isSelected
+                            ? 'bg-emerald-500 border-emerald-500'
+                            : 'bg-[#0A0F1C] border-[#64748B] hover:border-[#94A3B8]'
+                            }`}
                         >
                           {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
                         </div>
@@ -659,17 +683,23 @@ export default function ValidationRequestsList() {
                           {getTargetIcon(req.targetType)}
                         </span>
                         <div className="min-w-0">
+                          {/*  [MODIFICATION] : Affichage du nom réel de la demande */}
                           <h3 className="text-lg font-semibold text-[#F8FAFC] truncate">
-                            {req.targetType} – {getTargetDisplay(req.targetType, req.targetId)}
+                            {req.validationSchema?.name || req.schemaName || `${req.targetType} – ${getTargetDisplay(req.targetType, req.targetId)}`}
                           </h3>
                           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5">
+                            <span className="text-xs text-[#64748B] bg-[#0A0F1C] px-2 py-0.5 rounded border border-[rgba(255,255,255,0.06)]">
+                              {getTargetDisplay(req.targetType, req.targetId)}
+                            </span>
                             <span className="text-xs text-[#64748B] flex items-center gap-1">
                               <Calendar className="w-3 h-3" />
                               {new Date(req.createdAt).toLocaleDateString('fr-FR')}
                             </span>
                             <span className="text-xs text-[#64748B] flex items-center gap-1">
                               <User className="w-3 h-3" />
-                              {req.createdBy?.name || 'Inconnu'}
+                              {typeof req.createdBy === 'object' && req.createdBy !== null
+                                ? `${req.createdBy.name || ''} ${req.createdBy.lastname || ''}`.trim() || req.createdBy.name || req.createdBy.email || 'Inconnu'
+                                : (req.createdBy || 'Inconnu')}
                             </span>
                           </div>
                         </div>

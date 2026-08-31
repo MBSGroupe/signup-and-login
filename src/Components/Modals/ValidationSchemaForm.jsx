@@ -40,8 +40,67 @@ const API_URL = import.meta.env.VITE_NEST_API_URL;
 
 const STEP_ROLES = ['user', 'moderator', 'admin', 'super_admin'];
 const REJECT_ACTIONS = ['reject_request', 'escalate', 'skip_step', 'notify_only', 'wait_for_another', 'cancel_request', 'go_back'];
-const TIMEOUT_ACTIONS = ['reject_step', 'cancel_request', 'escalate'];
-const FINAL_ACTIONS = ['setField', 'callService', 'sendEmail'];
+// 🟢 [MODIFICATION] : callService commenté dans les actions post-validation
+const FINAL_ACTIONS = [
+  'setField',
+  // 'callService',
+  'sendEmail'
+]; 
+const PREDEFINED_SERVICES = [
+  {
+    name: 'PdfService',
+    label: 'PdfService (Diplômes, Reçus & Situations PDF)',
+    methods: [
+      {
+        name: 'sendDegreeByEmail',
+        label: 'sendDegreeByEmail(userId, recipientEmail) — Envoyer diplôme par email',
+        defaultArgs: ['$userId', '$userEmail'],
+      },
+      {
+        name: 'generateDegree',
+        label: 'generateDegree(dto, userId) — Générer diplôme & Upload Cloudinary',
+        defaultArgs: [{ userId: '$userId', customTitle: 'DIPLÔME', additionalText: '', backgroundOpacity: 0.15 }, '$userId'],
+      },
+      {
+        name: 'sendReceiptByEmail',
+        label: 'sendReceiptByEmail(paymentId, recipientEmail) — Envoyer reçu par email',
+        defaultArgs: ['$paymentId', '$userEmail'],
+      },
+      {
+        name: 'generateReceipt',
+        label: 'generateReceipt(dto, userId) — Générer reçu de paiement',
+        defaultArgs: [{ paymentId: '$paymentId' }, '$userId'],
+      },
+      {
+        name: 'generateMemberSituation',
+        label: 'generateMemberSituation(dto, userId) — Générer situation financière membre',
+        defaultArgs: [{ userId: '$userId' }, '$userId'],
+      },
+      {
+        name: 'sendVersementReceiptByEmail',
+        label: 'sendVersementReceiptByEmail(transactionId, recipientEmail) — Envoyer reçu versement',
+        defaultArgs: ['$transactionId', '$userEmail'],
+      },
+    ],
+  },
+  /// sendmail
+  {
+    name: 'MailerService',
+    label: 'MailerService (Service d\'envoi d\'emails)',
+    methods: [
+      {
+        name: 'sendEmail',
+        label: 'sendEmail(options) — Envoyer un email personnalisé (to, subject, html)',
+        defaultArgs: [{ to: '$userEmail', subject: 'Notification de validation', html: '<p>Bonjour,</p><p>Votre dossier a été validé.</p>' }],
+      },
+      {
+        name: 'sendVerificationEmail',
+        label: 'sendVerificationEmail(to, token, mode) — Email de vérification',
+        defaultArgs: ['$userEmail', '$token', 'signup'],
+      },
+    ],
+  },
+];
 
 const CONDITION_TYPES = [
   { value: 'file_exists', label: 'Fichier existe', params: { folder: '' } },
@@ -124,6 +183,59 @@ function MultiSelect({ options, value = [], onChange, placeholder }) {
   );
 }
 
+// email content conversion
+const htmlToPlainText = (html = '') => {
+  if (!html) return '';
+  return html
+    .replace(/<br\s*[\/]?>/gi, '\n')
+    .replace(/<\/(p|h[1-6]|div)>\s*/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+};
+
+const plainTextToHtml = (text = '') => {
+  if (!text) return '';
+  const blocks = text.split(/\n{2,}/);
+  return blocks
+    .map(block => {
+      const trimmed = block.trim();
+      if (!trimmed) return '';
+      const withBr = trimmed.replace(/\n/g, '<br />');
+      return `<p>${withBr}</p>`;
+    })
+    .filter(Boolean)
+    .join('\n');
+};
+
+function EmailContentTextarea({ value = '', onChange, ringColor, placeholder }) {
+  const [text, setText] = useState(() => htmlToPlainText(value));
+
+  useEffect(() => {
+    setText(htmlToPlainText(value));
+  }, [value]);
+
+  const handleChange = (e) => {
+    const newText = e.target.value;
+    setText(newText);
+    onChange(plainTextToHtml(newText));
+  };
+
+  return (
+    <textarea
+      value={text}
+      onChange={handleChange}
+      rows={5}
+      className={`w-full px-3 py-2 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none ${ringColor} transition-all text-sm`}
+      placeholder={placeholder}
+    />
+  );
+}
+
 export default function ValidationSchemaForm({ initialData, schemaId, onSuccess, allowedFields = null, fieldConfigs = {} }) {
   const { authData, setAuthData } = useContext(UserContext);
   const { callApi } = useApi();
@@ -196,7 +308,7 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
           escalateToRole: 'super_admin',
           description: '',
           approveConditions: [],
-          type: 'validation', 
+          type: 'validation',
         }
       ]
     }));
@@ -348,10 +460,33 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
   };
 
   const updateFinalAction = (type, field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      [type]: { ...prev[type], [field]: value }
-    }));
+    setFormData(prev => {
+      if (field === 'action') {
+        let initialParams = {};
+        if (value === 'setField') {
+          initialParams = { field: '', value: '' };
+        } else if (value === 'callService') {
+          initialParams = { service: '', method: '', args: [] };
+        } else if (value === 'sendEmail') {
+          const isApproval = type === 'onApproval';
+          initialParams = {
+            to: '$userEmail',
+            subject: isApproval ? 'Votre demande a été approuvée' : 'Votre demande a été rejetée',
+            html: isApproval
+              ? "<p>Bonjour,</p>\n<p>Nous avons le plaisir de vous informer que votre demande a été validée avec succès.</p>\n<p>Cordialement,<br />L'administration</p>"
+              : "<p>Bonjour,</p>\n<p>Nous vous informons que votre demande n'a pas pu être validée.</p>\n<p>Cordialement,<br />L'administration</p>"
+          };
+        }
+        return {
+          ...prev,
+          [type]: { action: value, params: initialParams }
+        };
+      }
+      return {
+        ...prev,
+        [type]: { ...prev[type], [field]: value }
+      };
+    });
   };
 
   const updateFinalActionParam = (type, paramKey, paramValue) => {
@@ -374,6 +509,172 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
       if (Array.isArray(parsed)) updateFinalActionParam('onRejection', 'args', parsed);
     } catch (e) { console.warn('Invalid JSON, keeping previous args'); }
   };
+  //service 
+  const renderCallServiceFields = (actionType) => {
+    const isApproval = actionType === 'onApproval';
+    const currentService = formData[actionType]?.params?.service || '';
+    const currentMethod = formData[actionType]?.params?.method || '';
+    const argsText = isApproval ? approvalArgsText : rejectionArgsText;
+    const setArgsText = isApproval ? setApprovalArgsText : setRejectionArgsText;
+    const handleBlur = isApproval ? handleApprovalArgsBlur : handleRejectionArgsBlur;
+    const ringColor = isApproval ? 'focus:ring-emerald-500/50 focus:border-emerald-500' : 'focus:ring-rose-500/50 focus:border-rose-500';
+
+    const matchedService = PREDEFINED_SERVICES.find(
+      s => s.name.toLowerCase() === currentService.toLowerCase()
+    );
+
+    const handleServiceChange = (serviceName) => {
+      const found = PREDEFINED_SERVICES.find(s => s.name === serviceName);
+      if (found) {
+        updateFinalActionParam(actionType, 'service', found.name);
+        if (found.methods.length > 0) {
+          const firstMethod = found.methods[0];
+          updateFinalActionParam(actionType, 'method', firstMethod.name);
+          const argsJson = JSON.stringify(firstMethod.defaultArgs, null, 2);
+          setArgsText(argsJson);
+          updateFinalActionParam(actionType, 'args', firstMethod.defaultArgs);
+        }
+      }
+    };
+
+    const handleMethodChange = (methodName) => {
+      updateFinalActionParam(actionType, 'method', methodName);
+      if (matchedService) {
+        const foundMethod = matchedService.methods.find(m => m.name === methodName);
+        if (foundMethod) {
+          const argsJson = JSON.stringify(foundMethod.defaultArgs, null, 2);
+          setArgsText(argsJson);
+          updateFinalActionParam(actionType, 'args', foundMethod.defaultArgs);
+        }
+      }
+    };
+
+    return (
+      <div className="space-y-4">
+        {/* Service */}
+        <div className="space-y-1">
+          <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Service </label>
+          <select
+            value={matchedService ? matchedService.name : (currentService || '')}
+            onChange={e => handleServiceChange(e.target.value)}
+            className={`w-full px-3 py-2 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none ${ringColor} transition-all`}
+          >
+            <option value="" disabled>-- Choisir un service --</option>
+            {PREDEFINED_SERVICES.map(s => (
+              <option key={s.name} value={s.name}>{s.label}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Méthode */}
+        <div className="space-y-1">
+          <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Méthode</label>
+          <select
+            value={currentMethod || ''}
+            onChange={e => handleMethodChange(e.target.value)}
+            className={`w-full px-3 py-2 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none ${ringColor} transition-all text-sm`}
+          >
+            <option value="" disabled>-- Choisir une méthode --</option>
+            {matchedService?.methods.map(m => (
+              <option key={m.name} value={m.name}>{m.label}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Arguments JSON */}
+        <div className="space-y-1">
+          <div className="flex items-center justify-between">
+            <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Arguments (JSON)</label>
+            <span className="text-[11px] text-[#64748B]">Variables: $userId, $userEmail, $paymentId</span>
+          </div>
+          <textarea
+            value={argsText}
+            onChange={e => setArgsText(e.target.value)}
+            onBlur={handleBlur}
+            rows={3}
+            className={`w-full px-3 py-2 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none ${ringColor} transition-all font-mono text-xs`}
+            placeholder='["$userId", "$userEmail"]'
+          />
+        </div>
+      </div>
+    );
+  };
+  // send mail
+
+  const renderSendEmailFields = (actionType) => {
+    const isApproval = actionType === 'onApproval';
+    const params = formData[actionType]?.params || {};
+    const ringColor = isApproval ? 'focus:ring-emerald-500/50 focus:border-emerald-500' : 'focus:ring-rose-500/50 focus:border-rose-500';
+
+    const applyEmailTemplate = (templateType) => {
+      if (templateType === 'approval') {
+        updateFinalActionParam(actionType, 'subject', 'Votre demande a été approuvée');
+        updateFinalActionParam(
+          actionType,
+          'html',
+          "<p>Bonjour,</p>\n<p>Nous avons le plaisir de vous informer que votre demande a été validée avec succès.</p>\n<p>Cordialement,<br />L'administration</p>"
+        );
+        if (!params.to) updateFinalActionParam(actionType, 'to', '$userEmail');
+      } else if (templateType === 'rejection') {
+        updateFinalActionParam(actionType, 'subject', 'Votre demande a été rejetée');
+        updateFinalActionParam(
+          actionType,
+          'html',
+          "<p>Bonjour,</p>\n<p>Nous vous informons que votre demande n'a pas pu être validée.</p>\n<p>Cordialement,<br />L'administration</p>"
+        );
+        if (!params.to) updateFinalActionParam(actionType, 'to', '$userEmail');
+      }
+    };
+
+    return (
+      <div className="space-y-4">
+        {/* Info destinataire automatique */}
+        <div className="flex items-center gap-2.5 p-3 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-xl text-xs text-[#94A3B8]">
+          <Mail className="w-4 h-4 text-cyan-400 shrink-0" />
+          <span>L'email sera automatiquement envoyé à l'adresse de la personne ayant soumis la demande (<code className="text-cyan-300 font-mono text-[11px]">$userEmail</code>).</span>
+        </div>
+
+        {/* Modèles rapides */}
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-[#94A3B8]">Modèle rapide :</span>
+          <button
+            type="button"
+            onClick={() => applyEmailTemplate(isApproval ? 'approval' : 'rejection')}
+            className="px-2.5 py-1 text-xs bg-[#1F2937] hover:bg-[#374151] text-[#F8FAFC] rounded-lg transition-colors border border-[rgba(255,255,255,0.06)]"
+          >
+            {isApproval ? 'Appliquer modèle Approbation' : 'Appliquer modèle Rejet'}
+          </button>
+        </div>
+
+        {/* Sujet */}
+        <div className="space-y-1">
+          <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Sujet de l'email</label>
+          <input
+            type="text"
+            value={params.subject || ''}
+            onChange={e => updateFinalActionParam(actionType, 'subject', e.target.value)}
+            placeholder="ex: Votre dossier a été validé"
+            className={`w-full px-3 py-2 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none ${ringColor} transition-all text-sm`}
+          />
+        </div>
+
+        {/* Contenu */}
+        <div className="space-y-1">
+          <div className="flex items-center justify-between">
+            <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Contenu de l'email</label>
+            {/* 🟢 [MODIFICATION] : Affichage des variables dynamiques disponibles incluant le motif de rejet */}
+            <span className="text-[11px] text-[#64748B]">Variables: $userName, $userEmail, $rejectReason</span>
+          </div>
+          <EmailContentTextarea
+            value={params.html || ''}
+            onChange={newHtml => updateFinalActionParam(actionType, 'html', newHtml)}
+            ringColor={ringColor}
+            placeholder={`Bonjour,\n\nVotre demande a été traitée.\n\nCordialement,\nL'administration`}
+          />
+        </div>
+      </div>
+    );
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -388,7 +689,9 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authData.token}` },
         body: JSON.stringify(formData),
       });
+      console.log(formData, "form data")
       return res;
+
     }, {
       showSuccessMessage: true,
       successMessage: initialData ? 'Schéma mis à jour avec succès' : 'Schéma créé avec succès',
@@ -916,39 +1219,8 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
                         </>
                       )}
 
-                      {formData.onApproval.action === 'callService' && (
-                        <>
-                          <div className="space-y-1">
-                            <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Service</label>
-                            <input
-                              type="text"
-                              value={formData.onApproval.params.service || ''}
-                              onChange={e => updateFinalActionParam('onApproval', 'service', e.target.value)}
-                              className="w-full px-3 py-2 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Méthode</label>
-                            <input
-                              type="text"
-                              value={formData.onApproval.params.method || ''}
-                              onChange={e => updateFinalActionParam('onApproval', 'method', e.target.value)}
-                              className="w-full px-3 py-2 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Arguments (JSON)</label>
-                            <textarea
-                              value={approvalArgsText}
-                              onChange={(e) => setApprovalArgsText(e.target.value)}
-                              onBlur={handleApprovalArgsBlur}
-                              rows="2"
-                              className="w-full px-3 py-2 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all font-mono text-sm"
-                              placeholder='["arg1", 123]'
-                            />
-                          </div>
-                        </>
-                      )}
+                      {formData.onApproval.action === 'callService' && renderCallServiceFields('onApproval')}
+                      {formData.onApproval.action === 'sendEmail' && renderSendEmailFields('onApproval')}
                     </div>
                   </div>
                 )}
@@ -994,39 +1266,8 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
                         </>
                       )}
 
-                      {formData.onRejection.action === 'callService' && (
-                        <>
-                          <div className="space-y-1">
-                            <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Service</label>
-                            <input
-                              type="text"
-                              value={formData.onRejection.params.service || ''}
-                              onChange={e => updateFinalActionParam('onRejection', 'service', e.target.value)}
-                              className="w-full px-3 py-2 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Méthode</label>
-                            <input
-                              type="text"
-                              value={formData.onRejection.params.method || ''}
-                              onChange={e => updateFinalActionParam('onRejection', 'method', e.target.value)}
-                              className="w-full px-3 py-2 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Arguments (JSON)</label>
-                            <textarea
-                              value={rejectionArgsText}
-                              onChange={(e) => setRejectionArgsText(e.target.value)}
-                              onBlur={handleRejectionArgsBlur}
-                              rows="2"
-                              className="w-full px-3 py-2 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all font-mono text-sm"
-                              placeholder='["arg1", 123]'
-                            />
-                          </div>
-                        </>
-                      )}
+                      {formData.onRejection.action === 'callService' && renderCallServiceFields('onRejection')}
+                      {formData.onRejection.action === 'sendEmail' && renderSendEmailFields('onRejection')}
                     </div>
                   </div>
                 )}

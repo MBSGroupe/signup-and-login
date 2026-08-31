@@ -15,7 +15,7 @@ import VerifyPage from './Pages/VerificationPage';
 import VerifyPendingPage from './Pages/VerifyPending';
 import NotificationsPage from './Pages/NotificationPage'
 import PreferencesPage from './Pages/PreferencesPage'
-
+import VerifyDegree from './pages/DashBoard/EtatsDeSortie/VerificationPage';
 import AdminDashboard from './Pages/DashBoard/Admin Dashboard';
 import GetUsers from './Pages/DashBoard/Users/getUsers';
 import CreateUser from './Pages/DashBoard/Users/createUser';
@@ -124,6 +124,7 @@ export default function App() {
         <Route path="validation/progress/:id" element={<ValidationRequestProgress />} />
 
         <Route path="template/background" element={< BackgroundManager/>} />
+        <Route path="verify/degree/:token" element={<VerifyDegree />} />
 
         <Route path="delete/:id" element={<DeleteItem mode='user' />} />
         <Route path="cancel/fee/:id" element={<DeleteItem mode='cotisation' />} />

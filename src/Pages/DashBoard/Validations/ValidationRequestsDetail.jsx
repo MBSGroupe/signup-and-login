@@ -104,11 +104,14 @@ export default function ValidationRequestDetail() {
   const [localEdits, setLocalEdits] = useState({});
   const [savingEdits, setSavingEdits] = useState(false);
 
-  // --- Permissions ---
-  const [allowedFields, setAllowedFields] = useState(null);
-
-  const getTargetDisplay = (targetType, target) => {
-    if (!target) return 'N/A';
+  // 🟢 [MODIFICATION] : Helper dynamique pour afficher la cible ou le nom de la demande
+  const getTargetDisplay = (targetType, target, fullReq = null) => {
+    if (fullReq?.payload?.title || fullReq?.data?.title) {
+      return fullReq.payload?.title || fullReq.data?.title;
+    }
+    if (!target) {
+      return fullReq?.validationSchema?.name || fullReq?.schemaName || 'Demande';
+    }
     switch (targetType) {
       case 'User':
         return target.fullName || `${target.name || ''} ${target.lastname || ''}`.trim() || target.id;
@@ -117,7 +120,10 @@ export default function ValidationRequestDetail() {
       case 'Cotisation':
         return target.type || target.feeType || `Cotisation ${target.year || ''}` || target.id;
       default:
-        return typeof target === 'object' ? target.id : target;
+        if (typeof target === 'object') {
+          return target.name || target.title || target.fullName || target.id || fullReq?.validationSchema?.name || 'Demande';
+        }
+        return target;
     }
   };
 
@@ -258,6 +264,8 @@ export default function ValidationRequestDetail() {
       rejected: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
       expired: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
       skipped: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
+      //  [MODIFICATION] : Style du statut 'changes_requested'
+      changes_requested: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
     };
     return colors[status] || 'bg-gray-500/10 text-gray-400 border-gray-500/20';
   };
@@ -269,6 +277,8 @@ export default function ValidationRequestDetail() {
       case 'rejected': return <XCircle className="w-3.5 h-3.5" />;
       case 'expired': return <AlertCircle className="w-3.5 h-3.5" />;
       case 'skipped': return <SkipForward className="w-3.5 h-3.5" />;
+      //  [MODIFICATION] : Icône pour 'changes_requested'
+      case 'changes_requested': return <AlertCircle className="w-3.5 h-3.5" />;
       default: return null;
     }
   };
@@ -368,10 +378,13 @@ export default function ValidationRequestDetail() {
               <Eye className="w-6 h-6 text-emerald-400" />
             </div>
             <div>
+              {/*  [MODIFICATION] : Affichage du nom réel de la demande avec son identifiant court */}
               <h1 className="text-2xl md:text-3xl font-bold text-[#F8FAFC] tracking-tight">
-                Demande #{request.id?.slice(-6)}
+                {request.validationSchema?.name || request.schemaName || `Demande #${request.id?.slice(-6)}`}
               </h1>
-              <p className="text-[#94A3B8] text-sm mt-1">Détails et validation</p>
+              <p className="text-[#94A3B8] text-sm mt-1">
+                Détails et validation {request.validationSchema?.name || request.schemaName ? `(#${request.id?.slice(-6)})` : ''}
+              </p>
             </div>
           </div>
         </div>
@@ -483,7 +496,7 @@ export default function ValidationRequestDetail() {
                       <div className="mt-4 pt-4 border-t border-[rgba(255,255,255,0.06)]">
                         <h5 className="text-sm font-medium text-[#F8FAFC] mb-3 flex items-center gap-2">
                           <Eye className="w-4 h-4 text-blue-400" />
-                          Vérification du dossier
+                          Vérification du dossier & des données
                         </h5>
                         {targetLoading ? (
                           <Loader2 className="w-5 h-5 text-emerald-400 animate-spin mx-auto my-4" />
@@ -575,7 +588,32 @@ export default function ValidationRequestDetail() {
                             </div>
                           </div>
                         ) : (
-                          <p className="text-sm text-[#64748B]">Impossible de charger les données de la cible.</p>
+                          /* 🟢 [MODIFICATION] : Rendu générique dynamique pour n'importe quel schéma ajouté par l'admin */
+                          <div className="bg-[#0A0F1C] rounded-xl border border-[rgba(255,255,255,0.06)] p-5">
+                            <h6 className="text-xs font-semibold text-[#94A3B8] uppercase tracking-wider mb-3 flex items-center gap-2">
+                              <FileText className="w-4 h-4 text-emerald-400" />
+                              Données de la demande ({request.validationSchema?.name || request.schemaName || request.targetType})
+                            </h6>
+                            {request.payload || request.data || request.formData ? (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                {Object.entries(request.payload || request.data || request.formData).map(([k, v]) => {
+                                  if (k === '_id' || k === 'id') return null;
+                                  return (
+                                    <div key={k} className="p-3 bg-[#111827] rounded-lg border border-[rgba(255,255,255,0.04)]">
+                                      <span className="text-xs text-[#64748B] uppercase tracking-wider block mb-1">{k}</span>
+                                      <span className="text-sm text-[#F8FAFC] font-medium break-words">
+                                        {typeof v === 'object' && v !== null ? JSON.stringify(v) : String(v || '-')}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <p className="text-sm text-[#94A3B8]">
+                                {getTargetDisplay(request.targetType, request.targetId, request)}
+                              </p>
+                            )}
+                          </div>
                         )}
                       </div>
                     )}
