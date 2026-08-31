@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 
-// ─── Design Tokens (Banking Theme) ──────────────────────────────────────────
+// ─── Design Tokens ──────────────────────────────────────────────────────────
 
 const FILE_CARD_BASE =
   "group relative w-full aspect-square rounded-xl overflow-hidden bg-[#111827] border border-white/5 shadow-xl transition-all hover:border-emerald-500/30 hover:shadow-emerald-500/5";
@@ -17,28 +17,63 @@ const BTN_CONFIRM_CANCEL =
 const BTN_CONFIRM_DELETE =
   "w-24 h-9 text-sm rounded-lg bg-red-600 hover:bg-red-500 text-white transition flex items-center justify-center shadow-lg shadow-red-600/20";
 
-export default function FileCard({ file, handleDelete, handleReplace }) {
-  const imageFormats = ['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'bmp'];
-const isImage = imageFormats.includes(file.type?.toLowerCase());
-  const inputRef = useRef(null);
+// ─── Mapping: type → display label ─────────────────────────────────────
 
+const TYPE_LABELS = {
+  photo: "Photo",
+  CNRC: "Carte Nationale",
+  recu2026: "Reçu 2026",
+  ACTENAISSANCE: "Acte de naissance",
+  DIPLOMES: "Diplôme",
+  c20: "Certificat d'existence",
+  nonAffiliationcnas: "Non-affiliation CNAS",
+  affiliationcnas: "Affiliation CNAS",
+  contrattravail: "Contrat de travail",
+  PIECEIDENTITE: "Pièce d'identité",
+  SERMENTTABLE: "Serment",
+  statut: "Statut",
+  RECUDUS: "Reçu",
+  default: "Document",
+};
+
+// ─── Helper: get file extension ────────────────────────────────────────
+
+const getExtension = (fileName) => {
+  if (!fileName) return "";
+  const parts = fileName.split(".");
+  return parts.length > 1 ? parts.pop().toLowerCase() : "";
+};
+
+// ─── Component ──────────────────────────────────────────────────────────
+
+export default function FileCard({
+  file,
+  handleDelete,
+  handleReplace,
+  canReplace = false,
+  canDelete = false,
+  canPreview = true,
+}) {
+  const inputRef = useRef(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  function FileIcon({ type }) {
-    if (type?.includes("pdf")) return <span className="text-4xl">📄</span>;
-    if (type?.includes("zip")) return <span className="text-4xl">📦</span>;
-    if (type?.includes("video")) return <span className="text-4xl">🎥</span>;
+  // Determine if file is an image
+  const extension = getExtension(file.fileName) || getExtension(file.url);
+  const imageFormats = ["jpg", "jpeg", "png", "gif", "svg", "webp", "bmp"];
+  const isImage = imageFormats.includes(extension);
+
+  const typeLabel = TYPE_LABELS[file.type] || TYPE_LABELS.default;
+
+  function FileIcon({ ext }) {
+    if (["pdf"].includes(ext)) return <span className="text-4xl">📄</span>;
+    if (["zip", "rar", "7z"].includes(ext)) return <span className="text-4xl">📦</span>;
+    if (["mp4", "mov", "avi"].includes(ext)) return <span className="text-4xl">🎥</span>;
+    if (["doc", "docx"].includes(ext)) return <span className="text-4xl">📝</span>;
     return <span className="text-4xl">📁</span>;
   }
 
-  const handlePreview = () => {
-    window.open(file.url, "_blank");
-  };
-
-  const handleClick = () => {
-    inputRef.current.click();
-  };
-
+  const handlePreview = () => window.open(file.url, "_blank");
+  const handleClick = () => inputRef.current.click();
   const handleChange = (e) => {
     const newFile = e.target.files[0];
     if (newFile) {
@@ -46,11 +81,13 @@ const isImage = imageFormats.includes(file.type?.toLowerCase());
       e.target.value = null;
     }
   };
-
   const confirmAndDelete = () => {
     handleDelete(file);
     setConfirmDelete(false);
   };
+
+  // Only show the overlay if at least one action is allowed
+  const canManage = canPreview || canReplace || canDelete;
 
   return (
     <div className={FILE_CARD_BASE}>
@@ -63,33 +100,47 @@ const isImage = imageFormats.includes(file.type?.toLowerCase());
         />
       ) : (
         <div className="flex flex-col items-center justify-center h-full text-[#94A3B8]">
-          <FileIcon type={file.type} />
+          <FileIcon ext={extension} />
           <p className="mt-2 text-sm text-center px-2 truncate max-w-full">
-            {file.fileName}
+            {file.fileName || "Sans nom"}
           </p>
+          <span className="mt-1 text-xs bg-[#1F2937] px-2 py-0.5 rounded-full text-[#64748B] border border-white/5">
+            {typeLabel}
+          </span>
         </div>
       )}
 
-      {/* Actions Overlay */}
-      <div className={OVERLAY_BASE}>
-        <button onClick={handlePreview} className={BTN_PREVIEW}>
-          Aperçu
-        </button>
-
-        <div>
-          <button onClick={handleClick} className={BTN_REPLACE}>
-            Remplacer
-          </button>
-          <input ref={inputRef} type="file" hidden onChange={handleChange} />
-        </div>
-
-        <button onClick={() => setConfirmDelete(true)} className={BTN_DELETE}>
-          Supprimer
-        </button>
+      {/* Type badge */}
+      <div className="absolute top-2 left-2 z-10 bg-[#0A0F1C]/80 backdrop-blur-sm px-2 py-0.5 rounded-full text-[10px] font-medium text-emerald-400 border border-emerald-500/20">
+        {typeLabel}
       </div>
 
-      {/* Delete Confirmation */}
-      {confirmDelete && (
+      {/* ─── Actions Overlay (only if canManage) ─────────────────────── */}
+      {canManage && (
+        <div className={OVERLAY_BASE}>
+          {canPreview && (
+            <button onClick={handlePreview} className={BTN_PREVIEW}>
+              Aperçu
+            </button>
+          )}
+          {canReplace && (
+            <div>
+              <button onClick={handleClick} className={BTN_REPLACE}>
+                Remplacer
+              </button>
+              <input ref={inputRef} type="file" hidden onChange={handleChange} />
+            </div>
+          )}
+          {canDelete && (
+            <button onClick={() => setConfirmDelete(true)} className={BTN_DELETE}>
+              Supprimer
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ─── Delete Confirmation (only if canDelete) ────────────────── */}
+      {canDelete && confirmDelete && (
         <div className="absolute inset-0 z-20 bg-[#0A0F1C]/90 backdrop-blur-sm flex flex-col items-center justify-center gap-4 p-4">
           <p className="text-sm text-[#F8FAFC] text-center font-medium">
             Supprimer ce fichier ?
@@ -114,4 +165,4 @@ const isImage = imageFormats.includes(file.type?.toLowerCase());
       )}
     </div>
   );
-}
+} 

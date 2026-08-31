@@ -885,7 +885,7 @@ export default function GetUsers({ mode }) {
       )}
 
       {isModalOpen && selectedUser && (
-        <UserDetailsModal user={selectedUser} onClose={closeModal} />
+        <UserDetailsModal user={selectedUser} onClose={closeModal} authToken={authData.token}/>
       )}
     </div>
   );
