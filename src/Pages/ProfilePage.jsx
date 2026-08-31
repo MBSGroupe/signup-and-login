@@ -440,27 +440,30 @@ const [canDeleteFile, setCanDeleteFile] = useState(false);
     );
   };
 
-  const fetchPdfBlob = async (finalPdfUrl) => {
-    const isCloudinary =
-      finalPdfUrl.startsWith('https://res.cloudinary.com');
+    const fetchPdfBlob = async (finalPdfUrl) => {
+      // If the URL is relative, prepend the backend URL
+      const isAbsolute = finalPdfUrl.startsWith('http://') || finalPdfUrl.startsWith('https://');
+      const fullUrl = isAbsolute ? finalPdfUrl : `${NEST_API_URL}${finalPdfUrl.startsWith('/') ? '' : '/'}${finalPdfUrl}`;
 
-    const pdfRes = await fetch(
-      finalPdfUrl,
-      isCloudinary
-        ? {}
-        : {
-            headers: {
-              Authorization: `Bearer ${authData.token}`,
-            },
-          }
-    );
+      const isCloudinary = fullUrl.startsWith('https://res.cloudinary.com');
 
-    if (!pdfRes.ok) {
-      throw new Error('Impossible de récupérer le PDF final');
-    }
+      const pdfRes = await fetch(
+        fullUrl,
+        isCloudinary
+          ? {}
+          : {
+              headers: {
+                Authorization: `Bearer ${authData.token}`,
+              },
+            }
+      );
 
-    return await pdfRes.blob();
-  };
+      if (!pdfRes.ok) {
+        throw new Error('Impossible de récupérer le PDF final');
+      }
+
+      return await pdfRes.blob();
+    };
 
   const generateQueuedPdf = async (endpoint) => {
     let jobRes;

@@ -118,15 +118,11 @@ export default function PDFPreviewModal({ type, data, onClose, onGenerate, onEma
                 {generating ? '⏳ Génération...' : '🔄 Générer'}
               </button>
             )}
-            {data?.cloudinaryUrl && onEmail && (
-              <button
-                onClick={handleEmail}
-                disabled={sendingEmail}
-                className={BTN_SECONDARY}
-              >
-                {sendingEmail ? '📧 Envoi...' : '📧 Email'}
-              </button>
-            )}
+            {data?.downloadUrl && onEmail && (
+                <button onClick={handleEmail} disabled={sendingEmail} className={BTN_SECONDARY}>
+                  {sendingEmail ? '📧 Envoi...' : '📧 Email'}
+                </button>
+              )}
             <button onClick={onClose} className={BTN_DANGER}>
               Fermer
             </button>
