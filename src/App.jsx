@@ -15,7 +15,7 @@ import VerifyPage from './Pages/VerificationPage';
 import VerifyPendingPage from './Pages/VerifyPending';
 import NotificationsPage from './Pages/NotificationPage'
 import PreferencesPage from './Pages/PreferencesPage'
-import VerifyDegree from './pages/DashBoard/EtatsDeSortie/VerificationPage';
+import VerifyDegree from './Pages/DashBoard/EtatsDeSortie/VerificationPage';
 import AdminDashboard from './Pages/DashBoard/Admin Dashboard';
 import GetUsers from './Pages/DashBoard/Users/getUsers';
 import CreateUser from './Pages/DashBoard/Users/createUser';
