@@ -38,8 +38,12 @@ export default function ValidationRequestProgress() {
   const [request, setRequest] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const getTargetDisplay = (targetType, target) => {
-    if (!target) return 'N/A';
+  // 🟢 [MODIFICATION] : Helper dynamique pour afficher la cible ou le nom de la demande
+  const getTargetDisplay = (targetType, target, fullReq = null) => {
+    if (fullReq?.payload?.title || fullReq?.data?.title) {
+      return fullReq.payload?.title || fullReq.data?.title;
+    }
+    if (!target) return fullReq?.validationSchema?.name || fullReq?.schemaName || 'Demande';
     switch (targetType) {
       case 'User':
         return target.fullName || `${target.name || ''} ${target.lastname || ''}`.trim() || target.id;
@@ -48,7 +52,10 @@ export default function ValidationRequestProgress() {
       case 'Cotisation':
         return target.type || target.feeType || `Cotisation ${target.year || ''}` || target.id;
       default:
-        return typeof target === 'object' ? target.id : target;
+        if (typeof target === 'object') {
+          return target.name || target.title || target.fullName || target.id || fullReq?.validationSchema?.name || 'Demande';
+        }
+        return target;
     }
   };
 
@@ -84,6 +91,8 @@ export default function ValidationRequestProgress() {
       expired: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
       skipped: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
       cancelled: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
+      //  [MODIFICATION] : Style du statut 'changes_requested'
+      changes_requested: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
     };
     return colors[status] || 'bg-gray-500/10 text-gray-400 border-gray-500/20';
   };
@@ -96,6 +105,8 @@ export default function ValidationRequestProgress() {
       case 'expired': return <AlertCircle className="w-3.5 h-3.5" />;
       case 'skipped': return <SkipForward className="w-3.5 h-3.5" />;
       case 'cancelled': return <X className="w-3.5 h-3.5" />;
+      //  [MODIFICATION] : Icône pour 'changes_requested'
+      case 'changes_requested': return <AlertCircle className="w-3.5 h-3.5" />;
       default: return null;
     }
   };
@@ -152,11 +163,12 @@ export default function ValidationRequestProgress() {
               <History className="w-6 h-6 text-emerald-400" />
             </div>
             <div>
+              {/* 🟢 [MODIFICATION] : Affichage du nom réel de la demande avec son identifiant court */}
               <h1 className="text-2xl md:text-3xl font-bold text-[#F8FAFC] tracking-tight">
-                Progrès de la demande #{request.id?.slice(-6)}
+                {request.validationSchema?.name || request.schemaName || `Demande #${request.id?.slice(-6)}`}
               </h1>
               <p className="text-[#94A3B8] text-sm mt-1">
-                Suivi détaillé du workflow de validation
+                Suivi détaillé du workflow {request.validationSchema?.name || request.schemaName ? `(#${request.id?.slice(-6)})` : ''}
               </p>
             </div>
           </div>
@@ -257,12 +269,17 @@ export default function ValidationRequestProgress() {
                       </p>
                     </div>
                   )}
+                  
                   {step.approvedBy && (
                     <div className="mt-2 p-3 bg-[#0A0F1C] rounded-xl border border-[rgba(255,255,255,0.06)]">
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
                         <span className="text-[#94A3B8]">
                           <span className="text-[#64748B]">Traitée par :</span>{' '}
-                          <span className="text-[#F8FAFC]">{step.approvedBy.name || step.approvedBy.email || step.approvedBy}</span>
+                          <span className="text-[#F8FAFC]">
+                            {typeof step.approvedBy === 'object'
+                              ? `${step.approvedBy.name || ''} ${step.approvedBy.lastname || ''}`.trim() || step.approvedBy.name || step.approvedBy.lastname || '-'
+                              : step.approvedBy}
+                          </span>
                         </span>
                         {step.approvedAt && (
                           <span className="text-[#94A3B8]">

@@ -87,21 +87,29 @@ export default function AllValidationRequests() {
     }
   };
 
+  // 🟢 [MODIFICATION] : Helper dynamique pour afficher la cible ou le nom de la demande sans type rigide
   const getTargetDisplay = (req) => {
+    if (req.payload?.title || req.data?.title) {
+      return req.payload?.title || req.data?.title;
+    }
     const target = req.targetId;
-    if (!target) return req.targetId?._id || req.targetId;
+    if (!target) return req.validationSchema?.name || req.schemaName || req.targetId?._id || req.targetId || 'Demande';
     switch (req.targetType) {
       case 'User':
         return target.fullName || `${target.name || ''} ${target.lastname || ''}`.trim() || target._id;
       case 'File':
         return target.fileName || target.name || `Document (${target.folder || 'unknown'})`;
       case 'Cotisation':
-        return `Cotisation ${target.year}`;
+        return target.type || target.feeType || `Cotisation ${target.year || ''}` || target._id;
       default:
-        return typeof target === 'object' ? target._id : target;
+        if (typeof target === 'object') {
+          return target.name || target.title || target.fullName || target._id || req.validationSchema?.name || 'Demande';
+        }
+        return target;
     }
   };
 
+  // 🟢 [MODIFICATION] : Icône dynamique basée sur le type de cible ou icône par défaut
   const getTargetIcon = (type) => {
     switch (type) {
       case 'User':
@@ -196,16 +204,19 @@ export default function AllValidationRequests() {
                         {getTargetIcon(req.targetType)}
                       </span>
                       <div>
+                        {/* 🟢 [MODIFICATION] : Affichage du nom réel de la demande */}
                         <h3 className="text-lg font-semibold text-[#F8FAFC] truncate">
-                          {getTargetDisplay(req)}
+                          {req.validationSchema?.name || req.schemaName || `${req.targetType} – ${getTargetDisplay(req)}`}
                         </h3>
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5">
                           <span className="text-xs text-[#64748B] bg-[#0A0F1C] px-2 py-0.5 rounded border border-[rgba(255,255,255,0.06)]">
-                            {req.targetType}
+                            {getTargetDisplay(req)}
                           </span>
                           <span className="text-xs text-[#64748B] flex items-center gap-1">
                             <User className="w-3 h-3" />
-                            {req.createdBy?.name || req.createdBy || 'Inconnu'}
+                            {typeof req.createdBy === 'object' && req.createdBy !== null
+                              ? `${req.createdBy.name || ''} ${req.createdBy.lastname || ''}`.trim() || req.createdBy.name || req.createdBy.email || 'Inconnu'
+                              : (req.createdBy || 'Inconnu')}
                           </span>
                           <span className="text-xs text-[#64748B] flex items-center gap-1">
                             <Calendar className="w-3 h-3" />
