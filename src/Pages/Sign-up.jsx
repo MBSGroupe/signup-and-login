@@ -6,8 +6,6 @@ import {
   Upload,
   X,
   FileText,
-  Image,
-  File,
   User,
   Mail,
   Phone,
@@ -21,12 +19,14 @@ import {
   CheckCircle,
   AlertCircle,
   Plus,
-  Trash2
+  Trash2,
+  Calendar,
+  BookOpen,
+  Users
 } from "lucide-react";
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
-// Wilaya data (unchanged)
 const WILAYAS = [
   "01 - Adrar", "02 - Chlef", "03 - Laghouat", "04 - Oum El Bouaghi",
   "05 - Batna", "06 - Béjaïa", "07 - Biskra", "08 - Béchar",
@@ -46,7 +46,6 @@ const WILAYAS = [
   "56 - Djanet", "57 - El M'ghair", "58 - El Meniaa"
 ];
 
-// Document types (as before)
 const FILE_TYPES = [
   { key: 'photo', label: 'Photo' },
   { key: 'CNRC', label: 'Carte Nationale' },
@@ -79,52 +78,31 @@ export default function FormulaireCNOA() {
 
   // ─── FORM STATE ──────────────────────────────────────────────────────────
   const [formData, setFormData] = useState({
-    // Personal
+    cloaExercice: "",
+    nin: "",
+    sexe: "",
+    serviceNationalStatus: "",
     name: "",
     lastname: "",
     nomArabe: "",
     prenomArabe: "",
-    email: "",
-    emailPro: "",
-    phone: "",
-    fixe: "",
-    fax: "",
     dateOfBirth: "",
     lieuNaissance: "",
-    sexe: "",
-    enfants: "",
-
-    // Family
+    numeroActeNaissance: "",
+    adressePersonnelle: "",
+    commune: "",
+    wilaya: "",
     prenomPere: "",
     prenomPereArabe: "",
     nomPrenomMere: "",
     nomPrenomMereArabe: "",
     maritalStatus: "",
-    nationality: "",
-    serviceNationalStatus: "",
-
-    // Professional
-    profession: "",
-    specialty: "",
-    registrationNumber: "",
-    nif: "",
-    cachet: "",
-    gps: "", // will be a text input for now; we can later add a map picker
-    professionalMode: "",
-    // activityStartDate removed – calculated in backend
-    startDate: "",
-    moyensHumains: "",
-    isAccredited: "",
-    benefitStateAid: "",
-    registrationDate: "",
-    installationDate: "",
-    recruitmentDate: "",
-    numeroActeNaissance: "",
-    nin: "",
-
-    // CNOA
-    oathLocation: "",
-    oathDate: "",
+    enfants: "",
+    fixe: "",
+    phone: "",
+    email: "",
+    emailPro: "",
+    // Diplomas
     diplomaType: "",
     sessionClassique: "",
     anneeClassique: "",
@@ -135,50 +113,43 @@ export default function FormulaireCNOA() {
     sessionLMDM: "",
     anneeLMDM: "",
     universiteLMDM: "",
-    otherTrainings: "",
-
-    // Address
-    wilaya: "",
-    commune: "",
-    region: "",
-    adressePersonnelle: "",
-    adressePersonnelleArabe: "",
+    // Professional
+    registrationNumber: "",
+    oathDate: "",
+    oathLocation: "",
+    professionalMode: "",
+    installationDate: "",
+    nif: "",
     adressePro: "",
     adresseProArabe: "",
-
-    // Security
+    communePro: "",
+    wilayaPro: "",
+    benefitStateAid: "",
+    moyensHumains: "",
+    associateName: "",
+    associateRegistrationNumber: "",
+    recruitmentDate: "",
+    employerName: "",
+    employerRegistrationNumber: "",
+    employerAdresse: "",
+    employerAdresseArabe: "",
+    employerCommune: "",
+    employerWilaya: "",
     password: "",
     secondPassword: "",
     role: "user",
     status: "pending",
+    loi: false,
   });
 
-  // ─── Other Diplomas ──────────────────────────────────────────────────────
   const [otherDiplomas, setOtherDiplomas] = useState([]);
-  const [newDiploma, setNewDiploma] = useState({ name: "", institution: "", year: "" });
+  const [newDiploma, setNewDiploma] = useState({ titre: "", etablissement: "", annee: "" });
   const [diplomaFile, setDiplomaFile] = useState(null);
 
-  const addDiploma = () => {
-    if (!newDiploma.name || !newDiploma.institution || !newDiploma.year) {
-      setMessage("Veuillez remplir tous les champs du diplôme.");
-      setMessageType("error");
-      return;
-    }
-    const entry = { ...newDiploma };
-    if (diplomaFile) {
-      entry.fileId = diplomaFile.id;
-      entry.fileName = diplomaFile.name;
-    }
-    setOtherDiplomas([...otherDiplomas, entry]);
-    setNewDiploma({ name: "", institution: "", year: "" });
-    setDiplomaFile(null);
-  };
+  const [formations, setFormations] = useState([]);
+  const [newFormation, setNewFormation] = useState({ titre: "", etablissement: "", annee: "" });
+  const [formationFile, setFormationFile] = useState(null);
 
-  const removeDiploma = (index) => {
-    setOtherDiplomas(otherDiplomas.filter((_, i) => i !== index));
-  };
-
-  // ─── Per‑type File uploads ──────────────────────────────────────────────
   const [fileUploads, setFileUploads] = useState(
     FILE_TYPES.reduce((acc, ft) => ({ ...acc, [ft.key]: null }), {})
   );
@@ -194,12 +165,9 @@ export default function FormulaireCNOA() {
 
       const response = await fetch(`${NEST_API_URL}/files/upload/temp`, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${authData?.token || ''}`,
-        },
+        headers: { Authorization: `Bearer ${authData?.token || ''}` },
         body: uploadData,
       });
-
       const data = await response.json();
       if (response.ok) {
         setFileUploads(prev => ({
@@ -229,7 +197,26 @@ export default function FormulaireCNOA() {
     setFileUploads(prev => ({ ...prev, [typeKey]: null }));
   };
 
-  // ─── Handlers ─────────────────────────────────────────────────────────────
+  const addItem = (list, setList, item, setItem, file, setFile) => {
+    if (!item.titre || !item.etablissement || !item.annee) {
+      setMessage("Veuillez remplir tous les champs.");
+      setMessageType("error");
+      return;
+    }
+    const entry = { ...item };
+    if (file) {
+      entry.fileId = file.id;
+      entry.fileName = file.name;
+    }
+    setList([...list, entry]);
+    setItem({ titre: "", etablissement: "", annee: "" });
+    setFile(null);
+  };
+
+  const removeItem = (list, setList, index) => {
+    setList(list.filter((_, i) => i !== index));
+  };
+
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData((prev) => ({
@@ -239,29 +226,23 @@ export default function FormulaireCNOA() {
   };
 
   const shouldShowField = (fieldName) => {
-    const { sexe, professionalMode, diplomaType } = formData;
-
+    const { sexe, professionalMode } = formData;
     if (fieldName === 'serviceNationalStatus' && sexe === 'F') return false;
 
-    if (['sessionClassique','anneeClassique','universiteClassique'].includes(fieldName)) {
-      return diplomaType === 'Classique' || diplomaType === '';
-    }
-    if (['sessionLMDL','anneeLMDL','universiteLMDL'].includes(fieldName)) {
-      return diplomaType === 'LMD' || diplomaType === '';
-    }
-    if (['sessionLMDM','anneeLMDM','universiteLMDM'].includes(fieldName)) {
-      return diplomaType === 'LMD' || diplomaType === '';
-    }
+    const isLiberal = professionalMode === 'Libéral' || professionalMode === 'Associé' || professionalMode === '';
+    const isAssocie = professionalMode === 'Associé';
+    const isSalarie = professionalMode === 'Salarié';
 
-    if (fieldName === 'installationDate') {
-      return professionalMode === 'Libéral' || professionalMode === 'Associé' || professionalMode === '';
-    }
-    if (fieldName === 'recruitmentDate') {
-      return professionalMode === 'Salarié' || professionalMode === '';
-    }
+    const liberalFields = ['installationDate', 'nif', 'adressePro', 'adresseProArabe', 'communePro', 'wilayaPro', 'benefitStateAid', 'moyensHumains'];
+    const associeFields = ['associateName', 'associateRegistrationNumber'];
+    const salarieFields = ['recruitmentDate', 'employerName', 'employerRegistrationNumber', 'employerAdresse', 'employerAdresseArabe', 'employerCommune', 'employerWilaya'];
 
-    // activityStartDate is removed from UI, so we don't show it
-    if (fieldName === 'activityStartDate') return false;
+    if (liberalFields.includes(fieldName)) return isLiberal;
+    if (associeFields.includes(fieldName)) return isAssocie;
+    if (salarieFields.includes(fieldName)) return isSalarie;
+
+    // Exclude diploma fields from being rendered elsewhere (they are handled in the custom section)
+    if (fieldName.startsWith('session') || fieldName.startsWith('annee') || fieldName.startsWith('universite')) return false;
 
     return true;
   };
@@ -276,20 +257,8 @@ export default function FormulaireCNOA() {
     ];
   };
 
-  const getDiplomaSessionOptions = (type) => {
-    if (type === 'Classique') {
-      return ['Juin', 'Juillet', 'Septembre'];
-    }
-    if (type === 'LMD') {
-      return ['Juin', 'Septembre', 'Décembre'];
-    }
-    return [];
-  };
-
-  // ─── renderField ──────────────────────────────────────────────────────────
   const renderField = (label, name, type = "text", options = null, required = false, placeholder = "", icon = null) => {
     if (!shouldShowField(name)) return null;
-
     const isArabicField = name.includes('Arabe') || name.includes('arab');
     const isSelect = type === "select";
     const isDate = type === "date";
@@ -372,23 +341,18 @@ export default function FormulaireCNOA() {
     );
   };
 
-  // ─── Submit ──────────────────────────────────────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    // Check loi checkbox
     if (!formData.loi) {
       setMessage("Vous devez accepter la déclaration légale pour continuer.");
       setMessageType("error");
       return;
     }
-
     if (formData.password !== formData.secondPassword) {
       setMessage("Les mots de passe ne correspondent pas.");
       setMessageType("error");
       return;
     }
-
     if (formData.password.length < 8) {
       setMessage("Le mot de passe doit contenir au moins 8 caractères.");
       setMessageType("error");
@@ -400,7 +364,6 @@ export default function FormulaireCNOA() {
 
     try {
       const { secondPassword, ...submitData } = formData;
-
       const cleanedData = Object.keys(submitData).reduce((acc, key) => {
         if (submitData[key] !== '' && submitData[key] !== null && submitData[key] !== undefined) {
           acc[key] = submitData[key];
@@ -411,21 +374,14 @@ export default function FormulaireCNOA() {
       const finalData = {
         ...cleanedData,
         enfants: cleanedData.enfants ? parseInt(cleanedData.enfants) : null,
-        isAccredited: cleanedData.isAccredited === "true" ? true : cleanedData.isAccredited === "false" ? false : null,
-        benefitStateAid: cleanedData.benefitStateAid === "true" ? true : cleanedData.benefitStateAid === "false" ? false : null,
         otherDiplomas: otherDiplomas,
+        formations: formations,
         files: Object.fromEntries(
           Object.entries(fileUploads)
             .filter(([_, val]) => val !== null)
             .map(([key, val]) => [key, val.id])
         ),
       };
-
-      Object.keys(finalData).forEach(key => {
-        if (finalData[key] === null || finalData[key] === undefined) {
-          delete finalData[key];
-        }
-      });
 
       const response = await fetch(`${NEST_API_URL}/auth/signup`, {
         method: "POST",
@@ -434,7 +390,6 @@ export default function FormulaireCNOA() {
       });
 
       const data = await response.json();
-
       if (response.ok) {
         const token = data?.data?.token || data.token;
         const user = data?.data?.user || data.user;
@@ -460,7 +415,7 @@ export default function FormulaireCNOA() {
     }
   };
 
-  // ─── Render ──────────────────────────────────────────────────────────────
+  // ─── RENDER ──────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-[#0A0F1C] py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-6xl mx-auto">
@@ -470,33 +425,41 @@ export default function FormulaireCNOA() {
           <div className="p-6 sm:p-8 lg:p-10">
             <form ref={formRef} className="space-y-10" onSubmit={handleSubmit}>
 
-              {/* ─── Personal Info ─── */}
+              {/* ─── 0. CLOA d'exercice ─── */}
+              <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)]">
+                <div className="flex items-center gap-3 mb-6">
+                  <MapPin className="w-5 h-5 text-emerald-400" />
+                  <h3 className="text-lg font-semibold text-[#F8FAFC]">CLOA d'exercice</h3>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  {renderField("CLOA d'exercice", "cloaExercice", "select", WILAYAS.map(w => ({ value: w, label: w })), true, "", <MapPin className="w-4 h-4 text-emerald-400" />)}
+                </div>
+              </div>
+
+              {/* ─── 1. Informations Personnelles ─── */}
               <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)]">
                 <div className="flex items-center gap-3 mb-6">
                   <User className="w-5 h-5 text-emerald-400" />
                   <h3 className="text-lg font-semibold text-[#F8FAFC]">Informations Personnelles</h3>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {renderField("NIN", "nin", "text", null, false, "Numéro d'identité nationale", <Shield className="w-4 h-4 text-emerald-400" />)}
+                  {renderField("Sexe", "sexe", "select", [{ value: "M", label: "Masculin" }, { value: "F", label: "Féminin" }], true, "", <User className="w-4 h-4 text-emerald-400" />)}
+                  {renderField("Service national", "serviceNationalStatus", "select", getServiceNationalOptions(), false, "", <Shield className="w-4 h-4 text-emerald-400" />)}
                   {renderField("Nom", "name", "text", null, true, "Votre nom", <User className="w-4 h-4 text-emerald-400" />)}
                   {renderField("Prénom", "lastname", "text", null, true, "Votre prénom", <User className="w-4 h-4 text-emerald-400" />)}
                   {renderField("Nom (Arabe)", "nomArabe", "text", null, false, "الاسم", <User className="w-4 h-4 text-emerald-400" />)}
                   {renderField("Prénom (Arabe)", "prenomArabe", "text", null, false, "اللقب", <User className="w-4 h-4 text-emerald-400" />)}
-                  {renderField("Email", "email", "email", null, true, "email@exemple.com", <Mail className="w-4 h-4 text-emerald-400" />)}
-                  {renderField("Email Pro", "emailPro", "email", null, false, "pro@exemple.com", <Mail className="w-4 h-4 text-emerald-400" />)}
-                  {renderField("Téléphone", "phone", "text", null, false, "0555 55 55 55", <Phone className="w-4 h-4 text-emerald-400" />)}
-                  {renderField("Fixe", "fixe", "text", null, false, "023 45 67 89", <Phone className="w-4 h-4 text-emerald-400" />)}
-                  {renderField("Fax", "fax", "text", null, false, "Fax", <File className="w-4 h-4 text-emerald-400" />)}
-                  {renderField("Sexe", "sexe", "select", [
-                    { value: "M", label: "Homme" },
-                    { value: "F", label: "Femme" }
-                  ], true, "", <User className="w-4 h-4 text-emerald-400" />)}
-                  {renderField("Date de naissance", "dateOfBirth", "date", null, true, "", <File className="w-4 h-4 text-emerald-400" />)}
+                  {renderField("Date de naissance", "dateOfBirth", "date", null, true, "", <Calendar className="w-4 h-4 text-emerald-400" />)}
                   {renderField("Lieu de naissance", "lieuNaissance", "text", null, false, "Ville de naissance", <MapPin className="w-4 h-4 text-emerald-400" />)}
-                  {renderField("Nombre d'enfants", "enfants", "number", null, false, "0")}
+                  {renderField("N° acte de naissance", "numeroActeNaissance", "text", null, false, "Numéro d'acte", <FileText className="w-4 h-4 text-emerald-400" />)}
+                  {renderField("Adresse personnelle", "adressePersonnelle", "text", null, false, "Adresse", <Home className="w-4 h-4 text-emerald-400" />)}
+                  {renderField("Commune", "commune", "text", null, false, "Commune", <MapPin className="w-4 h-4 text-emerald-400" />)}
+                  {renderField("Wilaya", "wilaya", "select", WILAYAS.map(w => ({ value: w, label: w })), false, "", <MapPin className="w-4 h-4 text-emerald-400" />)}
                 </div>
               </div>
 
-              {/* ─── Family ─── */}
+              {/* ─── 2. Informations Familiales ─── */}
               <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)]">
                 <div className="flex items-center gap-3 mb-6">
                   <Home className="w-5 h-5 text-emerald-400" />
@@ -513,194 +476,413 @@ export default function FormulaireCNOA() {
                     { value: "Divorcé(e)", label: "Divorcé(e)" },
                     { value: "Veuf(ve)", label: "Veuf(ve)" }
                   ], false)}
-                  {renderField("Nationalité", "nationality", "text", null, false, "Nationalité")}
-                  {renderField("Service national", "serviceNationalStatus", "select", 
-                    getServiceNationalOptions(), false)}
+                  {renderField("Nombre d'enfants", "enfants", "number", null, false, "0")}
                 </div>
               </div>
 
-              {/* ─── Professional ─── */}
+              {/* ─── 3. Contact ─── */}
               <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)]">
                 <div className="flex items-center gap-3 mb-6">
-                  <Briefcase className="w-5 h-5 text-emerald-400" />
-                  <h3 className="text-lg font-semibold text-[#F8FAFC]">Informations Professionnelles</h3>
+                  <Phone className="w-5 h-5 text-emerald-400" />
+                  <h3 className="text-lg font-semibold text-[#F8FAFC]">Contact</h3>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {renderField("Profession", "profession", "select", [
-                    { value: "Architecte", label: "Architecte" },
-                    { value: "Ingénieur", label: "Ingénieur" },
-                    { value: "Urbaniste", label: "Urbaniste" },
-                    { value: "Paysagiste", label: "Paysagiste" }
-                  ], false)}
-                  {renderField("Spécialité", "specialty", "text", null, false, "Spécialité")}
-                  {renderField("N° d'inscription", "registrationNumber", "text", null, true, "N° d'inscription")}
-                  {renderField("NIF", "nif", "text", null, false, "NIF")}
-                  {renderField("Cachet", "cachet", "text", null, false, "Numéro de cachet")}
-                  {renderField("GPS", "gps", "text", null, false, "Coordonnées GPS (ex: 36.8,3.08)")}
-                  {renderField("Mode d'exercice", "professionalMode", "select", [
-                    { value: "Libéral", label: "Libéral" },
-                    { value: "Associé", label: "Associé" },
-                    { value: "Salarié", label: "Salarié" }
-                  ], false)}
-                  {renderField("Date de début de cotisation", "startDate", "date", null, false)}
-                  {renderField("Date d'installation", "installationDate", "date", null, false)}
-                  {renderField("Date de recrutement", "recruitmentDate", "date", null, false)}
-                  {renderField("Moyens humains", "moyensHumains", "text", null, false, "Moyens humains")}
-                  {renderField("Architecte agréé", "isAccredited", "select", [
-                    { value: "true", label: "Oui" },
-                    { value: "false", label: "Non" }
-                  ], false)}
-                  {renderField("Aide d'État", "benefitStateAid", "select", [
-                    { value: "true", label: "Oui" },
-                    { value: "false", label: "Non" }
-                  ], false)}
-                  {renderField("Date d'inscription", "registrationDate", "date", null, false)}
-                  {renderField("N° acte de naissance", "numeroActeNaissance", "text", null, false)}
-                  {renderField("NIN", "nin", "text", null, false, "Numéro d'identité nationale")}
+                  {renderField("Téléphone fixe", "fixe", "text", null, false, "023 45 67 89", <Phone className="w-4 h-4 text-emerald-400" />)}
+                  {renderField("Téléphone mobile", "phone", "text", null, false, "0555 55 55 55", <Phone className="w-4 h-4 text-emerald-400" />)}
+                  {renderField("Email personnel", "email", "email", null, true, "email@exemple.com", <Mail className="w-4 h-4 text-emerald-400" />)}
                 </div>
               </div>
 
-              {/* ─── Diplomas ─── */}
+              {/* ─── 4. Diplômes universitaires (fixed) ─── */}
               <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)]">
                 <div className="flex items-center gap-3 mb-6">
                   <GraduationCap className="w-5 h-5 text-emerald-400" />
-                  <h3 className="text-lg font-semibold text-[#F8FAFC]">Diplômes</h3>
+                  <h3 className="text-lg font-semibold text-[#F8FAFC]">Diplômes universitaires</h3>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {renderField("Type de diplôme", "diplomaType", "select", [
-                    { value: "Classique", label: "Classique" },
-                    { value: "LMD", label: "LMD" }
-                  ], false)}
-                  {renderField("Session Classique", "sessionClassique", "select", 
-                    getDiplomaSessionOptions('Classique').map(s => ({ value: s, label: s })), false)}
-                  {renderField("Année Classique", "anneeClassique", "text", null, false, "Année")}
-                  {renderField("Université Classique", "universiteClassique", "text", null, false, "Université")}
-                  {renderField("Session LMD (Licence)", "sessionLMDL", "select", 
-                    getDiplomaSessionOptions('LMD').map(s => ({ value: s, label: s })), false)}
-                  {renderField("Année LMD (Licence)", "anneeLMDL", "text", null, false, "Année")}
-                  {renderField("Université LMD (Licence)", "universiteLMDL", "text", null, false, "Université")}
-                  {renderField("Session LMD (Master)", "sessionLMDM", "select", 
-                    getDiplomaSessionOptions('LMD').map(s => ({ value: s, label: s })), false)}
-                  {renderField("Année LMD (Master)", "anneeLMDM", "text", null, false, "Année")}
-                  {renderField("Université LMD (Master)", "universiteLMDM", "text", null, false, "Université")}
-                  {renderField("Autres formations (JSON)", "otherTrainings", "textarea", null, false,
-                    '[{"name": "Formation", "institution": "Institut", "year": "2020"}]')}
-                </div>
-
-                {/* Other Diplomas dynamic list */}
-                <div className="mt-6 border-t border-[rgba(255,255,255,0.06)] pt-6">
-                  <h4 className="text-sm font-medium text-[#94A3B8] uppercase tracking-wider mb-4">Autres diplômes</h4>
-                  <div className="flex flex-wrap gap-3 items-end mb-4">
-                    <div className="flex-1 min-w-[120px]">
-                      <label className="block text-xs text-[#64748B]">Nom du diplôme</label>
-                      <input
-                        type="text"
-                        value={newDiploma.name}
-                        onChange={(e) => setNewDiploma({ ...newDiploma, name: e.target.value })}
-                        className="w-full px-3 py-2 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-lg focus:ring-2 focus:ring-emerald-500/50"
-                      />
+                <div className="space-y-4">
+                  {/* Type selection */}
+                  <div className="grid grid-cols-1">
+                    <div className="space-y-1.5">
+                      <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">
+                        Type de diplôme
+                      </label>
+                      <select
+                        name="diplomaType"
+                        value={formData.diplomaType || ""}
+                        onChange={handleChange}
+                        className="w-full px-4 py-2.5 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                      >
+                        <option value="">Sélectionnez</option>
+                        <option value="Classique">Classique</option>
+                        <option value="LMD">LMD</option>
+                      </select>
                     </div>
-                    <div className="flex-1 min-w-[120px]">
-                      <label className="block text-xs text-[#64748B]">Institution</label>
-                      <input
-                        type="text"
-                        value={newDiploma.institution}
-                        onChange={(e) => setNewDiploma({ ...newDiploma, institution: e.target.value })}
-                        className="w-full px-3 py-2 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-lg focus:ring-2 focus:ring-emerald-500/50"
-                      />
-                    </div>
-                    <div className="flex-1 min-w-[80px]">
-                      <label className="block text-xs text-[#64748B]">Année</label>
-                      <input
-                        type="text"
-                        value={newDiploma.year}
-                        onChange={(e) => setNewDiploma({ ...newDiploma, year: e.target.value })}
-                        className="w-full px-3 py-2 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-lg focus:ring-2 focus:ring-emerald-500/50"
-                      />
-                    </div>
-                    <div className="flex-1 min-w-[100px]">
-                      <label className="block text-xs text-[#64748B]">Fichier (optionnel)</label>
-                      <input
-                        type="file"
-                        onChange={(e) => {
-                          const file = e.target.files[0];
-                          if (file) {
-                            handleFileUploadForType('diploma_' + Date.now(), file);
-                          }
-                        }}
-                        className="w-full text-xs text-[#64748B] file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:bg-emerald-500/10 file:text-emerald-400 hover:file:bg-emerald-500/20"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={addDiploma}
-                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg flex items-center gap-1"
-                    >
-                      <Plus className="w-4 h-4" /> Ajouter
-                    </button>
                   </div>
-                  {otherDiplomas.length > 0 && (
-                    <div className="space-y-2">
-                      {otherDiplomas.map((dip, idx) => (
-                        <div key={idx} className="flex items-center justify-between bg-[#111827] p-3 rounded-lg border border-[rgba(255,255,255,0.06)]">
-                          <div>
-                            <span className="text-[#F8FAFC] font-medium">{dip.name}</span>
-                            <span className="text-[#94A3B8] text-sm ml-2">({dip.institution}, {dip.year})</span>
-                            {dip.fileName && <span className="text-emerald-400 text-xs ml-2">📎 {dip.fileName}</span>}
+
+                  {/* Classique fields */}
+                  {formData.diplomaType === 'Classique' && (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                      <div className="space-y-1.5">
+                        <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Session Classique</label>
+                        <select
+                          name="sessionClassique"
+                          value={formData.sessionClassique || ""}
+                          onChange={handleChange}
+                          className="w-full px-4 py-2.5 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                        >
+                          <option value="">Sélectionnez</option>
+                          <option value="Juin">Juin</option>
+                          <option value="Juillet">Juillet</option>
+                          <option value="Septembre">Septembre</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Année Classique</label>
+                        <input
+                          type="text"
+                          name="anneeClassique"
+                          value={formData.anneeClassique || ""}
+                          onChange={handleChange}
+                          placeholder="Année"
+                          className="w-full px-4 py-2.5 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Université Classique</label>
+                        <input
+                          type="text"
+                          name="universiteClassique"
+                          value={formData.universiteClassique || ""}
+                          onChange={handleChange}
+                          placeholder="Université"
+                          className="w-full px-4 py-2.5 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* LMD fields */}
+                  {formData.diplomaType === 'LMD' && (
+                    <div className="space-y-4">
+                      <div>
+                        <h4 className="text-xs font-medium text-[#94A3B8] uppercase tracking-wider mb-2">Licence</h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                          <div className="space-y-1.5">
+                            <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Session LMD (Licence)</label>
+                            <select
+                              name="sessionLMDL"
+                              value={formData.sessionLMDL || ""}
+                              onChange={handleChange}
+                              className="w-full px-4 py-2.5 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                            >
+                              <option value="">Sélectionnez</option>
+                              <option value="Juin">Juin</option>
+                              <option value="Septembre">Septembre</option>
+                              <option value="Décembre">Décembre</option>
+                            </select>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => removeDiploma(idx)}
-                            className="text-rose-400 hover:text-rose-300 p-1"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          <div className="space-y-1.5">
+                            <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Année LMD (Licence)</label>
+                            <input
+                              type="text"
+                              name="anneeLMDL"
+                              value={formData.anneeLMDL || ""}
+                              onChange={handleChange}
+                              placeholder="Année"
+                              className="w-full px-4 py-2.5 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Université LMD (Licence)</label>
+                            <input
+                              type="text"
+                              name="universiteLMDL"
+                              value={formData.universiteLMDL || ""}
+                              onChange={handleChange}
+                              placeholder="Université"
+                              className="w-full px-4 py-2.5 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                            />
+                          </div>
                         </div>
-                      ))}
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-medium text-[#94A3B8] uppercase tracking-wider mb-2">Master</h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                          <div className="space-y-1.5">
+                            <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Session LMD (Master)</label>
+                            <select
+                              name="sessionLMDM"
+                              value={formData.sessionLMDM || ""}
+                              onChange={handleChange}
+                              className="w-full px-4 py-2.5 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                            >
+                              <option value="">Sélectionnez</option>
+                              <option value="Juin">Juin</option>
+                              <option value="Septembre">Septembre</option>
+                              <option value="Décembre">Décembre</option>
+                            </select>
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Année LMD (Master)</label>
+                            <input
+                              type="text"
+                              name="anneeLMDM"
+                              value={formData.anneeLMDM || ""}
+                              onChange={handleChange}
+                              placeholder="Année"
+                              className="w-full px-4 py-2.5 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Université LMD (Master)</label>
+                            <input
+                              type="text"
+                              name="universiteLMDM"
+                              value={formData.universiteLMDM || ""}
+                              onChange={handleChange}
+                              placeholder="Université"
+                              className="w-full px-4 py-2.5 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                            />
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* ─── CNOA ─── */}
+              {/* ─── 5. Autres diplômes ─── */}
               <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)]">
                 <div className="flex items-center gap-3 mb-6">
-                  <Shield className="w-5 h-5 text-emerald-400" />
-                  <h3 className="text-lg font-semibold text-[#F8FAFC]">Informations CNOA</h3>
+                  <FileText className="w-5 h-5 text-emerald-400" />
+                  <h3 className="text-lg font-semibold text-[#F8FAFC]">Autres diplômes</h3>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {renderField("Lieu du serment", "oathLocation", "text", null, false, "Lieu du serment")}
-                  {renderField("Date du serment", "oathDate", "date", null, false)}
+                {/* ... (same as before) ... */}
+                <div className="flex flex-wrap gap-3 items-end mb-4">
+                  <div className="flex-1 min-w-[120px]">
+                    <label className="block text-xs text-[#64748B]">Titre</label>
+                    <input
+                      type="text"
+                      value={newDiploma.titre}
+                      onChange={(e) => setNewDiploma({ ...newDiploma, titre: e.target.value })}
+                      className="w-full px-3 py-2 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-lg focus:ring-2 focus:ring-emerald-500/50"
+                    />
+                  </div>
+                  <div className="flex-1 min-w-[120px]">
+                    <label className="block text-xs text-[#64748B]">Établissement</label>
+                    <input
+                      type="text"
+                      value={newDiploma.etablissement}
+                      onChange={(e) => setNewDiploma({ ...newDiploma, etablissement: e.target.value })}
+                      className="w-full px-3 py-2 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-lg focus:ring-2 focus:ring-emerald-500/50"
+                    />
+                  </div>
+                  <div className="flex-1 min-w-[80px]">
+                    <label className="block text-xs text-[#64748B]">Année</label>
+                    <input
+                      type="text"
+                      value={newDiploma.annee}
+                      onChange={(e) => setNewDiploma({ ...newDiploma, annee: e.target.value })}
+                      className="w-full px-3 py-2 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-lg focus:ring-2 focus:ring-emerald-500/50"
+                    />
+                  </div>
+                  <div className="flex-1 min-w-[100px]">
+                    <label className="block text-xs text-[#64748B]">Fichier (optionnel)</label>
+                    <input
+                      type="file"
+                      onChange={(e) => {
+                        const file = e.target.files[0];
+                        if (file) {
+                          handleFileUploadForType('diploma_' + Date.now(), file);
+                          setDiplomaFile(file);
+                        }
+                      }}
+                      className="w-full text-xs text-[#64748B] file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:bg-emerald-500/10 file:text-emerald-400 hover:file:bg-emerald-500/20"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => addItem(otherDiplomas, setOtherDiplomas, newDiploma, setNewDiploma, diplomaFile, setDiplomaFile)}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg flex items-center gap-1"
+                  >
+                    <Plus className="w-4 h-4" /> Ajouter
+                  </button>
                 </div>
+                {otherDiplomas.length > 0 && (
+                  <div className="space-y-2">
+                    {otherDiplomas.map((dip, idx) => (
+                      <div key={idx} className="flex items-center justify-between bg-[#111827] p-3 rounded-lg border border-[rgba(255,255,255,0.06)]">
+                        <div>
+                          <span className="text-[#F8FAFC] font-medium">{dip.titre}</span>
+                          <span className="text-[#94A3B8] text-sm ml-2">({dip.etablissement}, {dip.annee})</span>
+                          {dip.fileName && <span className="text-emerald-400 text-xs ml-2">📎 {dip.fileName}</span>}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeItem(otherDiplomas, setOtherDiplomas, idx)}
+                          className="text-rose-400 hover:text-rose-300 p-1"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              {/* ─── Address ─── */}
+              {/* ─── 6. Formations ─── */}
               <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)]">
                 <div className="flex items-center gap-3 mb-6">
-                  <MapPin className="w-5 h-5 text-emerald-400" />
-                  <h3 className="text-lg font-semibold text-[#F8FAFC]">Adresse</h3>
+                  <FileText className="w-5 h-5 text-emerald-400" />
+                  <h3 className="text-lg font-semibold text-[#F8FAFC]">Formations</h3>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {renderField("Wilaya", "wilaya", "select", 
-                    WILAYAS.map(w => ({ value: w, label: w })), false)}
-                  {renderField("Commune", "commune", "text", null, false, "Commune")}
-                  {renderField("CLOA d'installation", "region", "text", null, false, "CLOA d'installation")}
-                  <div className="sm:col-span-2 lg:col-span-3">
-                    {renderField("Adresse personnelle", "adressePersonnelle", "text", null, false, "Adresse personnelle")}
+                {/* ... (same as before) ... */}
+                <div className="flex flex-wrap gap-3 items-end mb-4">
+                  <div className="flex-1 min-w-[120px]">
+                    <label className="block text-xs text-[#64748B]">Titre</label>
+                    <input
+                      type="text"
+                      value={newFormation.titre}
+                      onChange={(e) => setNewFormation({ ...newFormation, titre: e.target.value })}
+                      className="w-full px-3 py-2 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-lg focus:ring-2 focus:ring-emerald-500/50"
+                    />
                   </div>
-                  <div className="sm:col-span-2 lg:col-span-3">
-                    {renderField("Adresse personnelle (Arabe)", "adressePersonnelleArabe", "text", null, false, "العنوان الشخصي")}
+                  <div className="flex-1 min-w-[120px]">
+                    <label className="block text-xs text-[#64748B]">Établissement</label>
+                    <input
+                      type="text"
+                      value={newFormation.etablissement}
+                      onChange={(e) => setNewFormation({ ...newFormation, etablissement: e.target.value })}
+                      className="w-full px-3 py-2 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-lg focus:ring-2 focus:ring-emerald-500/50"
+                    />
                   </div>
-                  <div className="sm:col-span-2 lg:col-span-3">
-                    {renderField("Adresse professionnelle", "adressePro", "text", null, false, "Adresse professionnelle")}
+                  <div className="flex-1 min-w-[80px]">
+                    <label className="block text-xs text-[#64748B]">Année</label>
+                    <input
+                      type="text"
+                      value={newFormation.annee}
+                      onChange={(e) => setNewFormation({ ...newFormation, annee: e.target.value })}
+                      className="w-full px-3 py-2 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-lg focus:ring-2 focus:ring-emerald-500/50"
+                    />
                   </div>
-                  <div className="sm:col-span-2 lg:col-span-3">
-                    {renderField("Adresse professionnelle (Arabe)", "adresseProArabe", "text", null, false, "العنوان المهني")}
+                  <div className="flex-1 min-w-[100px]">
+                    <label className="block text-xs text-[#64748B]">Fichier (optionnel)</label>
+                    <input
+                      type="file"
+                      onChange={(e) => {
+                        const file = e.target.files[0];
+                        if (file) {
+                          handleFileUploadForType('formation_' + Date.now(), file);
+                          setFormationFile(file);
+                        }
+                      }}
+                      className="w-full text-xs text-[#64748B] file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:bg-emerald-500/10 file:text-emerald-400 hover:file:bg-emerald-500/20"
+                    />
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => addItem(formations, setFormations, newFormation, setNewFormation, formationFile, setFormationFile)}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg flex items-center gap-1"
+                  >
+                    <Plus className="w-4 h-4" /> Ajouter
+                  </button>
                 </div>
+                {formations.length > 0 && (
+                  <div className="space-y-2">
+                    {formations.map((f, idx) => (
+                      <div key={idx} className="flex items-center justify-between bg-[#111827] p-3 rounded-lg border border-[rgba(255,255,255,0.06)]">
+                        <div>
+                          <span className="text-[#F8FAFC] font-medium">{f.titre}</span>
+                          <span className="text-[#94A3B8] text-sm ml-2">({f.etablissement}, {f.annee})</span>
+                          {f.fileName && <span className="text-emerald-400 text-xs ml-2">📎 {f.fileName}</span>}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeItem(formations, setFormations, idx)}
+                          className="text-rose-400 hover:text-rose-300 p-1"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              {/* ─── Files ─── */}
+              {/* ─── 7. Informations professionnelles ─── */}
+              <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)]">
+                <div className="flex items-center gap-3 mb-6">
+                  <Briefcase className="w-5 h-5 text-emerald-400" />
+                  <h3 className="text-lg font-semibold text-[#F8FAFC]">Informations professionnelles</h3>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {renderField("N° d'inscription", "registrationNumber", "text", null, true, "N° d'inscription", <BookOpen className="w-4 h-4 text-emerald-400" />)}
+                  {renderField("Date de serment", "oathDate", "date", null, false, "", <Calendar className="w-4 h-4 text-emerald-400" />)}
+                  {renderField("Lieu du serment", "oathLocation", "text", null, false, "Lieu du serment", <MapPin className="w-4 h-4 text-emerald-400" />)}
+                  {renderField("Email professionnelle", "emailPro", "email", null, false, "pro@exemple.com", <Mail className="w-4 h-4 text-emerald-400" />)}
+                  {renderField("Mode d'exercice", "professionalMode", "select", [
+                    { value: "Libéral", label: "Libéral" },
+                    { value: "Associé", label: "Associé" },
+                    { value: "Salarié", label: "Salarié" }
+                  ], false, "", <Briefcase className="w-4 h-4 text-emerald-400" />)}
+                </div>
+
+                {/* Conditional fields based on professionalMode */}
+                {formData.professionalMode && (
+                  <div className="mt-6 pt-6 border-t border-[rgba(255,255,255,0.06)]">
+                    <h4 className="text-sm font-medium text-[#94A3B8] uppercase tracking-wider mb-4">
+                      {formData.professionalMode === 'Libéral' && 'Détails (Libéral)'}
+                      {formData.professionalMode === 'Associé' && 'Détails (Associé)'}
+                      {formData.professionalMode === 'Salarié' && 'Détails (Salarié)'}
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {(formData.professionalMode === 'Libéral' || formData.professionalMode === 'Associé') && (
+                        <>
+                          {renderField("Date d'installation", "installationDate", "date", null, false, "", <Calendar className="w-4 h-4 text-emerald-400" />)}
+                          {renderField("NIF", "nif", "text", null, false, "Numéro d'identification fiscale", <FileText className="w-4 h-4 text-emerald-400" />)}
+                          <div className="sm:col-span-2 lg:col-span-3">
+                            {renderField("Adresse professionnelle", "adressePro", "text", null, false, "Adresse pro.", <MapPin className="w-4 h-4 text-emerald-400" />)}
+                          </div>
+                          <div className="sm:col-span-2 lg:col-span-3">
+                            {renderField("Adresse professionnelle (Arabe)", "adresseProArabe", "text", null, false, "العنوان المهني", <MapPin className="w-4 h-4 text-emerald-400" />)}
+                          </div>
+                          {renderField("Commune", "communePro", "text", null, false, "Commune", <MapPin className="w-4 h-4 text-emerald-400" />)}
+                          {renderField("Wilaya", "wilayaPro", "select", WILAYAS.map(w => ({ value: w, label: w })), false, "", <MapPin className="w-4 h-4 text-emerald-400" />)}
+                          {renderField("Aide d'État", "benefitStateAid", "select", [
+                            { value: "ANSEJ/NESDA", label: "ANSEJ/NESDA" },
+                            { value: "ANDI/AAPI", label: "ANDI / AAPI" },
+                            { value: "Non", label: "Non" }
+                          ], false)}
+                          {renderField("Moyens humains", "moyensHumains", "text", null, false, "Moyens humains", <Users className="w-4 h-4 text-emerald-400" />)}
+                        </>
+                      )}
+                      {formData.professionalMode === 'Associé' && (
+                        <>
+                          {renderField("Nom et prénom de l'associé", "associateName", "text", null, false, "Nom de l'associé", <User className="w-4 h-4 text-emerald-400" />)}
+                          {renderField("N° d'inscription de l'associé", "associateRegistrationNumber", "text", null, false, "N° inscription", <BookOpen className="w-4 h-4 text-emerald-400" />)}
+                        </>
+                      )}
+                      {formData.professionalMode === 'Salarié' && (
+                        <>
+                          {renderField("Date de recrutement", "recruitmentDate", "date", null, false, "", <Calendar className="w-4 h-4 text-emerald-400" />)}
+                          {renderField("Nom et prénom de l'employeur", "employerName", "text", null, false, "Employeur", <User className="w-4 h-4 text-emerald-400" />)}
+                          {renderField("N° d'inscription de l'employeur", "employerRegistrationNumber", "text", null, false, "N° inscription", <BookOpen className="w-4 h-4 text-emerald-400" />)}
+                          <div className="sm:col-span-2 lg:col-span-3">
+                            {renderField("Adresse professionnelle", "employerAdresse", "text", null, false, "Adresse", <MapPin className="w-4 h-4 text-emerald-400" />)}
+                          </div>
+                          <div className="sm:col-span-2 lg:col-span-3">
+                            {renderField("Adresse professionnelle (Arabe)", "employerAdresseArabe", "text", null, false, "العنوان المهني", <MapPin className="w-4 h-4 text-emerald-400" />)}
+                          </div>
+                          {renderField("Commune", "employerCommune", "text", null, false, "Commune", <MapPin className="w-4 h-4 text-emerald-400" />)}
+                          {renderField("Wilaya", "employerWilaya", "select", WILAYAS.map(w => ({ value: w, label: w })), false, "", <MapPin className="w-4 h-4 text-emerald-400" />)}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* ─── 8. Documents obligatoires ─── */}
               <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)]">
                 <div className="flex items-center gap-3 mb-6">
                   <Paperclip className="w-5 h-5 text-emerald-400" />
@@ -755,7 +937,7 @@ export default function FormulaireCNOA() {
                 </div>
               </div>
 
-              {/* ─── Security ─── */}
+              {/* ─── 9. Sécurité ─── */}
               <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)]">
                 <div className="flex items-center gap-3 mb-6">
                   <Shield className="w-5 h-5 text-emerald-400" />
@@ -763,11 +945,11 @@ export default function FormulaireCNOA() {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   {renderField("Mot de passe", "password", "password", null, true, "Minimum 8 caractères")}
-                  {renderField("Confirmer le mot de passe", "secondPassword", "password", null, true, "Confirmez votre mot de passe")}
+                  {renderField("Confirmer le mot de passe", "secondPassword", "password", null, true, "Confirmez")}
                 </div>
               </div>
 
-              {/* ─── Loi (Declaration) ─── */}
+              {/* ─── 10. Déclaration légale ─── */}
               <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)]">
                 <div className="flex items-start gap-3 mb-4">
                   <Shield className="w-5 h-5 text-emerald-400 mt-1" />

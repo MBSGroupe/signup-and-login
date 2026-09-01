@@ -42,8 +42,8 @@ import {
 } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_NEST_API_URL;
+const BACKEND_BASE_URL = API_URL.replace(/\/api.*$/, '');
 
-// ─── Prebuilt comments ──────────────────────────────────────────────
 const PREBUILT_COMMENTS = [
   "Document conforme aux exigences.",
   "Pièce justificative manquante.",
@@ -57,7 +57,6 @@ const PREBUILT_COMMENTS = [
   "Dossier en attente de pièces supplémentaires.",
 ];
 
-// --- User fields (extended) ---
 const USER_FIELDS = [
   { key: 'name', label: 'Nom', icon: User },
   { key: 'lastname', label: 'Prénom', icon: User },
@@ -108,7 +107,6 @@ export default function ValidationRequestDetail() {
   const [savingEdits, setSavingEdits] = useState(false);
   const [allowedFields, setAllowedFields] = useState([]);
   const [currentDocIndex, setCurrentDocIndex] = useState(0);
-  // Track image load errors per file
   const [imageErrors, setImageErrors] = useState({});
 
   useEffect(() => {
@@ -140,9 +138,9 @@ export default function ValidationRequestDetail() {
           }, { showSuccessMessage: false });
           if (userRes && userRes.user) {
             setTargetUserData(userRes.user);
-            setTargetFiles(userRes.user.files || []);
+            const allFiles = userRes.user.files || [];
+            setTargetFiles(allFiles);
             setCurrentDocIndex(0);
-            // Reset image errors when new files load
             setImageErrors({});
             try {
               const permRes = await fetchWithRefresh(
@@ -179,24 +177,32 @@ export default function ValidationRequestDetail() {
     }
   }, [id, authData?.token, setAuthData]);
 
-  // ─── Helper to get file preview URL ──────────────────────────────
   const getFilePreviewUrl = (file) => {
-    if (file.url) return file.url;
-    if (file.path) return file.path;
     if (file.fileId) {
-      const baseUrl = window.location.origin;
-      return `${baseUrl}/storage/${encodeURIComponent(file.fileId)}`;
+      return `${BACKEND_BASE_URL}/storage/${encodeURIComponent(file.fileId)}`;
+    }
+    if (file.url) {
+      return file.url.replace(/http:\/\/localhost:\d+/, BACKEND_BASE_URL);
+    }
+    if (file.path) {
+      return file.path.replace(/http:\/\/localhost:\d+/, BACKEND_BASE_URL);
     }
     return null;
   };
 
-  // ─── Navigation ─────────────────────────────────────────────────────
+  const isFilePdf = (file) => {
+    if (file.mimeType === 'application/pdf' || file.type === 'application/pdf') return true;
+    const fileName = file.fileName || file.name || '';
+    if (fileName.toLowerCase().endsWith('.pdf')) return true;
+    return false;
+  };
+
   const declarationFiles = targetFiles.filter(f => f.folder === 'declaration');
   const totalDocs = declarationFiles.length;
   const currentFile = totalDocs > 0 ? declarationFiles[currentDocIndex] : null;
   const fileUrl = currentFile ? getFilePreviewUrl(currentFile) : null;
-  const isPdf = currentFile?.mimeType === 'application/pdf' || currentFile?.type === 'application/pdf';
-  const hasImageError = fileUrl ? imageErrors[fileUrl] : false;
+  const isPdf = currentFile ? isFilePdf(currentFile) : false;
+  const hasError = fileUrl ? imageErrors[fileUrl] : false;
 
   const goToPrev = () => {
     if (currentDocIndex > 0) setCurrentDocIndex(currentDocIndex - 1);
@@ -594,25 +600,29 @@ export default function ValidationRequestDetail() {
                                 <p className="text-sm text-[#64748B]">Aucun document de déclaration trouvé.</p>
                               ) : (
                                 <div className="space-y-3">
-                                  {/* Document info */}
                                   <div className="flex items-center justify-between">
                                     <span className="text-sm font-medium text-[#F8FAFC]">
-                                      {currentFile?.documentType || `Document ${currentDocIndex+1}`}
+                                      {currentFile?.documentType || 
+                                       currentFile?.fileName || 
+                                       currentFile?.name || 
+                                       `Document ${currentDocIndex+1}`}
                                     </span>
                                     <span className="text-xs text-[#64748B]">
                                       {currentDocIndex+1} / {totalDocs}
                                     </span>
                                   </div>
 
-                                  {/* Preview area with navigation */}
-                                  <div className="relative bg-[#111827] rounded-lg border border-[rgba(255,255,255,0.06)] overflow-hidden flex items-center justify-center h-96">
-                                    {fileUrl && !hasImageError ? (
+                                  <div className="relative bg-[#111827] rounded-lg border border-[rgba(255,255,255,0.06)] overflow-hidden flex items-center justify-center h-[500px]">
+                                    {fileUrl && !hasError ? (
                                       isPdf ? (
                                         <iframe
                                           src={fileUrl}
                                           className="w-full h-full"
                                           title={`Document ${currentDocIndex+1}`}
                                           frameBorder="0"
+                                          onError={() => {
+                                            setImageErrors(prev => ({ ...prev, [fileUrl]: true }));
+                                          }}
                                         />
                                       ) : (
                                         <img
@@ -627,11 +637,12 @@ export default function ValidationRequestDetail() {
                                     ) : (
                                       <div className="flex flex-col items-center justify-center h-full text-[#64748B]">
                                         <FileQuestion className="w-12 h-12 mb-2" />
-                                        <span className="text-sm">Aperçu non disponible</span>
+                                        <span className="text-sm">
+                                          {fileUrl ? 'Aperçu non disponible' : `Fichier: ${currentFile?.documentType || 'Document'}`}
+                                        </span>
                                       </div>
                                     )}
 
-                                    {/* Navigation arrows */}
                                     {totalDocs > 1 && (
                                       <>
                                         <button
@@ -652,7 +663,6 @@ export default function ValidationRequestDetail() {
                                     )}
                                   </div>
 
-                                  {/* Dot indicators */}
                                   {totalDocs > 1 && (
                                     <div className="flex items-center justify-center gap-1.5 mt-2">
                                       {declarationFiles.map((_, idx) => (
@@ -708,7 +718,7 @@ export default function ValidationRequestDetail() {
                       </div>
                     )}
 
-                    {/* Comment + Actions (unchanged) */}
+                    {/* Comment + Actions */}
                     <div className="mt-4 pt-4 border-t border-[rgba(255,255,255,0.06)]">
                       <div className="space-y-3">
                         <div>
