@@ -3,6 +3,8 @@ import { useContext, useEffect, useState, useRef } from "react";
 import { UserContext } from "../Context/dataCont";
 import { useParams, useNavigate } from "react-router-dom";
 import PDFPreviewModal from '../Components/Modals/pdfPreviexModal';
+// 🟢 [AJOUT] : Modal pour le formulaire de demande Déclaration (NIN, CNRC, Paiement, CNAS)
+import DeclarationModal from '../Components/Modals/DeclarationModal';
 import { useError } from '../Context/ErrorContext';
 import { useModal } from '../Context/ModalContext';
 
@@ -94,6 +96,9 @@ export default function ProfilePage({ user }) {
   const [expandedRequests, setExpandedRequests] = useState({});
   const [demandSubmitting, setDemandSubmitting] = useState(false);
   const [availableSchemas, setAvailableSchemas] = useState([]);
+  // 🟢 [AJOUT] : États pour l'ouverture du formulaire modal de Déclaration et le schéma sélectionné
+  const [isDeclarationModalOpen, setIsDeclarationModalOpen] = useState(false);
+  const [selectedDeclarationSchema, setSelectedDeclarationSchema] = useState(null);
 
   const toggleRequestExpand = (reqId) => {
     setExpandedRequests(prev => ({
@@ -1508,6 +1513,139 @@ return (
                 )}
               </div>
             )}
+            {/* ─── Demandes Tab ──────────────────────────────── */}
+            {/*  [AJOUT] : Onglet Demandes avec affichage des démarches disponibles et bouton "Faire la demande" */}
+            {activeTab === 'Demandes' && (
+              <div className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                  <div>
+                    <h2 className="text-lg font-semibold text-white flex items-center gap-3">
+                      <ClipboardList className="w-5 h-5 text-emerald-400" />
+                      Demandes disponibles
+                    </h2>
+                    <p className="text-xs text-[#94A3B8] mt-1">
+                      Sélectionnez une démarche pour soumettre votre dossier de validation
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  {/* Carte Déclaration */}
+                  {(() => {
+                    const declSchema = availableSchemas.find(s => 
+                      (s.name || s.title || '').toLowerCase().includes('déclaration') || 
+                      (s.name || s.title || '').toLowerCase().includes('declaration')
+                    );
+                    return (
+                      <div className="bg-[#0A0F1C] rounded-2xl border border-emerald-500/30 p-6 flex flex-col justify-between relative overflow-hidden shadow-lg shadow-emerald-950/20 group hover:border-emerald-500/50 transition-all duration-300">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none" />
+                        
+                        <div>
+                          <div className="flex items-start justify-between gap-3 mb-4">
+                            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 group-hover:scale-110 transition-transform">
+                              <Shield className="w-6 h-6" />
+                            </div>
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                              Requis
+                            </span>
+                          </div>
+
+                          <h3 className="text-base font-bold text-white tracking-tight">
+                            {declSchema?.name || "Déclaration"}
+                          </h3>
+                          <p className="text-xs text-[#94A3B8] mt-1.5 leading-relaxed">
+                            {declSchema?.description || "Soumettez votre déclaration avec votre NIN et vos 3 justificatifs obligatoires (CNRC, Reçu de paiement, Attestation CNAS)."}
+                          </p>
+
+                          <div className="mt-4 pt-4 border-t border-white/5 space-y-2">
+                            <p className="text-[11px] font-semibold uppercase tracking-wider text-[#64748B]">
+                              Éléments obligatoires :
+                            </p>
+                            <div className="flex flex-wrap gap-1.5 text-xs text-[#94A3B8]">
+                              <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[#CBD5E1]">
+                                • NIN
+                              </span>
+                              <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[#CBD5E1]">
+                                • Document CNRC
+                              </span>
+                              <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[#CBD5E1]">
+                                • Document Paiement
+                              </span>
+                              <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[#CBD5E1]">
+                                • Document CNAS
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-6 pt-4 border-t border-white/5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedDeclarationSchema(declSchema || null);
+                              setIsDeclarationModalOpen(true);
+                            }}
+                            className="w-full py-2.5 px-4 bg-emerald-500 hover:bg-emerald-600 active:scale-[0.99] text-white text-xs font-semibold rounded-xl shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                          >
+                            <Plus className="w-4 h-4" />
+                            Faire la demande
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Autres schémas dynamiques s'il en existe d'autres */}
+                  {availableSchemas
+                    .filter(s => {
+                      const name = (s.name || s.title || '').toLowerCase();
+                      return !name.includes('déclaration') && !name.includes('declaration');
+                    })
+                    .map((sch, idx) => (
+                      <div
+                        key={sch.id || sch._id || idx}
+                        className="bg-[#0A0F1C] rounded-2xl border border-white/10 p-6 flex flex-col justify-between hover:border-white/20 transition-all duration-300"
+                      >
+                        <div>
+                          <div className="flex items-start justify-between gap-3 mb-4">
+                            <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400">
+                              <FileText className="w-6 h-6" />
+                            </div>
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-white/5 text-[#94A3B8] border border-white/10">
+                              {sch.targetType || 'Demande'}
+                            </span>
+                          </div>
+
+                          <h3 className="text-base font-bold text-white tracking-tight">
+                            {sch.name || sch.title}
+                          </h3>
+                          <p className="text-xs text-[#94A3B8] mt-1.5 leading-relaxed">
+                            {sch.description || `Initiez un parcours de validation pour ${sch.name}.`}
+                          </p>
+
+                          {sch.steps?.length > 0 && (
+                            <p className="text-xs text-[#64748B] mt-3">
+                              {sch.steps.length} étape{sch.steps.length > 1 ? 's' : ''} de validation
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="mt-6 pt-4 border-t border-white/5">
+                          <button
+                            type="button"
+                            onClick={() => handleCreateDemand(sch)}
+                            disabled={demandSubmitting}
+                            className="w-full py-2.5 px-4 bg-white/10 hover:bg-white/15 active:scale-[0.99] text-white text-xs font-semibold rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                          >
+                            <Plus className="w-4 h-4" />
+                            Faire la demande
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
           </main>
         </div>
       </div>
@@ -1550,23 +1688,25 @@ return (
               </select>
             </div>
             <div>
-              <label className="text-[#94A3B8] text-sm font-medium block mb-1.5">Notes (optionnel)</label>
+              <label className="text-[#94A3B8] text-sm font-medium block mb-1.5">Notes (facultatif)</label>
               <textarea
-                placeholder="Ajouter une note…"
+                rows={2}
+                placeholder="Ajouter une note..."
                 value={transactionNotes}
                 onChange={(e) => setTransactionNotes(e.target.value)}
-                className="w-full px-4 py-2.5 bg-[#111827] border border-white/10 rounded-lg text-white placeholder-[#64748B] focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all"
-                rows="3"
+                className="w-full px-4 py-2.5 bg-[#111827] border border-white/10 rounded-lg text-white placeholder-[#64748B] focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all resize-none"
               />
             </div>
             <div className="flex gap-3 pt-4">
               <button
+                type="button"
                 onClick={() => setShowTransactionModal(false)}
                 className="flex-1 px-4 py-2.5 bg-[#1F2937] hover:bg-[#2A3A4A] text-white font-medium rounded-lg transition-colors border border-white/5"
               >
                 Annuler
               </button>
               <button
+                type="button"
                 onClick={() => {
                   const amountNum = parseFloat(transactionAmount);
                   if (isNaN(amountNum) || amountNum <= 0) {
@@ -1588,6 +1728,17 @@ return (
         </div>
       </div>
     )}
+
+    {/* ─── Declaration Request Modal ─────────────────────────────────────── */}
+    {/* 🟢 [AJOUT] : Montage du modal de demande de Déclaration connecté aux API */}
+    <DeclarationModal
+      isOpen={isDeclarationModalOpen}
+      onClose={() => setIsDeclarationModalOpen(false)}
+      targetUserId={targetUserId}
+      authToken={authData?.token}
+      onSuccess={fetchValidationRequests}
+      schema={selectedDeclarationSchema}
+    />
 
     {/* ─── PDF Preview Modal ────────────────────────────────────────────── */}
     {pdfPreview.isOpen && pdfPreview.data?.blobUrl && (

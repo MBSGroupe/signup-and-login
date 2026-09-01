@@ -6,7 +6,6 @@ import { fetchWithRefresh } from '../../../Components/api';
 import { useApi } from '../../../Hooks/useApi';
 import { useError } from '../../../Context/ErrorContext';
 import BackButton from '../../../Components/Buttons/BackButton';
-import FilePreviewWithZoom from '../../../Components/FilePreviewWithZoom';
 import {
   Loader2,
   AlertCircle,
@@ -34,12 +33,17 @@ import {
   BookOpen,
   Award,
   Save,
-  Edit3
+  Edit3,
+  ChevronLeft,
+  ChevronRight,
+  Circle,
+  CircleDot,
+  FileQuestion
 } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_NEST_API_URL;
 
-// ─── Prebuilt comments list ────────────────────────────────────────────
+// ─── Prebuilt comments ──────────────────────────────────────────────
 const PREBUILT_COMMENTS = [
   "Document conforme aux exigences.",
   "Pièce justificative manquante.",
@@ -47,13 +51,13 @@ const PREBUILT_COMMENTS = [
   "Vérification effectuée avec succès.",
   "Signature absente – veuillez signer.",
   "Date de validité expirée.",
-  "Téléchargement de document accepté.",
+  "Téléversement de document accepté.",
   "Demande de modifications envoyée.",
   "Dossier complet – prêt pour approbation.",
   "Dossier en attente de pièces supplémentaires.",
 ];
 
-// --- Field definitions for user display (same as ProfilePage) ---
+// --- User fields (extended) ---
 const USER_FIELDS = [
   { key: 'name', label: 'Nom', icon: User },
   { key: 'lastname', label: 'Prénom', icon: User },
@@ -77,6 +81,10 @@ const USER_FIELDS = [
   { key: 'registrationStatus', label: "Statut d'inscription", icon: CheckCircle },
   { key: 'role', label: 'Rôle', icon: Shield },
   { key: 'status', label: 'Statut', icon: CheckCircle },
+  { key: 'nin', label: 'NIN', icon: Shield },
+  { key: 'installationDate', label: "Date d'installation", icon: Calendar },
+  { key: 'recruitmentDate', label: 'Date de recrutement', icon: Calendar },
+  { key: 'numeroActeNaissance', label: "N° acte de naissance", icon: FileText },
 ];
 
 export default function ValidationRequestDetail() {
@@ -85,47 +93,23 @@ export default function ValidationRequestDetail() {
   const { authData, setAuthData } = useContext(UserContext);
   const { callApi } = useApi();
   const { showWarning } = useError();
+
   const [request, setRequest] = useState(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [comments, setComments] = useState({});
-  const [isCustomComment, setIsCustomComment] = useState({}); // track if "other" is selected
-
-  // --- Target user / file data for verification steps ---
+  const [isCustomComment, setIsCustomComment] = useState({});
   const [targetUserData, setTargetUserData] = useState(null);
   const [targetFiles, setTargetFiles] = useState([]);
   const [targetLoading, setTargetLoading] = useState(false);
-
-  // --- Edit state ---
   const [editingField, setEditingField] = useState(null);
   const [editValue, setEditValue] = useState('');
-
-  // --- Batch edit state ---
   const [localEdits, setLocalEdits] = useState({});
   const [savingEdits, setSavingEdits] = useState(false);
-
-  // 🟢 [MODIFICATION] : Helper dynamique pour afficher la cible ou le nom de la demande
-  const getTargetDisplay = (targetType, target, fullReq = null) => {
-    if (fullReq?.payload?.title || fullReq?.data?.title) {
-      return fullReq.payload?.title || fullReq.data?.title;
-    }
-    if (!target) {
-      return fullReq?.validationSchema?.name || fullReq?.schemaName || 'Demande';
-    }
-    switch (targetType) {
-      case 'User':
-        return target.fullName || `${target.name || ''} ${target.lastname || ''}`.trim() || target.id;
-      case 'File':
-        return target.fileName || target.name || `Document (${target.folder || 'unknown'})`;
-      case 'Cotisation':
-        return target.type || target.feeType || `Cotisation ${target.year || ''}` || target.id;
-      default:
-        if (typeof target === 'object') {
-          return target.name || target.title || target.fullName || target.id || fullReq?.validationSchema?.name || 'Demande';
-        }
-        return target;
-    }
-  };
+  const [allowedFields, setAllowedFields] = useState([]);
+  const [currentDocIndex, setCurrentDocIndex] = useState(0);
+  // Track image load errors per file
+  const [imageErrors, setImageErrors] = useState({});
 
   useEffect(() => {
     const fetchRequest = async () => {
@@ -142,7 +126,6 @@ export default function ValidationRequestDetail() {
 
       if (result) {
         setRequest(result);
-
         if (result.targetType === 'User') {
           setTargetLoading(true);
           const targetUserId = result.targetId?.id || result.targetId;
@@ -158,6 +141,9 @@ export default function ValidationRequestDetail() {
           if (userRes && userRes.user) {
             setTargetUserData(userRes.user);
             setTargetFiles(userRes.user.files || []);
+            setCurrentDocIndex(0);
+            // Reset image errors when new files load
+            setImageErrors({});
             try {
               const permRes = await fetchWithRefresh(
                 `${API_URL}/permissions/user/${targetUserId}/viewable-fields?model=User`,
@@ -193,22 +179,42 @@ export default function ValidationRequestDetail() {
     }
   }, [id, authData?.token, setAuthData]);
 
+  // ─── Helper to get file preview URL ──────────────────────────────
+  const getFilePreviewUrl = (file) => {
+    if (file.url) return file.url;
+    if (file.path) return file.path;
+    if (file.fileId) {
+      const baseUrl = window.location.origin;
+      return `${baseUrl}/storage/${encodeURIComponent(file.fileId)}`;
+    }
+    return null;
+  };
+
+  // ─── Navigation ─────────────────────────────────────────────────────
+  const declarationFiles = targetFiles.filter(f => f.folder === 'declaration');
+  const totalDocs = declarationFiles.length;
+  const currentFile = totalDocs > 0 ? declarationFiles[currentDocIndex] : null;
+  const fileUrl = currentFile ? getFilePreviewUrl(currentFile) : null;
+  const isPdf = currentFile?.mimeType === 'application/pdf' || currentFile?.type === 'application/pdf';
+  const hasImageError = fileUrl ? imageErrors[fileUrl] : false;
+
+  const goToPrev = () => {
+    if (currentDocIndex > 0) setCurrentDocIndex(currentDocIndex - 1);
+  };
+
+  const goToNext = () => {
+    if (currentDocIndex < totalDocs - 1) setCurrentDocIndex(currentDocIndex + 1);
+  };
+
+  // ─── Rest of functions (unchanged) ────────────────────────────────
   const handleStepAction = async (stepOrder, action) => {
     const comment = comments[stepOrder] || '';
     if (!comment && action !== 'skip') {
       showWarning('Veuillez ajouter un commentaire');
       return;
     }
-
     setActionLoading(true);
-
-    let body;
-    if (action === 'approve') {
-      body = { comments: comment };
-    } else {
-      body = { reason: comment };
-    }
-
+    let body = action === 'approve' ? { comments: comment } : { reason: comment };
     try {
       const result = await callApi(async () => {
         const res = await fetchWithRefresh(
@@ -226,7 +232,6 @@ export default function ValidationRequestDetail() {
         showSuccessMessage: true,
         successMessage: `Étape ${action}ée avec succès`,
       });
-
       if (result) {
         const updatedRequest = result.request || result.data || result;
         if (updatedRequest && updatedRequest.id) {
@@ -264,7 +269,6 @@ export default function ValidationRequestDetail() {
       rejected: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
       expired: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
       skipped: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
-      //  [MODIFICATION] : Style du statut 'changes_requested'
       changes_requested: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
     };
     return colors[status] || 'bg-gray-500/10 text-gray-400 border-gray-500/20';
@@ -277,7 +281,6 @@ export default function ValidationRequestDetail() {
       case 'rejected': return <XCircle className="w-3.5 h-3.5" />;
       case 'expired': return <AlertCircle className="w-3.5 h-3.5" />;
       case 'skipped': return <SkipForward className="w-3.5 h-3.5" />;
-      //  [MODIFICATION] : Icône pour 'changes_requested'
       case 'changes_requested': return <AlertCircle className="w-3.5 h-3.5" />;
       default: return null;
     }
@@ -298,11 +301,32 @@ export default function ValidationRequestDetail() {
     return value || '-';
   };
 
+  const getTargetDisplay = (targetType, target, fullReq = null) => {
+    if (fullReq?.payload?.title || fullReq?.data?.title) {
+      return fullReq.payload?.title || fullReq.data?.title;
+    }
+    if (!target) {
+      return fullReq?.validationSchema?.name || fullReq?.schemaName || 'Demande';
+    }
+    switch (targetType) {
+      case 'User':
+        return target.fullName || `${target.name || ''} ${target.lastname || ''}`.trim() || target.id;
+      case 'File':
+        return target.fileName || target.name || `Document (${target.folder || 'unknown'})`;
+      case 'Cotisation':
+        return target.type || target.feeType || `Cotisation ${target.year || ''}` || target.id;
+      default:
+        if (typeof target === 'object') {
+          return target.name || target.title || target.fullName || target.id || fullReq?.validationSchema?.name || 'Demande';
+        }
+        return target;
+    }
+  };
+
   const handleBatchSave = async () => {
     if (Object.keys(localEdits).length === 0) return;
     const targetId = request?.targetId?.id || request?.targetId;
     if (!targetId) return;
-
     setSavingEdits(true);
     try {
       const res = await fetchWithRefresh(
@@ -378,7 +402,6 @@ export default function ValidationRequestDetail() {
               <Eye className="w-6 h-6 text-emerald-400" />
             </div>
             <div>
-              {/*  [MODIFICATION] : Affichage du nom réel de la demande avec son identifiant court */}
               <h1 className="text-2xl md:text-3xl font-bold text-[#F8FAFC] tracking-tight">
                 {request.validationSchema?.name || request.schemaName || `Demande #${request.id?.slice(-6)}`}
               </h1>
@@ -393,9 +416,7 @@ export default function ValidationRequestDetail() {
         <div className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] p-6 mb-6 shadow-2xl shadow-black/50">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="flex items-center gap-3">
-              <span className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
-                {getTargetIcon(request.targetType)}
-              </span>
+              <span className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">{getTargetIcon(request.targetType)}</span>
               <div>
                 <p className="text-xs text-[#64748B] uppercase tracking-wider">Cible</p>
                 <p className="text-[#F8FAFC] font-medium">
@@ -404,22 +425,17 @@ export default function ValidationRequestDetail() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <span className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
-                <Info className="w-4 h-4" />
-              </span>
+              <span className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400"><Info className="w-4 h-4" /></span>
               <div>
                 <p className="text-xs text-[#64748B] uppercase tracking-wider">Statut</p>
                 <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStepStatusBadge(request.status)}`}>
-                  {getStepStatusIcon(request.status)}
-                  {request.status}
+                  {getStepStatusIcon(request.status)} {request.status}
                 </span>
               </div>
             </div>
             {request.expiresAt && (
               <div className="flex items-center gap-3">
-                <span className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
-                  <Calendar className="w-4 h-4" />
-                </span>
+                <span className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400"><Calendar className="w-4 h-4" /></span>
                 <div>
                   <p className="text-xs text-[#64748B] uppercase tracking-wider">Expire le</p>
                   <p className="text-[#F8FAFC] font-medium">{new Date(request.expiresAt).toLocaleString('fr-FR')}</p>
@@ -470,8 +486,7 @@ export default function ValidationRequestDetail() {
                         Étape {step.order} – {step.stepName}
                       </h4>
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStepStatusBadge(step.status)}`}>
-                        {getStepStatusIcon(step.status)}
-                        {step.status}
+                        {getStepStatusIcon(step.status)} {step.status}
                       </span>
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${stepTypeColor}`}>
                         {stepTypeLabel}
@@ -502,6 +517,7 @@ export default function ValidationRequestDetail() {
                           <Loader2 className="w-5 h-5 text-emerald-400 animate-spin mx-auto my-4" />
                         ) : targetUserData ? (
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* User information */}
                             <div className="bg-[#0A0F1C] rounded-xl border border-[rgba(255,255,255,0.06)] p-4">
                               <h6 className="text-xs font-semibold text-[#94A3B8] uppercase tracking-wider mb-3">
                                 Informations du membre
@@ -543,9 +559,7 @@ export default function ValidationRequestDetail() {
                                               setLocalEdits(prev => ({ ...prev, [field.key]: editValue }));
                                               setEditingField(null);
                                             }
-                                            if (e.key === 'Escape') {
-                                              setEditingField(null);
-                                            }
+                                            if (e.key === 'Escape') setEditingField(null);
                                           }}
                                           autoFocus
                                           className="flex-1 px-2 py-1 bg-[#111827] border border-emerald-500 rounded text-[#F8FAFC] focus:outline-none text-sm"
@@ -564,23 +578,99 @@ export default function ValidationRequestDetail() {
                                     disabled={savingEdits}
                                     className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl shadow-lg shadow-emerald-500/20 transition-all text-sm font-medium disabled:opacity-50"
                                   >
-                                    {savingEdits ? (
-                                      <Loader2 className="w-4 h-4 animate-spin" />
-                                    ) : (
-                                      <Save className="w-4 h-4" />
-                                    )}
+                                    {savingEdits ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                                     {savingEdits ? 'Enregistrement…' : 'Enregistrer les modifications'}
                                   </button>
                                 </div>
                               )}
                             </div>
 
+                            {/* ─── SLIDESHOW DOCUMENTS ─────────────────── */}
                             <div className="bg-[#0A0F1C] rounded-xl border border-[rgba(255,255,255,0.06)] p-4">
-                              <h6 className="text-xs font-semibold text-[#94A3B8] uppercase tracking-wider mb-3">Fichier à vérifier</h6>
-                              {targetFiles.length > 0 ? (
-                                <FilePreviewWithZoom file={targetFiles[0]} />
+                              <h6 className="text-xs font-semibold text-[#94A3B8] uppercase tracking-wider mb-3">
+                                Documents fournis ({totalDocs})
+                              </h6>
+                              {totalDocs === 0 ? (
+                                <p className="text-sm text-[#64748B]">Aucun document de déclaration trouvé.</p>
                               ) : (
-                                <p className="text-sm text-[#64748B]">Aucun fichier trouvé pour cet utilisateur.</p>
+                                <div className="space-y-3">
+                                  {/* Document info */}
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-sm font-medium text-[#F8FAFC]">
+                                      {currentFile?.documentType || `Document ${currentDocIndex+1}`}
+                                    </span>
+                                    <span className="text-xs text-[#64748B]">
+                                      {currentDocIndex+1} / {totalDocs}
+                                    </span>
+                                  </div>
+
+                                  {/* Preview area with navigation */}
+                                  <div className="relative bg-[#111827] rounded-lg border border-[rgba(255,255,255,0.06)] overflow-hidden flex items-center justify-center h-96">
+                                    {fileUrl && !hasImageError ? (
+                                      isPdf ? (
+                                        <iframe
+                                          src={fileUrl}
+                                          className="w-full h-full"
+                                          title={`Document ${currentDocIndex+1}`}
+                                          frameBorder="0"
+                                        />
+                                      ) : (
+                                        <img
+                                          src={fileUrl}
+                                          alt={`Document ${currentDocIndex+1}`}
+                                          className="max-h-full max-w-full object-contain"
+                                          onError={() => {
+                                            setImageErrors(prev => ({ ...prev, [fileUrl]: true }));
+                                          }}
+                                        />
+                                      )
+                                    ) : (
+                                      <div className="flex flex-col items-center justify-center h-full text-[#64748B]">
+                                        <FileQuestion className="w-12 h-12 mb-2" />
+                                        <span className="text-sm">Aperçu non disponible</span>
+                                      </div>
+                                    )}
+
+                                    {/* Navigation arrows */}
+                                    {totalDocs > 1 && (
+                                      <>
+                                        <button
+                                          onClick={goToPrev}
+                                          disabled={currentDocIndex === 0}
+                                          className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-[#0A0F1C]/70 hover:bg-[#0A0F1C] border border-white/10 text-white disabled:opacity-30 transition-all"
+                                        >
+                                          <ChevronLeft className="w-5 h-5" />
+                                        </button>
+                                        <button
+                                          onClick={goToNext}
+                                          disabled={currentDocIndex === totalDocs-1}
+                                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-[#0A0F1C]/70 hover:bg-[#0A0F1C] border border-white/10 text-white disabled:opacity-30 transition-all"
+                                        >
+                                          <ChevronRight className="w-5 h-5" />
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+
+                                  {/* Dot indicators */}
+                                  {totalDocs > 1 && (
+                                    <div className="flex items-center justify-center gap-1.5 mt-2">
+                                      {declarationFiles.map((_, idx) => (
+                                        <button
+                                          key={idx}
+                                          onClick={() => setCurrentDocIndex(idx)}
+                                          className="transition-all"
+                                        >
+                                          {idx === currentDocIndex ? (
+                                            <CircleDot className="w-3 h-3 text-emerald-400" />
+                                          ) : (
+                                            <Circle className="w-2.5 h-2.5 text-[#64748B] hover:text-white" />
+                                          )}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
                               )}
                               <p className="text-xs text-[#64748B] mt-3">
                                 Veuillez examiner le dossier puis approuver ou rejeter.
@@ -588,7 +678,7 @@ export default function ValidationRequestDetail() {
                             </div>
                           </div>
                         ) : (
-                          /* 🟢 [MODIFICATION] : Rendu générique dynamique pour n'importe quel schéma ajouté par l'admin */
+                          /* Fallback for non-User targets */
                           <div className="bg-[#0A0F1C] rounded-xl border border-[rgba(255,255,255,0.06)] p-5">
                             <h6 className="text-xs font-semibold text-[#94A3B8] uppercase tracking-wider mb-3 flex items-center gap-2">
                               <FileText className="w-4 h-4 text-emerald-400" />
@@ -618,7 +708,7 @@ export default function ValidationRequestDetail() {
                       </div>
                     )}
 
-                    {/* ─── Unified Comment Section ─────────────────────────── */}
+                    {/* Comment + Actions (unchanged) */}
                     <div className="mt-4 pt-4 border-t border-[rgba(255,255,255,0.06)]">
                       <div className="space-y-3">
                         <div>

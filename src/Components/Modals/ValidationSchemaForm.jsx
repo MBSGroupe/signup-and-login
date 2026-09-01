@@ -37,7 +37,14 @@ import {
 } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_NEST_API_URL;
-
+const TIMEOUT_ACTIONS = [
+  'reject_step',
+  'escalate',
+  'notify_only',
+  'wait_for_another',
+  'skip_step',
+  'cancel_request'
+];
 const STEP_ROLES = ['user', 'moderator', 'admin', 'super_admin'];
 const REJECT_ACTIONS = ['reject_request', 'escalate', 'skip_step', 'notify_only', 'wait_for_another', 'cancel_request', 'go_back'];
 // 🟢 [MODIFICATION] : callService commenté dans les actions post-validation

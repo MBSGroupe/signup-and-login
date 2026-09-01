@@ -626,7 +626,7 @@ export default function ValidationSchemaDetails() {
         </div>
       </div>
 
-      <style jsx>{`
+      <style jsx="true" >{`
         .custom-scrollbar::-webkit-scrollbar {
           width: 6px;
         }
