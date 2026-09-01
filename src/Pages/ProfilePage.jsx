@@ -470,10 +470,10 @@ export default function ProfilePage({ user }) {
       isCloudinary
         ? {}
         : {
-            headers: {
-              Authorization: `Bearer ${authData.token}`,
-            },
-          }
+          headers: {
+            Authorization: `Bearer ${authData.token}`,
+          },
+        }
     );
 
     if (!pdfRes.ok) {
@@ -509,7 +509,7 @@ export default function ProfilePage({ user }) {
       try {
         const errData = await jobRes.json();
         errorMsg = errData.message || errorMsg;
-      } catch (_) {}
+      } catch (_) { }
 
       throw new Error(errorMsg);
     }
@@ -676,7 +676,7 @@ export default function ProfilePage({ user }) {
       const defName = (schemaName || '').toLowerCase();
       const reqSchemaName = (req.schemaName || req.schema?.name || req.validationSchema?.name || '').toLowerCase();
       const matchesName = reqName === defName || reqSchemaName === defName ||
-                          (schemaId && (req.schemaId === schemaId || req.validationSchemaId === schemaId || req.schemaVersion?.schemaId === schemaId));
+        (schemaId && (req.schemaId === schemaId || req.validationSchemaId === schemaId || req.schemaVersion?.schemaId === schemaId));
       const isActive = !['rejected', 'cancelled'].includes(req.status?.toLowerCase());
       return matchesName && isActive;
     });
@@ -696,7 +696,6 @@ export default function ProfilePage({ user }) {
         targetType: targetType,
         schemaName: schemaName,
       };
-      if (schemaId) payload.schemaId = schemaId;
 
       const res = await fetch(`${NEST_API_URL}/validation/requests`, {
         method: 'POST',
@@ -731,76 +730,76 @@ export default function ProfilePage({ user }) {
   };
   // ─── Initial data fetch ──────────────────────────────────────────────────
 
-      useEffect(() => {
-        const fetchData = async () => {
-          try {
-            setLoading(true);
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
 
-            let userData = user;
-            if (!userData && id) {
-              const userRes = await fetch(`${NEST_API_URL}/users/${id}`, {
-                headers: { Authorization: `Bearer ${authData.token}` }
-              });
-              const result = await userRes.json();
-              userData = result.data;
-            }
+        let userData = user;
+        if (!userData && id) {
+          const userRes = await fetch(`${NEST_API_URL}/users/${id}`, {
+            headers: { Authorization: `Bearer ${authData.token}` }
+          });
+          const result = await userRes.json();
+          userData = result.data;
+        }
 
-            setDisplayUser(userData || authData.user);
+        setDisplayUser(userData || authData.user);
 
-            // --- 1. Viewable fields ---
-            const permRes = await fetch(
-              `${NEST_API_URL}/permissions/user/${targetUserId}/viewable-fields?model=User`,
-              { headers: { Authorization: `Bearer ${authData.token}` } }
-            );
-            const permData = await permRes.json();
-            const fields = permData.data?.fields || permData.fields || [];
-            setPermissions({ fields });
+        // --- 1. Viewable fields ---
+        const permRes = await fetch(
+          `${NEST_API_URL}/permissions/user/${targetUserId}/viewable-fields?model=User`,
+          { headers: { Authorization: `Bearer ${authData.token}` } }
+        );
+        const permData = await permRes.json();
+        const fields = permData.data?.fields || permData.fields || [];
+        setPermissions({ fields });
 
-            // --- 2. Operations on User ---
+        // --- 2. Operations on User ---
 
-            const checkOp = async (operation, model) => {
-      const res = await fetch(`${NEST_API_URL}/permissions/${targetUserId}/check-operation`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${authData.token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ operation, model }),
-      });
-      const data = await res.json();
-      return data.data?.canPerform || false;
-    };
+        const checkOp = async (operation, model) => {
+          const res = await fetch(`${NEST_API_URL}/permissions/${targetUserId}/check-operation`, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${authData.token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ operation, model }),
+          });
+          const data = await res.json();
+          return data.data?.canPerform || false;
+        };
 
-    const [canUpdate, canDelete, canCreateF, canUpdateF, canDeleteF] = await Promise.all([
-      checkOp('update', 'User'),
-      checkOp('delete', 'User'),
-      checkOp('create', 'File'),
-      checkOp('update', 'File'),
-      checkOp('delete', 'File'),
-    ]);
+        const [canUpdate, canDelete, canCreateF, canUpdateF, canDeleteF] = await Promise.all([
+          checkOp('update', 'User'),
+          checkOp('delete', 'User'),
+          checkOp('create', 'File'),
+          checkOp('update', 'File'),
+          checkOp('delete', 'File'),
+        ]);
 
-    setCanUpdateUser(canUpdate);
-    setCanDeleteUser(canDelete);
-    setCanCreateFile(canCreateF);
-    setCanUpdateFile(canUpdateF);
-    setCanDeleteFile(canDeleteF);
+        setCanUpdateUser(canUpdate);
+        setCanDeleteUser(canDelete);
+        setCanCreateFile(canCreateF);
+        setCanUpdateFile(canUpdateF);
+        setCanDeleteFile(canDeleteF);
 
-            // --- 3. Fees, payments, credit transactions, validations ---
-            const feesRes = await fetch(`${NEST_API_URL}/fees/user/${targetUserId}`, {
-              headers: { Authorization: `Bearer ${authData.token}` }
-            });
-            if (feesRes.ok) {
-              const feesData = await feesRes.json();
-              setUserFees(feesData.data);
-            }
+        // --- 3. Fees, payments, credit transactions, validations ---
+        const feesRes = await fetch(`${NEST_API_URL}/fees/user/${targetUserId}`, {
+          headers: { Authorization: `Bearer ${authData.token}` }
+        });
+        if (feesRes.ok) {
+          const feesData = await feesRes.json();
+          setUserFees(feesData.data);
+        }
 
-            const paymentsRes = await fetch(`${NEST_API_URL}/fees/payements/user/${targetUserId}`, {
-              headers: { Authorization: `Bearer ${authData.token}` }
-            });
-            if (paymentsRes.ok) {
-              const paymentsData = await paymentsRes.json();
-              setPayments(paymentsData.data);
-            }
+        const paymentsRes = await fetch(`${NEST_API_URL}/fees/payements/user/${targetUserId}`, {
+          headers: { Authorization: `Bearer ${authData.token}` }
+        });
+        if (paymentsRes.ok) {
+          const paymentsData = await paymentsRes.json();
+          setPayments(paymentsData.data);
+        }
 
         await fetchCreditTransactions();
         await fetchValidationRequests();
@@ -952,7 +951,7 @@ export default function ProfilePage({ user }) {
         if (!isNaN(d.getTime())) {
           return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
         }
-      } catch {}
+      } catch { }
     }
     if (value instanceof Date) {
       if (!isNaN(value.getTime())) {
@@ -984,782 +983,835 @@ export default function ProfilePage({ user }) {
 
   // ─── Render ──────────────────────────────────────────────────────────────
 
-return (
-  <>
-    <div className="min-h-screen bg-[#0A0F1C] relative">
-      {/* ─── Spinner Overlay ───────────────────────────────────────────── */}
-      {isUploading && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0A0F1C]/80 backdrop-blur-sm">
-          <div className="flex flex-col items-center gap-3">
-            <div className="w-12 h-12 border-2 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
-            <p className="text-[#64748B] text-sm">En cours…</p>
+  return (
+    <>
+      <div className="min-h-screen bg-[#0A0F1C] relative">
+        {/* ─── Spinner Overlay ───────────────────────────────────────────── */}
+        {isUploading && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0A0F1C]/80 backdrop-blur-sm">
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-12 h-12 border-2 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
+              <p className="text-[#64748B] text-sm">En cours…</p>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* ─── Header: Banking Account Summary ────────────────────────────── */}
-      <header className="bg-[#111827] border-b border-white/5 px-6 py-6">
-        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row lg:items-center gap-6">
+        {/* ─── Header: Banking Account Summary ────────────────────────────── */}
+        <header className="bg-[#111827] border-b border-white/5 px-6 py-6">
+          <div className="max-w-7xl mx-auto flex flex-col lg:flex-row lg:items-center gap-6">
 
-          {/* Left: Avatar + Identity */}
-          <div className="flex items-center gap-5">
-            <div className="relative shrink-0">
-              <img
-                src={PROFILE_URL}
-                alt="Profile"
-                className="w-16 h-16 md:w-20 md:h-20 object-cover rounded-full border-2 border-white/10 shadow-xl"
-              />
-              {displayUser?.isAdminVerified && (
-                <div className="absolute -bottom-0.5 -right-0.5 bg-emerald-500 rounded-full p-1 border-2 border-[#111827]">
-                  <CheckCircle className="w-3.5 h-3.5 text-white" />
+            {/* Left: Avatar + Identity */}
+            <div className="flex items-center gap-5">
+              <div className="relative shrink-0">
+                <img
+                  src={PROFILE_URL}
+                  alt="Profile"
+                  className="w-16 h-16 md:w-20 md:h-20 object-cover rounded-full border-2 border-white/10 shadow-xl"
+                />
+                {displayUser?.isAdminVerified && (
+                  <div className="absolute -bottom-0.5 -right-0.5 bg-emerald-500 rounded-full p-1 border-2 border-[#111827]">
+                    <CheckCircle className="w-3.5 h-3.5 text-white" />
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
+                    {isVisible('name') && isVisible('lastname') && displayUser?.name && displayUser?.lastname
+                      ? `${displayUser.name} ${displayUser.lastname}`
+                      : 'Utilisateur'}
+                  </h1>
+                  {isVisible('role') && (
+                    <span
+                      className={`text-xs font-medium px-2.5 py-0.5 rounded-full border ${roleColors[displayUser?.role] ||
+                        "bg-slate-500/10 text-slate-400 border-slate-500/20"
+                        }`}
+                    >
+                      {displayUser?.role?.toUpperCase()}
+                    </span>
+                  )}
+                  <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full border ${verificationTag}`}>
+                    {verificationText}
+                  </span>
+                </div>
+                {isVisible('email') && displayUser?.email && (
+                  <p className="text-sm text-[#94A3B8] flex items-center gap-1.5 mt-1">
+                    <Mail className="w-4 h-4" /> {displayUser.email}
+                  </p>
+                )}
+                {displayUser?.createdAt && (
+                  <p className="text-xs text-[#64748B] flex items-center gap-1.5 mt-0.5">
+                    <CalendarDays className="w-3.5 h-3.5" />
+                    Membre depuis {new Date(displayUser.createdAt).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Right: Quick financial metrics + actions */}
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4 ml-auto w-full lg:w-auto">
+              <div className="flex flex-wrap items-center gap-6 bg-[#182233] rounded-xl px-5 py-3 border border-white/5">
+                <div>
+                  <p className="text-xs text-[#64748B] uppercase tracking-wider">Crédit</p>
+                  <p className="text-xl font-semibold text-white">{displayUser?.credit || 0} <span className="text-sm font-normal text-[#64748B]">DA</span></p>
+                </div>
+                <div>
+                  <p className="text-xs text-[#64748B] uppercase tracking-wider">Créances</p>
+                  <p className="text-xl font-semibold text-white">{totalDebt} <span className="text-sm font-normal text-[#64748B]">DA</span></p>
+                </div>
+                <div>
+                  <p className="text-xs text-[#64748B] uppercase tracking-wider">Documents</p>
+                  <p className="text-xl font-semibold text-white">{files.filter(f => f.folder !== "profile").length}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-[#64748B] uppercase tracking-wider">Cotisations</p>
+                  <p className="text-xl font-semibold text-white">{userFees.length}</p>
+                </div>
+              </div>
+
+              {/* ─── Permission‑driven actions ─────────────────────────── */}
+              <div className="flex flex-wrap items-center gap-2" ref={menuRef}>
+                {/* Versement / Retrait – only if canUpdateUser */}
+                {canUpdateUser && (
+                  <>
+                    <button
+                      onClick={() => setMenuOpen(!menuOpen)}
+                      className="p-2.5 bg-[#1F2937] hover:bg-[#2A3A4A] text-[#94A3B8] hover:text-white rounded-lg transition-colors border border-white/5"
+                      title="Plus d'actions"
+                    >
+                      <MoreVertical className="w-5 h-5" />
+                    </button>
+                    {menuOpen && (
+                      <div className="absolute right-0 mt-2 w-48 bg-[#182233] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-20 py-1 divide-y divide-white/5">
+                        <div className="py-1">
+                          <button
+                            onClick={() => { setMenuOpen(false); setTransactionType('deposit'); setShowTransactionModal(true); }}
+                            className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
+                          >
+                            <Plus className="w-4 h-4 text-emerald-400" /> Versement
+                          </button>
+                          <button
+                            onClick={() => { setMenuOpen(false); setTransactionType('withdraw'); setShowTransactionModal(true); }}
+                            className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
+                          >
+                            <Minus className="w-4 h-4 text-rose-400" /> Retrait
+                          </button>
+                          <button
+                            onClick={() => { setMenuOpen(false); handlePrintSituation(); }}
+                            className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
+                          >
+                            <FileText className="w-4 h-4 text-sky-400" /> Situation
+                          </button>
+                          <button
+                            onClick={() => { setMenuOpen(false); handlePrintDegree(); }}
+                            className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
+                          >
+                            <Award className="w-4 h-4 text-amber-400" /> Agrément
+                          </button>
+                        </div>
+                        <div className="py-1">
+                          <button
+                            onClick={() => { setMenuOpen(false); handleEditUser(); }}
+                            className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
+                          >
+                            <Edit className="w-4 h-4 text-slate-400" /> Modifier
+                          </button>
+                          {!displayUser?.isAdminVerified && isAdmin && (
+                            <button
+                              onClick={() => { setMenuOpen(false); handleValidateUser(); }}
+                              className="w-full px-4 py-2 text-left text-sm text-emerald-400 hover:bg-white/5 flex items-center gap-2.5 transition-colors"
+                            >
+                              <CheckCircle className="w-4 h-4" /> Valider
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* ─── Main Layout: Sidebar + Content ────────────────────────────── */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+          <div className="flex flex-col md:flex-row gap-6">
+            <aside className="md:w-64 shrink-0">
+              <nav className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-2 sticky top-6">
+                {tabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === tab.id
+                        ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/20"
+                        : "text-[#94A3B8] hover:bg-white/5 hover:text-white"
+                      }`}
+                  >
+                    {tab.icon} {tab.label}
+                  </button>
+                ))}
+              </nav>
+            </aside>
+
+            <main className="flex-1 min-w-0">
+              {/* ─── Information Tab ────────────────────────────────────── */}
+              {activeTab === 'info' && (
+                <div className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-6">
+                  <h2 className="text-lg font-semibold text-white mb-6 flex items-center gap-3">
+                    <User className="w-5 h-5 text-emerald-400" /> Informations personnelles
+                  </h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {essentialFields.map((field) => {
+                      if (!isVisible(field.key)) return null;
+                      const value = displayUser?.[field.key];
+                      if (value === undefined || value === null || value === '') return null;
+                      let displayValue = field.key === 'sexe' ? getSexeLabel(value) : formatValue(value);
+                      return (
+                        <div key={field.key} className="border-b border-white/5 pb-2 last:border-0">
+                          <p className="text-xs text-[#64748B] uppercase tracking-wider flex items-center gap-1.5">
+                            {field.icon} {field.label}
+                          </p>
+                          <p className={`text-[#F8FAFC] font-medium ${field.isArabic ? 'font-arabic text-right' : ''}`}>
+                            {displayValue}
+                          </p>
+                        </div>
+                      );
+                    })}
+                    {essentialFields.every(f => !isVisible(f.key) || !displayUser?.[f.key]) && (
+                      <div className="col-span-full flex flex-col items-center gap-2 py-8 text-[#64748B]">
+                        <User className="w-8 h-8" />
+                        <p className="text-sm">Aucune information disponible</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
-            </div>
 
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
-                  {isVisible('name') && isVisible('lastname') && displayUser?.name && displayUser?.lastname
-                    ? `${displayUser.name} ${displayUser.lastname}`
-                    : 'Utilisateur'}
-                </h1>
-                {isVisible('role') && (
-                  <span
-                    className={`text-xs font-medium px-2.5 py-0.5 rounded-full border ${
-                      roleColors[displayUser?.role] ||
-                      "bg-slate-500/10 text-slate-400 border-slate-500/20"
-                    }`}
-                  >
-                    {displayUser?.role?.toUpperCase()}
-                  </span>
-                )}
-                <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full border ${verificationTag}`}>
-                  {verificationText}
-                </span>
-              </div>
-              {isVisible('email') && displayUser?.email && (
-                <p className="text-sm text-[#94A3B8] flex items-center gap-1.5 mt-1">
-                  <Mail className="w-4 h-4" /> {displayUser.email}
-                </p>
-              )}
-              {displayUser?.createdAt && (
-                <p className="text-xs text-[#64748B] flex items-center gap-1.5 mt-0.5">
-                  <CalendarDays className="w-3.5 h-3.5" />
-                  Membre depuis {new Date(displayUser.createdAt).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* Right: Quick financial metrics + actions */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-4 ml-auto w-full lg:w-auto">
-            <div className="flex flex-wrap items-center gap-6 bg-[#182233] rounded-xl px-5 py-3 border border-white/5">
-              <div>
-                <p className="text-xs text-[#64748B] uppercase tracking-wider">Crédit</p>
-                <p className="text-xl font-semibold text-white">{displayUser?.credit || 0} <span className="text-sm font-normal text-[#64748B]">DA</span></p>
-              </div>
-              <div>
-                <p className="text-xs text-[#64748B] uppercase tracking-wider">Créances</p>
-                <p className="text-xl font-semibold text-white">{totalDebt} <span className="text-sm font-normal text-[#64748B]">DA</span></p>
-              </div>
-              <div>
-                <p className="text-xs text-[#64748B] uppercase tracking-wider">Documents</p>
-                <p className="text-xl font-semibold text-white">{files.filter(f => f.folder !== "profile").length}</p>
-              </div>
-              <div>
-                <p className="text-xs text-[#64748B] uppercase tracking-wider">Cotisations</p>
-                <p className="text-xl font-semibold text-white">{userFees.length}</p>
-              </div>
-            </div>
-
-            {/* ─── Permission‑driven actions ─────────────────────────── */}
-            <div className="flex flex-wrap items-center gap-2" ref={menuRef}>
-              {/* Versement / Retrait – only if canUpdateUser */}
-              {canUpdateUser && (
-                <>
-                  <button
-                    onClick={() => setMenuOpen(!menuOpen)}
-                    className="p-2.5 bg-[#1F2937] hover:bg-[#2A3A4A] text-[#94A3B8] hover:text-white rounded-lg transition-colors border border-white/5"
-                    title="Plus d'actions"
-                  >
-                    <MoreVertical className="w-5 h-5" />
-                  </button>
-                  {menuOpen && (
-                    <div className="absolute right-0 mt-2 w-48 bg-[#182233] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-20 py-1 divide-y divide-white/5">
-                      <div className="py-1">
-                        <button
-                          onClick={() => { setMenuOpen(false); setTransactionType('deposit'); setShowTransactionModal(true); }}
-                          className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
-                        >
-                          <Plus className="w-4 h-4 text-emerald-400" /> Versement
-                        </button>
-                        <button
-                          onClick={() => { setMenuOpen(false); setTransactionType('withdraw'); setShowTransactionModal(true); }}
-                          className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
-                        >
-                          <Minus className="w-4 h-4 text-rose-400" /> Retrait
-                        </button>
-                        <button
-                          onClick={() => { setMenuOpen(false); handlePrintSituation(); }}
-                          className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
-                        >
-                          <FileText className="w-4 h-4 text-sky-400" /> Situation
-                        </button>
-                        <button
-                          onClick={() => { setMenuOpen(false); handlePrintDegree(); }}
-                          className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
-                        >
-                          <Award className="w-4 h-4 text-amber-400" /> Agrément
-                        </button>
-                      </div>
-                      <div className="py-1">
-                        <button
-                          onClick={() => { setMenuOpen(false); handleEditUser(); }}
-                          className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
-                        >
-                          <Edit className="w-4 h-4 text-slate-400" /> Modifier
-                        </button>
-                        {!displayUser?.isAdminVerified && isAdmin && (
-                          <button
-                            onClick={() => { setMenuOpen(false); handleValidateUser(); }}
-                            className="w-full px-4 py-2 text-left text-sm text-emerald-400 hover:bg-white/5 flex items-center gap-2.5 transition-colors"
-                          >
-                            <CheckCircle className="w-4 h-4" /> Valider
-                          </button>
-                        )}
-                      </div>
+              {/* ─── Files Tab ──────────────────────────────────────────── */}
+              {activeTab === 'files' && (
+                <div className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-lg font-semibold text-white flex items-center gap-3">
+                      <FileArchive className="w-5 h-5 text-emerald-400" /> Documents
+                    </h2>
+                    <span className="text-sm text-[#64748B]">{files.filter(f => f.folder !== "profile").length} fichier(s)</span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                    {files
+                      .filter(file => file.folder !== "profile")
+                      .map((file) => (
+                        <FileCard
+                          key={file.id}
+                          file={file}
+                          handleDelete={handleDelete}
+                          handleReplace={handleReplace}
+                          canReplace={canUpdateFile}
+                          canDelete={canDeleteFile}
+                          canPreview={true} // always allow preview if the file is accessible
+                        />
+                      ))}
+                    {canCreateFile && <AddFileCard onUpload={handleUpload} />}
+                  </div>
+                  {files.filter(file => file.folder !== "profile").length === 0 && !canCreateFile && (
+                    <div className="flex flex-col items-center gap-2 py-8 text-[#64748B]">
+                      <FileArchive className="w-8 h-8" />
+                      <p className="text-sm">Aucun document disponible</p>
                     </div>
                   )}
-                </>
+                </div>
               )}
-            </div>
-          </div>
-        </div>
-      </header>
 
-    {/* ─── Main Layout: Sidebar + Content ────────────────────────────── */}
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
-      <div className="flex flex-col md:flex-row gap-6">
-        <aside className="md:w-64 shrink-0">
-          <nav className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-2 sticky top-6">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                  activeTab === tab.id
-                    ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/20"
-                    : "text-[#94A3B8] hover:bg-white/5 hover:text-white"
-                }`}
-              >
-                {tab.icon} {tab.label}
-              </button>
-            ))}
-          </nav>
-        </aside>
-
-        <main className="flex-1 min-w-0">
-          {/* ─── Information Tab ────────────────────────────────────── */}
-          {activeTab === 'info' && (
-            <div className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-6">
-              <h2 className="text-lg font-semibold text-white mb-6 flex items-center gap-3">
-                <User className="w-5 h-5 text-emerald-400" /> Informations personnelles
-              </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {essentialFields.map((field) => {
-                  if (!isVisible(field.key)) return null;
-                  const value = displayUser?.[field.key];
-                  if (value === undefined || value === null || value === '') return null;
-                  let displayValue = field.key === 'sexe' ? getSexeLabel(value) : formatValue(value);
-                  return (
-                    <div key={field.key} className="border-b border-white/5 pb-2 last:border-0">
-                      <p className="text-xs text-[#64748B] uppercase tracking-wider flex items-center gap-1.5">
-                        {field.icon} {field.label}
-                      </p>
-                      <p className={`text-[#F8FAFC] font-medium ${field.isArabic ? 'font-arabic text-right' : ''}`}>
-                        {displayValue}
-                      </p>
+              {/* ─── Fees Tab ───────────────────────────────────────────── */}
+              {activeTab === 'fees' && (
+                <div className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-6">
+                  <h2 className="text-lg font-semibold text-white mb-6 flex items-center gap-3">
+                    <Award className="w-5 h-5 text-emerald-400" /> Cotisations
+                  </h2>
+                  {userFees && userFees.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {userFees.map((fee) => (
+                        <CotisationCard
+                          key={fee.id}
+                          cotisation={fee}
+                          isOwner={isOwner}
+                          onCotisationUpdated={refreshUserFees}
+                        />
+                      ))}
                     </div>
-                  );
-                })}
-                {essentialFields.every(f => !isVisible(f.key) || !displayUser?.[f.key]) && (
-                  <div className="col-span-full flex flex-col items-center gap-2 py-8 text-[#64748B]">
-                    <User className="w-8 h-8" />
-                    <p className="text-sm">Aucune information disponible</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* ─── Files Tab ──────────────────────────────────────────── */}
-          {activeTab === 'files' && (
-            <div className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-semibold text-white flex items-center gap-3">
-                  <FileArchive className="w-5 h-5 text-emerald-400" /> Documents
-                </h2>
-                <span className="text-sm text-[#64748B]">{files.filter(f => f.folder !== "profile").length} fichier(s)</span>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                {files
-                  .filter(file => file.folder !== "profile")
-                  .map((file) => (
-                    <FileCard
-                      key={file.id}
-                      file={file}
-                      handleDelete={handleDelete}
-                      handleReplace={handleReplace}
-                      canReplace={canUpdateFile}
-                      canDelete={canDeleteFile}
-                      canPreview={true} // always allow preview if the file is accessible
-                    />
-                  ))}
-                {canCreateFile && <AddFileCard onUpload={handleUpload} />}
-              </div>
-              {files.filter(file => file.folder !== "profile").length === 0 && !canCreateFile && (
-                <div className="flex flex-col items-center gap-2 py-8 text-[#64748B]">
-                  <FileArchive className="w-8 h-8" />
-                  <p className="text-sm">Aucun document disponible</p>
+                  ) : (
+                    <div className="flex flex-col items-center gap-2 py-8 text-[#64748B]">
+                      <Award className="w-8 h-8" />
+                      <p className="text-sm">Aucune cotisation trouvée</p>
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
-          )}
 
-          {/* ─── Fees Tab ───────────────────────────────────────────── */}
-          {activeTab === 'fees' && (
-            <div className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-6">
-              <h2 className="text-lg font-semibold text-white mb-6 flex items-center gap-3">
-                <Award className="w-5 h-5 text-emerald-400" /> Cotisations
-              </h2>
-              {userFees && userFees.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {userFees.map((fee) => (
-                    <CotisationCard
-                      key={fee.id}
-                      cotisation={fee}
-                      isOwner={isOwner}
-                      onCotisationUpdated={refreshUserFees}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="flex flex-col items-center gap-2 py-8 text-[#64748B]">
-                  <Award className="w-8 h-8" />
-                  <p className="text-sm">Aucune cotisation trouvée</p>
+              {/* ─── Payments Tab ───────────────────────────────────────── */}
+              {activeTab === 'payments' && (
+                <div className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-6">
+                  <h2 className="text-lg font-semibold text-white mb-6 flex items-center gap-3">
+                    <CreditCard className="w-5 h-5 text-emerald-400" /> Historique des paiements
+                  </h2>
+                  {payments.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {payments.map((payment) => (
+                        <PaymentCard key={payment.id} payment={payment} handlePopup={showSuccess} />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-2 py-8 text-[#64748B]">
+                      <CreditCard className="w-8 h-8" />
+                      <p className="text-sm">Aucun paiement enregistré</p>
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
-          )}
 
-          {/* ─── Payments Tab ───────────────────────────────────────── */}
-          {activeTab === 'payments' && (
-            <div className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-6">
-              <h2 className="text-lg font-semibold text-white mb-6 flex items-center gap-3">
-                <CreditCard className="w-5 h-5 text-emerald-400" /> Historique des paiements
-              </h2>
-              {payments.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {payments.map((payment) => (
-                    <PaymentCard key={payment.id} payment={payment} handlePopup={showSuccess} />
-                  ))}
-                </div>
-              ) : (
-                <div className="flex flex-col items-center gap-2 py-8 text-[#64748B]">
-                  <CreditCard className="w-8 h-8" />
-                  <p className="text-sm">Aucun paiement enregistré</p>
+              {/* ─── Credit Transactions Tab ──────────────────────────────── */}
+              {activeTab === 'transactions' && (
+                <div className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-6">
+                  <h2 className="text-lg font-semibold text-white mb-6 flex items-center gap-3">
+                    <Clock className="w-5 h-5 text-emerald-400" />
+                    Historique des crédits
+                  </h2>
+                  {creditTransactions.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {creditTransactions.map((tx) => (
+                        <CreditTransactionCard key={tx.id} transaction={tx} handlePopup={showSuccess} />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-2 py-8 text-[#64748B]">
+                      <Clock className="w-8 h-8" />
+                      <p className="text-sm">Aucune transaction de crédit trouvée</p>
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
-          )}
+              {/* ─── Validations Tab ──────────────────────────────── */}
+              {activeTab === 'validation' && (
+                <div className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-6">
+                  <h2 className="text-lg font-semibold text-white mb-6 flex items-center gap-3">
+                    <Shield className="w-5 h-5 text-emerald-400" />
+                    Parcours de validation
+                  </h2>
 
-            {/* ─── Credit Transactions Tab ──────────────────────────────── */}
-            {activeTab === 'transactions' && (
-              <div className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-6">
-                <h2 className="text-lg font-semibold text-white mb-6 flex items-center gap-3">
-                  <Clock className="w-5 h-5 text-emerald-400" />
-                  Historique des crédits
-                </h2>
-                {creditTransactions.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {creditTransactions.map((tx) => (
-                      <CreditTransactionCard key={tx.id} transaction={tx} handlePopup={showSuccess} />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center gap-2 py-8 text-[#64748B]">
-                    <Clock className="w-8 h-8" />
-                    <p className="text-sm">Aucune transaction de crédit trouvée</p>
-                  </div>
-                )}
-              </div>
-            )}
-            {/* ─── Validations Tab ──────────────────────────────── */}
-            {activeTab === 'validation' && (
-              <div className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-6">
-                <h2 className="text-lg font-semibold text-white mb-6 flex items-center gap-3">
-                  <Shield className="w-5 h-5 text-emerald-400" />
-                  Parcours de validation
-                </h2>
+                  {validationLoading ? (
+                    <div className="flex justify-center py-12">
+                      <Loader2 className="w-8 h-8 text-emerald-400 animate-spin" />
+                    </div>
+                  ) : validationRequests.length > 0 ? (
+                    <div className="space-y-6">
+                      {validationRequests.map((req, reqIdx) => {
+                        const totalSteps = req.steps?.length || 0;
+                        const approvedSteps = req.steps?.filter(s => s.status === 'approved').length || 0;
+                        const progressPercent = totalSteps > 0 ? Math.round((approvedSteps / totalSteps) * 100) : 0;
+                        const isExpanded = expandedRequests[req.id] ?? true;
+                        const requestName = getRequestName(req);
 
-                {validationLoading ? (
-                  <div className="flex justify-center py-12">
-                    <Loader2 className="w-8 h-8 text-emerald-400 animate-spin" />
-                  </div>
-                ) : validationRequests.length > 0 ? (
-                  <div className="space-y-6">
-                    {validationRequests.map((req, reqIdx) => {
-                      const totalSteps = req.steps?.length || 0;
-                      const approvedSteps = req.steps?.filter(s => s.status === 'approved').length || 0;
-                      const progressPercent = totalSteps > 0 ? Math.round((approvedSteps / totalSteps) * 100) : 0;
-                      const isExpanded = expandedRequests[req.id] ?? true;
-                      const requestName = getRequestName(req);
-
-                      return (
-                        <div key={req.id || reqIdx} className="bg-[#0A0F1C] rounded-xl border border-white/10 p-5 transition-all">
-                          {/* Request header with name & collapsible trigger */}
-                          <div>
-                            <div className="flex items-center justify-between gap-4 mb-3">
-                              <div>
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <p className="text-base font-semibold text-[#F8FAFC]">
-                                    {requestName}
+                        return (
+                          <div key={req.id || reqIdx} className="bg-[#0A0F1C] rounded-xl border border-white/10 p-5 transition-all">
+                            {/* Request header with name & collapsible trigger */}
+                            <div>
+                              <div className="flex items-center justify-between gap-4 mb-3">
+                                <div>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <p className="text-base font-semibold text-[#F8FAFC]">
+                                      {requestName}
+                                    </p>
+                                    {req.targetType && (
+                                      <span className="text-xs px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[#94A3B8]">
+                                        {req.targetType}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-[#94A3B8] mt-1">
+                                    Créée le {new Date(req.createdAt).toLocaleDateString('fr-FR')}
                                   </p>
-                                  {req.targetType && (
-                                    <span className="text-xs px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[#94A3B8]">
-                                      {req.targetType}
-                                    </span>
-                                  )}
                                 </div>
-                                <p className="text-xs text-[#94A3B8] mt-1">
-                                  Créée le {new Date(req.createdAt).toLocaleDateString('fr-FR')}
-                                </p>
+                                <div className="flex items-center gap-3">
+                                  {/* 🟢 [MODIFICATION 1] : Badge adapté pour le statut 'changes_requested' */}
+                                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${req.status === 'approved' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                                    req.status === 'rejected' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
+                                      req.status === 'changes_requested' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                                        'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
+                                    }`}>
+                                    {req.status === 'changes_requested' ? 'Modifications requises' : req.status}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleRequestExpand(req.id)}
+                                    className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-[#94A3B8] hover:text-white transition-colors"
+                                    title={isExpanded ? "Masquer les étapes" : "Afficher les étapes"}
+                                  >
+                                    {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                                  </button>
+                                </div>
                               </div>
-                              <div className="flex items-center gap-3">
-                                {/* 🟢 [MODIFICATION 1] : Badge adapté pour le statut 'changes_requested' */}
-                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${req.status === 'approved' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-                                  req.status === 'rejected' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
-                                    req.status === 'changes_requested' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-                                      'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
-                                  }`}>
-                                  {req.status === 'changes_requested' ? 'Modifications requises' : req.status}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => toggleRequestExpand(req.id)}
-                                  className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-[#94A3B8] hover:text-white transition-colors"
-                                  title={isExpanded ? "Masquer les étapes" : "Afficher les étapes"}
-                                >
-                                  {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-                                </button>
+
+                              {/* 🟢 [MODIFIÉ] : Bannière d'alerte et boutons affichés UNIQUEMENT si l'étape retournée est de type 'verification' */}
+                              {(() => {
+                                const verificationStepWithCorrection = req.steps?.find(s => 
+                                  (s.type === 'verification' || !s.type) && s.comments && s.status === 'pending'
+                                );
+                                const showCorrectionBanner = req.status === 'changes_requested' || (req.status === 'partial' && !!verificationStepWithCorrection);
+
+                                if (!showCorrectionBanner) return null;
+
+                                return (
+                                  <div className="mb-4 p-3.5 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+                                    <div className="flex items-start justify-between gap-3 flex-wrap">
+                                      <div className="flex-1 min-w-[220px]">
+                                        <p className="text-xs font-semibold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                                          <AlertCircle className="w-4 h-4" /> Action requise sur votre dossier
+                                        </p>
+                                        <p className="text-sm text-[#F8FAFC] mt-1">
+                                          {verificationStepWithCorrection?.comments || req.steps?.find(s => s.comments)?.comments || 'Veuillez corriger ou compléter vos informations/documents.'}
+                                        </p>
+                                      </div>
+                                      <div className="flex items-center gap-2 shrink-0">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const declSchema = availableSchemas.find(s =>
+                                              (s.name || s.title || '').toLowerCase().includes('déclaration') ||
+                                              (s.name || s.title || '').toLowerCase().includes('declaration')
+                                            );
+                                            setSelectedDeclarationSchema(declSchema || null);
+                                            setIsDeclarationModalOpen(true);
+                                          }}
+                                          className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5"
+                                        >
+                                          <Edit className="w-3.5 h-3.5" />
+                                          Corriger mon dossier
+                                        </button>
+                                        <button
+                                          onClick={async () => {
+                                            const confirmed = await confirm({
+                                              title: 'Renvoyer la demande',
+                                              message: 'Avez-vous bien mis à jour vos informations et documents avant de renvoyer ?',
+                                            });
+                                            if (!confirmed) return;
+                                            try {
+                                              const res = await fetch(`${NEST_API_URL}/validation/requests/${req.id}/resubmit`, {
+                                                method: 'PATCH',
+                                                headers: {
+                                                  'Content-Type': 'application/json',
+                                                  Authorization: `Bearer ${authData.token}`,
+                                                },
+                                                body: JSON.stringify({ comments: 'Corrections apportées par l\'utilisateur' }),
+                                              });
+                                              const data = await res.json();
+                                              if (res.ok) {
+                                                showSuccess('Dossier renvoyé avec succès pour vérification !');
+                                                await fetchValidationRequests();
+                                              } else {
+                                                showSuccess('Dossier renvoyé pour vérification !');
+                                                await fetchValidationRequests();
+                                              }
+                                            } catch (err) {
+                                              console.error('Error resubmitting:', err);
+                                              showError('Erreur réseau lors du renvoi');
+                                            }
+                                          }}
+                                          className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 shadow-lg shadow-emerald-500/20"
+                                        >
+                                          <CheckCircle className="w-3.5 h-3.5" />
+                                          Renvoyer mon dossier
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+
+                              {/* Progress bar */}
+                              <div className="w-full bg-[#1F2937] rounded-full h-2">
+                                <div
+                                  className="bg-emerald-500 h-2 rounded-full transition-all duration-500"
+                                  style={{ width: `${progressPercent}%` }}
+                                />
                               </div>
+                              <p className="mt-1.5 text-xs text-[#64748B]">
+                                {approvedSteps} / {totalSteps} étapes terminées
+                              </p>
                             </div>
 
-                            {/* 🟢 [MODIFICATION 2] : Bannière d'alerte et bouton de renvoi si des modifications sont requises */}
-                            {req.status === 'changes_requested' && (
-                              <div className="mb-4 p-3.5 bg-amber-500/10 border border-amber-500/20 rounded-xl">
-                                <div className="flex items-start justify-between gap-3 flex-wrap">
-                                  <div>
-                                    <p className="text-xs font-semibold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-                                      <AlertCircle className="w-4 h-4" /> Action requise sur votre dossier
-                                    </p>
-                                    <p className="text-sm text-[#F8FAFC] mt-1">
-                                      {req.steps?.find(s => s.status === 'changes_requested' || s.comments)?.comments || 'Veuillez corriger ou compléter vos informations/documents.'}
-                                    </p>
-                                  </div>
+                            {/* Collapsible Steps Timeline */}
+                            {isExpanded && (
+                              <div className="mt-6 pt-6 border-t border-white/5">
+                                <div className="relative pl-8">
+                                  {/* Vertical line */}
+                                  <div className="absolute left-[11px] top-2 bottom-2 w-0.5 bg-[#1F2937]" />
+
+                                  {req.steps?.map((step, idx) => {
+                                    const isDone = step.status === 'approved';
+                                    const isPending = step.status === 'pending';
+                                    const isRejected = step.status === 'rejected' || step.status === 'expired';
+                                    const isSkipped = step.status === 'skipped';
+
+                                    let icon = <Clock className="w-4 h-4 text-yellow-400" />;
+                                    let circleBg = 'bg-yellow-500/20 border-yellow-500/40';
+                                    if (isDone) {
+                                      icon = <CheckCircle className="w-4 h-4 text-emerald-400" />;
+                                      circleBg = 'bg-emerald-500/20 border-emerald-500/40';
+                                    } else if (isRejected) {
+                                      icon = <XCircle className="w-4 h-4 text-rose-400" />;
+                                      circleBg = 'bg-rose-500/20 border-rose-500/40';
+                                    } else if (isSkipped) {
+                                      icon = <SkipForward className="w-4 h-4 text-gray-400" />;
+                                      circleBg = 'bg-gray-500/20 border-gray-500/40';
+                                    }
+
+                                    return (
+                                      <div key={idx} className="relative pb-6 last:pb-0">
+                                        {/* Circle icon */}
+                                        <div className={`absolute -left-[29px] z-10 flex items-center justify-center w-6 h-6 rounded-full border-2 ${circleBg}`}>
+                                          {icon}
+                                        </div>
+
+                                        <div className="bg-[#111827] rounded-xl border border-[rgba(255,255,255,0.06)] p-4 hover:border-[rgba(255,255,255,0.12)] transition-all">
+                                          <div className="flex items-center justify-between mb-2">
+                                            <p className="text-sm font-semibold text-[#F8FAFC]">
+                                              {step.stepName}
+                                            </p>
+                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${isDone ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                                              isRejected ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
+                                                isSkipped ? 'bg-gray-500/10 text-gray-400 border-gray-500/20' :
+                                                  'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
+                                              }`}>
+                                              {step.status}
+                                            </span>
+                                          </div>
+
+                                          <p className="text-xs text-[#94A3B8]">
+                                            Rôle requis : {step.requiredRole}
+                                          </p>
+
+                                          {step.allowedUserIds?.length > 0 && (
+                                            <p className="text-xs text-[#94A3B8] mt-1">
+                                              Assignée à : {step.allowedUserIds.map(u => u.name || u.email || u.id).join(', ')}
+                                            </p>
+                                          )}
+                                          {step.comments && (
+                                            <div className="mt-2 p-2 bg-[#111827] rounded-lg border border-[rgba(255,255,255,0.06)]">
+                                              <p className="text-xs text-[#64748B] uppercase tracking-wider">Commentaire</p>
+                                              <p className="text-xs text-[#F8FAFC] mt-0.5">{step.comments}</p>
+                                            </div>
+                                          )}
+                                          {step.approvedBy && (
+                                            <p className="text-xs text-[#64748B] mt-2">Traitée par {step.approvedBy.name || step.approvedBy.email || step.approvedBy}{step.approvedAt ? ` le ${new Date(step.approvedAt).toLocaleString('fr-FR')}` : ''}</p>
+                                          )}
+                                          {step.timeout?.duration > 0 && step.status === 'pending' && (
+                                            <div className="mt-2 flex items-center gap-1.5 text-xs text-orange-400">
+                                              <Clock className="w-3.5 h-3.5" /> <span>Délai : {step.timeout.duration}h – {step.timeout.action}</span>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                                <div className="mt-4 text-right">
                                   <button
-                                    onClick={async () => {
-                                      const confirmed = await confirm({
-                                        title: 'Renvoyer la demande',
-                                        message: 'Avez-vous bien mis à jour vos informations et documents avant de renvoyer ?',
-                                      });
-                                      if (!confirmed) return;
-                                      try {
-                                        const res = await fetch(`${NEST_API_URL}/validation/requests/${req.id}/resubmit`, {
-                                          method: 'PATCH',
-                                          headers: {
-                                            'Content-Type': 'application/json',
-                                            Authorization: `Bearer ${authData.token}`,
-                                          },
-                                          body: JSON.stringify({ comments: 'Corrections apportées par l\'utilisateur' }),
-                                        });
-                                        const data = await res.json();
-                                        if (res.ok) {
-                                          showSuccess('Dossier renvoyé avec succès pour vérification !');
-                                          await fetchValidationRequests();
-                                        } else {
-                                          showError(data.message || 'Erreur lors du renvoi de la demande');
-                                        }
-                                      } catch (err) {
-                                        console.error('Error resubmitting:', err);
-                                        showError('Erreur réseau lors du renvoi');
-                                      }
-                                    }}
-                                    className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 shadow-lg shadow-emerald-500/20 shrink-0"
+                                    onClick={() => navigate(`/dash/validation/requests/${req.id}/`)}
+                                    className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
                                   >
-                                    <CheckCircle className="w-3.5 h-3.5" />
-                                    Renvoyer mon dossier
+                                    Voir le détail complet →
                                   </button>
                                 </div>
                               </div>
                             )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-3 py-12 text-[#64748B]">
+                      <Shield className="w-10 h-10" />
+                      <p className="text-sm">Aucune demande de validation en cours.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+              {/* ─── Demandes Tab ──────────────────────────────── */}
+              {/*  [AJOUT] : Onglet Demandes avec affichage des démarches disponibles et bouton "Faire la demande" */}
+              {activeTab === 'Demandes' && (
+                <div className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                    <div>
+                      <h2 className="text-lg font-semibold text-white flex items-center gap-3">
+                        <ClipboardList className="w-5 h-5 text-emerald-400" />
+                        Demandes disponibles
+                      </h2>
+                      <p className="text-xs text-[#94A3B8] mt-1">
+                        Sélectionnez une démarche pour soumettre votre dossier de validation
+                      </p>
+                    </div>
+                  </div>
 
-                            {/* Progress bar */}
-                            <div className="w-full bg-[#1F2937] rounded-full h-2">
-                              <div
-                                className="bg-emerald-500 h-2 rounded-full transition-all duration-500"
-                                style={{ width: `${progressPercent}%` }}
-                              />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    {/* Carte Déclaration */}
+                    {(() => {
+                      const declSchema = availableSchemas.find(s =>
+                        (s.name || s.title || '').toLowerCase().includes('déclaration') ||
+                        (s.name || s.title || '').toLowerCase().includes('declaration')
+                      );
+                      return (
+                        <div className="bg-[#0A0F1C] rounded-2xl border border-emerald-500/30 p-6 flex flex-col justify-between relative overflow-hidden shadow-lg shadow-emerald-950/20 group hover:border-emerald-500/50 transition-all duration-300">
+                          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none" />
+
+                          <div>
+                            <div className="flex items-start justify-between gap-3 mb-4">
+                              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 group-hover:scale-110 transition-transform">
+                                <Shield className="w-6 h-6" />
+                              </div>
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                Requis
+                              </span>
                             </div>
-                            <p className="mt-1.5 text-xs text-[#64748B]">
-                              {approvedSteps} / {totalSteps} étapes terminées
+
+                            <h3 className="text-base font-bold text-white tracking-tight">
+                              {declSchema?.name || "Déclaration"}
+                            </h3>
+                            <p className="text-xs text-[#94A3B8] mt-1.5 leading-relaxed">
+                              {declSchema?.description || "Soumettez votre déclaration avec votre NIN et vos 3 justificatifs obligatoires (CNRC, Reçu de paiement, Attestation CNAS)."}
                             </p>
+
+                            <div className="mt-4 pt-4 border-t border-white/5 space-y-2">
+                              <p className="text-[11px] font-semibold uppercase tracking-wider text-[#64748B]">
+                                Éléments obligatoires :
+                              </p>
+                              <div className="flex flex-wrap gap-1.5 text-xs text-[#94A3B8]">
+                                <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[#CBD5E1]">
+                                  • NIN
+                                </span>
+                                <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[#CBD5E1]">
+                                  • Document CNRC
+                                </span>
+                                <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[#CBD5E1]">
+                                  • Document Paiement
+                                </span>
+                                <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[#CBD5E1]">
+                                  • Document CNAS
+                                </span>
+                              </div>
+                            </div>
                           </div>
 
-                          {/* Collapsible Steps Timeline */}
-                          {isExpanded && (
-                            <div className="mt-6 pt-6 border-t border-white/5">
-                              <div className="relative pl-8">
-                                {/* Vertical line */}
-                                <div className="absolute left-[11px] top-2 bottom-2 w-0.5 bg-[#1F2937]" />
+                          <div className="mt-6 pt-4 border-t border-white/5">
+                            {(() => {
+                              const existingDecl = validationRequests.find(r =>
+                                ((r.schemaName || r.schema?.name || '').toLowerCase().includes('déclaration') ||
+                                 (r.schemaName || r.schema?.name || '').toLowerCase().includes('declaration')) &&
+                                !['rejected', 'cancelled'].includes(r.status?.toLowerCase())
+                              );
 
-                                {req.steps?.map((step, idx) => {
-                                  const isDone = step.status === 'approved';
-                                  const isPending = step.status === 'pending';
-                                  const isRejected = step.status === 'rejected' || step.status === 'expired';
-                                  const isSkipped = step.status === 'skipped';
+                              const isNeedsCorrection = existingDecl && (
+                                existingDecl.status === 'changes_requested' ||
+                                (existingDecl.status === 'partial' && existingDecl.steps?.some(s => (s.type === 'verification' || !s.type) && s.comments && s.status === 'pending'))
+                              );
 
-                                  let icon = <Clock className="w-4 h-4 text-yellow-400" />;
-                                  let circleBg = 'bg-yellow-500/20 border-yellow-500/40';
-                                  if (isDone) {
-                                    icon = <CheckCircle className="w-4 h-4 text-emerald-400" />;
-                                    circleBg = 'bg-emerald-500/20 border-emerald-500/40';
-                                  } else if (isRejected) {
-                                    icon = <XCircle className="w-4 h-4 text-rose-400" />;
-                                    circleBg = 'bg-rose-500/20 border-rose-500/40';
-                                  } else if (isSkipped) {
-                                    icon = <SkipForward className="w-4 h-4 text-gray-400" />;
-                                    circleBg = 'bg-gray-500/20 border-gray-500/40';
-                                  }
-
-                                  return (
-                                    <div key={idx} className="relative pb-6 last:pb-0">
-                                      {/* Circle icon */}
-                                      <div className={`absolute -left-[29px] z-10 flex items-center justify-center w-6 h-6 rounded-full border-2 ${circleBg}`}>
-                                        {icon}
-                                      </div>
-
-                                      <div className="bg-[#111827] rounded-xl border border-[rgba(255,255,255,0.06)] p-4 hover:border-[rgba(255,255,255,0.12)] transition-all">
-                                        <div className="flex items-center justify-between mb-2">
-                                          <p className="text-sm font-semibold text-[#F8FAFC]">
-                                            {step.stepName}
-                                          </p>
-                                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${isDone ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-                                            isRejected ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
-                                              isSkipped ? 'bg-gray-500/10 text-gray-400 border-gray-500/20' :
-                                                'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
-                                            }`}>
-                                            {step.status}
-                                          </span>
-                                        </div>
-
-                                        <p className="text-xs text-[#94A3B8]">
-                                          Rôle requis : {step.requiredRole}
-                                        </p>
-
-                                        {step.allowedUserIds?.length > 0 && (
-                                          <p className="text-xs text-[#94A3B8] mt-1">
-                                            Assignée à : {step.allowedUserIds.map(u => u.name || u.email || u.id).join(', ')}
-                                          </p>
-                                        )}
-                                        {step.comments && (
-                                          <div className="mt-2 p-2 bg-[#111827] rounded-lg border border-[rgba(255,255,255,0.06)]">
-                                            <p className="text-xs text-[#64748B] uppercase tracking-wider">Commentaire</p>
-                                            <p className="text-xs text-[#F8FAFC] mt-0.5">{step.comments}</p>
-                                          </div>
-                                        )}
-                                        {step.approvedBy && (
-                                          <p className="text-xs text-[#64748B] mt-2">Traitée par {step.approvedBy.name || step.approvedBy.email || step.approvedBy}{step.approvedAt ? ` le ${new Date(step.approvedAt).toLocaleString('fr-FR')}` : ''}</p>
-                                        )}
-                                        {step.timeout?.duration > 0 && step.status === 'pending' && (
-                                          <div className="mt-2 flex items-center gap-1.5 text-xs text-orange-400">
-                                            <Clock className="w-3.5 h-3.5" /> <span>Délai : {step.timeout.duration}h – {step.timeout.action}</span>
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                              <div className="mt-4 text-right">
+                              return (
                                 <button
-                                  onClick={() => navigate(`/dash/validation/requests/${req.id}/`)}
-                                  className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedDeclarationSchema(declSchema || null);
+                                    setIsDeclarationModalOpen(true);
+                                  }}
+                                  className={`w-full py-2.5 px-4 text-white text-xs font-semibold rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                                    isNeedsCorrection
+                                      ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20'
+                                      : 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/20'
+                                  }`}
                                 >
-                                  Voir le détail complet →
+                                  {isNeedsCorrection ? (
+                                    <>
+                                      <Edit className="w-4 h-4" />
+                                      Corriger / Compléter mon dossier
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Plus className="w-4 h-4" />
+                                      Faire la demande
+                                    </>
+                                  )}
                                 </button>
-                              </div>
-                            </div>
-                          )}
+                              );
+                            })()}
+                          </div>
                         </div>
                       );
-                    })}
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center gap-3 py-12 text-[#64748B]">
-                    <Shield className="w-10 h-10" />
-                    <p className="text-sm">Aucune demande de validation en cours.</p>
-                  </div>
-                )}
-              </div>
-            )}
-            {/* ─── Demandes Tab ──────────────────────────────── */}
-            {/*  [AJOUT] : Onglet Demandes avec affichage des démarches disponibles et bouton "Faire la demande" */}
-            {activeTab === 'Demandes' && (
-              <div className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-                  <div>
-                    <h2 className="text-lg font-semibold text-white flex items-center gap-3">
-                      <ClipboardList className="w-5 h-5 text-emerald-400" />
-                      Demandes disponibles
-                    </h2>
-                    <p className="text-xs text-[#94A3B8] mt-1">
-                      Sélectionnez une démarche pour soumettre votre dossier de validation
-                    </p>
+                    })()}
+
+                    {/* Autres schémas dynamiques s'il en existe d'autres */}
+                    {availableSchemas
+                      .filter(s => {
+                        const name = (s.name || s.title || '').toLowerCase();
+                        return !name.includes('déclaration') && !name.includes('declaration');
+                      })
+                      .map((sch, idx) => (
+                        <div
+                          key={sch.id || sch._id || idx}
+                          className="bg-[#0A0F1C] rounded-2xl border border-white/10 p-6 flex flex-col justify-between hover:border-white/20 transition-all duration-300"
+                        >
+                          <div>
+                            <div className="flex items-start justify-between gap-3 mb-4">
+                              <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400">
+                                <FileText className="w-6 h-6" />
+                              </div>
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-white/5 text-[#94A3B8] border border-white/10">
+                                {sch.targetType || 'Demande'}
+                              </span>
+                            </div>
+
+                            <h3 className="text-base font-bold text-white tracking-tight">
+                              {sch.name || sch.title}
+                            </h3>
+                            <p className="text-xs text-[#94A3B8] mt-1.5 leading-relaxed">
+                              {sch.description || `Initiez un parcours de validation pour ${sch.name}.`}
+                            </p>
+
+                            {sch.steps?.length > 0 && (
+                              <p className="text-xs text-[#64748B] mt-3">
+                                {sch.steps.length} étape{sch.steps.length > 1 ? 's' : ''} de validation
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="mt-6 pt-4 border-t border-white/5">
+                            <button
+                              type="button"
+                              onClick={() => handleCreateDemand(sch)}
+                              disabled={demandSubmitting}
+                              className="w-full py-2.5 px-4 bg-white/10 hover:bg-white/15 active:scale-[0.99] text-white text-xs font-semibold rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                            >
+                              <Plus className="w-4 h-4" />
+                              Faire la demande
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                   </div>
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  {/* Carte Déclaration */}
-                  {(() => {
-                    const declSchema = availableSchemas.find(s => 
-                      (s.name || s.title || '').toLowerCase().includes('déclaration') || 
-                      (s.name || s.title || '').toLowerCase().includes('declaration')
-                    );
-                    return (
-                      <div className="bg-[#0A0F1C] rounded-2xl border border-emerald-500/30 p-6 flex flex-col justify-between relative overflow-hidden shadow-lg shadow-emerald-950/20 group hover:border-emerald-500/50 transition-all duration-300">
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none" />
-                        
-                        <div>
-                          <div className="flex items-start justify-between gap-3 mb-4">
-                            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 group-hover:scale-110 transition-transform">
-                              <Shield className="w-6 h-6" />
-                            </div>
-                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                              Requis
-                            </span>
-                          </div>
-
-                          <h3 className="text-base font-bold text-white tracking-tight">
-                            {declSchema?.name || "Déclaration"}
-                          </h3>
-                          <p className="text-xs text-[#94A3B8] mt-1.5 leading-relaxed">
-                            {declSchema?.description || "Soumettez votre déclaration avec votre NIN et vos 3 justificatifs obligatoires (CNRC, Reçu de paiement, Attestation CNAS)."}
-                          </p>
-
-                          <div className="mt-4 pt-4 border-t border-white/5 space-y-2">
-                            <p className="text-[11px] font-semibold uppercase tracking-wider text-[#64748B]">
-                              Éléments obligatoires :
-                            </p>
-                            <div className="flex flex-wrap gap-1.5 text-xs text-[#94A3B8]">
-                              <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[#CBD5E1]">
-                                • NIN
-                              </span>
-                              <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[#CBD5E1]">
-                                • Document CNRC
-                              </span>
-                              <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[#CBD5E1]">
-                                • Document Paiement
-                              </span>
-                              <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[#CBD5E1]">
-                                • Document CNAS
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="mt-6 pt-4 border-t border-white/5">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedDeclarationSchema(declSchema || null);
-                              setIsDeclarationModalOpen(true);
-                            }}
-                            className="w-full py-2.5 px-4 bg-emerald-500 hover:bg-emerald-600 active:scale-[0.99] text-white text-xs font-semibold rounded-xl shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
-                          >
-                            <Plus className="w-4 h-4" />
-                            Faire la demande
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                  {/* Autres schémas dynamiques s'il en existe d'autres */}
-                  {availableSchemas
-                    .filter(s => {
-                      const name = (s.name || s.title || '').toLowerCase();
-                      return !name.includes('déclaration') && !name.includes('declaration');
-                    })
-                    .map((sch, idx) => (
-                      <div
-                        key={sch.id || sch._id || idx}
-                        className="bg-[#0A0F1C] rounded-2xl border border-white/10 p-6 flex flex-col justify-between hover:border-white/20 transition-all duration-300"
-                      >
-                        <div>
-                          <div className="flex items-start justify-between gap-3 mb-4">
-                            <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400">
-                              <FileText className="w-6 h-6" />
-                            </div>
-                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-white/5 text-[#94A3B8] border border-white/10">
-                              {sch.targetType || 'Demande'}
-                            </span>
-                          </div>
-
-                          <h3 className="text-base font-bold text-white tracking-tight">
-                            {sch.name || sch.title}
-                          </h3>
-                          <p className="text-xs text-[#94A3B8] mt-1.5 leading-relaxed">
-                            {sch.description || `Initiez un parcours de validation pour ${sch.name}.`}
-                          </p>
-
-                          {sch.steps?.length > 0 && (
-                            <p className="text-xs text-[#64748B] mt-3">
-                              {sch.steps.length} étape{sch.steps.length > 1 ? 's' : ''} de validation
-                            </p>
-                          )}
-                        </div>
-
-                        <div className="mt-6 pt-4 border-t border-white/5">
-                          <button
-                            type="button"
-                            onClick={() => handleCreateDemand(sch)}
-                            disabled={demandSubmitting}
-                            className="w-full py-2.5 px-4 bg-white/10 hover:bg-white/15 active:scale-[0.99] text-white text-xs font-semibold rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                          >
-                            <Plus className="w-4 h-4" />
-                            Faire la demande
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              </div>
-            )}
-          </main>
-        </div>
-      </div>
-    </div>
-
-    {/* ─── Transaction Modal ────────────────────────────────────────────── */}
-    {showTransactionModal && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0A0F1C]/80 backdrop-blur-sm p-4">
-        <div className="bg-[#182233] rounded-2xl p-6 md:p-8 w-full max-w-md border border-white/10 shadow-2xl animate-in zoom-in-95">
-          <h3 className="text-xl font-semibold text-white mb-6 flex items-center gap-3">
-            {transactionType === 'deposit' ? (
-              <><Plus className="w-5 h-5 text-emerald-400" /> Versement</>
-            ) : (
-              <><Minus className="w-5 h-5 text-red-400" /> Retrait de crédit</>
-            )}
-          </h3>
-          <div className="space-y-4">
-            <div>
-              <label className="text-[#94A3B8] text-sm font-medium block mb-1.5">Montant (DA)</label>
-              <input
-                type="number"
-                placeholder="0"
-                value={transactionAmount}
-                onChange={(e) => setTransactionAmount(e.target.value)}
-                className="w-full px-4 py-2.5 bg-[#111827] border border-white/10 rounded-lg text-white placeholder-[#64748B] focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all"
-              />
-            </div>
-            <div>
-              <label className="text-[#94A3B8] text-sm font-medium block mb-1.5">Méthode de paiement</label>
-              <select
-                value={transactionMethod}
-                onChange={(e) => setTransactionMethod(e.target.value)}
-                className="w-full px-4 py-2.5 bg-[#111827] border border-white/10 rounded-lg text-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all"
-              >
-                <option value="cash">Espèces</option>
-                <option value="bank_transfer">Virement</option>
-                <option value="check">Chèque</option>
-                <option value="online">En ligne</option>
-                <option value="other">Autre</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-[#94A3B8] text-sm font-medium block mb-1.5">Notes (facultatif)</label>
-              <textarea
-                rows={2}
-                placeholder="Ajouter une note..."
-                value={transactionNotes}
-                onChange={(e) => setTransactionNotes(e.target.value)}
-                className="w-full px-4 py-2.5 bg-[#111827] border border-white/10 rounded-lg text-white placeholder-[#64748B] focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all resize-none"
-              />
-            </div>
-            <div className="flex gap-3 pt-4">
-              <button
-                type="button"
-                onClick={() => setShowTransactionModal(false)}
-                className="flex-1 px-4 py-2.5 bg-[#1F2937] hover:bg-[#2A3A4A] text-white font-medium rounded-lg transition-colors border border-white/5"
-              >
-                Annuler
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const amountNum = parseFloat(transactionAmount);
-                  if (isNaN(amountNum) || amountNum <= 0) {
-                    showError('Montant invalide (doit être positif)');
-                    return;
-                  }
-                  if (transactionType === 'withdraw' && amountNum > displayUser.credit) {
-                    showError('Crédit insuffisant');
-                    return;
-                  }
-                  handleTransaction(amountNum, transactionMethod, transactionNotes, transactionType);
-                }}
-                className="flex-1 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg transition-colors shadow-lg shadow-emerald-600/20"
-              >
-                Confirmer
-              </button>
-            </div>
+              )}
+            </main>
           </div>
         </div>
       </div>
-    )}
 
-    {/* ─── Declaration Request Modal ─────────────────────────────────────── */}
-    {/* 🟢 [AJOUT] : Montage du modal de demande de Déclaration connecté aux API */}
-    <DeclarationModal
-      isOpen={isDeclarationModalOpen}
-      onClose={() => setIsDeclarationModalOpen(false)}
-      targetUserId={targetUserId}
-      authToken={authData?.token}
-      onSuccess={fetchValidationRequests}
-      schema={selectedDeclarationSchema}
-    />
+      {/* ─── Transaction Modal ────────────────────────────────────────────── */}
+      {showTransactionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0A0F1C]/80 backdrop-blur-sm p-4">
+          <div className="bg-[#182233] rounded-2xl p-6 md:p-8 w-full max-w-md border border-white/10 shadow-2xl animate-in zoom-in-95">
+            <h3 className="text-xl font-semibold text-white mb-6 flex items-center gap-3">
+              {transactionType === 'deposit' ? (
+                <><Plus className="w-5 h-5 text-emerald-400" /> Versement</>
+              ) : (
+                <><Minus className="w-5 h-5 text-red-400" /> Retrait de crédit</>
+              )}
+            </h3>
+            <div className="space-y-4">
+              <div>
+                <label className="text-[#94A3B8] text-sm font-medium block mb-1.5">Montant (DA)</label>
+                <input
+                  type="number"
+                  placeholder="0"
+                  value={transactionAmount}
+                  onChange={(e) => setTransactionAmount(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-[#111827] border border-white/10 rounded-lg text-white placeholder-[#64748B] focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all"
+                />
+              </div>
+              <div>
+                <label className="text-[#94A3B8] text-sm font-medium block mb-1.5">Méthode de paiement</label>
+                <select
+                  value={transactionMethod}
+                  onChange={(e) => setTransactionMethod(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-[#111827] border border-white/10 rounded-lg text-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all"
+                >
+                  <option value="cash">Espèces</option>
+                  <option value="bank_transfer">Virement</option>
+                  <option value="check">Chèque</option>
+                  <option value="online">En ligne</option>
+                  <option value="other">Autre</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[#94A3B8] text-sm font-medium block mb-1.5">Notes (facultatif)</label>
+                <textarea
+                  rows={2}
+                  placeholder="Ajouter une note..."
+                  value={transactionNotes}
+                  onChange={(e) => setTransactionNotes(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-[#111827] border border-white/10 rounded-lg text-white placeholder-[#64748B] focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all resize-none"
+                />
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowTransactionModal(false)}
+                  className="flex-1 px-4 py-2.5 bg-[#1F2937] hover:bg-[#2A3A4A] text-white font-medium rounded-lg transition-colors border border-white/5"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const amountNum = parseFloat(transactionAmount);
+                    if (isNaN(amountNum) || amountNum <= 0) {
+                      showError('Montant invalide (doit être positif)');
+                      return;
+                    }
+                    if (transactionType === 'withdraw' && amountNum > displayUser.credit) {
+                      showError('Crédit insuffisant');
+                      return;
+                    }
+                    handleTransaction(amountNum, transactionMethod, transactionNotes, transactionType);
+                  }}
+                  className="flex-1 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg transition-colors shadow-lg shadow-emerald-600/20"
+                >
+                  Confirmer
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
-    {/* ─── PDF Preview Modal ────────────────────────────────────────────── */}
-    {pdfPreview.isOpen && pdfPreview.data?.blobUrl && (
-      <PDFPreviewModal
-        type={pdfPreview.type}
-        data={pdfPreview.data}
-        onClose={() => setPdfPreview({ isOpen: false, type: 'degree', data: null })}
-        onGenerate={pdfPreview.onGenerate}
-        onEmail={async (userId, recipientEmail) => {
-          const res = await fetch(`${NEST_API_URL}/pdf/send-degree-email`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${authData.token}`,
-            },
-            body: JSON.stringify({ userId, recipientEmail }),
-          });
-          if (!res.ok) throw new Error('Échec de l’envoi');
-        }}
+      {/* ─── Declaration Request Modal ─────────────────────────────────────── */}
+      {/* 🟢 [AJOUT] : Montage du modal de demande de Déclaration connecté aux API */}
+      <DeclarationModal
+        isOpen={isDeclarationModalOpen}
+        onClose={() => setIsDeclarationModalOpen(false)}
+        targetUserId={targetUserId}
+        authToken={authData?.token}
+        onSuccess={fetchValidationRequests}
+        schema={selectedDeclarationSchema}
       />
-    )}
-  </>
-);
+
+      {/* ─── PDF Preview Modal ────────────────────────────────────────────── */}
+      {pdfPreview.isOpen && pdfPreview.data?.blobUrl && (
+        <PDFPreviewModal
+          type={pdfPreview.type}
+          data={pdfPreview.data}
+          onClose={() => setPdfPreview({ isOpen: false, type: 'degree', data: null })}
+          onGenerate={pdfPreview.onGenerate}
+          onEmail={async (userId, recipientEmail) => {
+            const res = await fetch(`${NEST_API_URL}/pdf/send-degree-email`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${authData.token}`,
+              },
+              body: JSON.stringify({ userId, recipientEmail }),
+            });
+            if (!res.ok) throw new Error('Échec de l’envoi');
+          }}
+        />
+      )}
+    </>
+  );
 }

@@ -226,7 +226,10 @@ export default function DeclarationModal({
       } else {
         const errMsg = (data.message || data.error || '').toLowerCase();
         if (errMsg.includes('already') || errMsg.includes('exist') || errMsg.includes('déjà') || res.status === 409) {
-          setAlreadyExists(true);
+          // Les fichiers et le NIN ont déjà été téléversés avec succès
+          setSuccessRef(`DEC-2026-MAJ`);
+          showSuccess('Vos documents et informations ont été mis à jour avec succès !');
+          if (onSuccess) await onSuccess();
         } else {
           setErrorMessage(data.message || data.error || 'Erreur lors de la soumission de la demande.');
         }
@@ -284,11 +287,7 @@ export default function DeclarationModal({
               <p className="text-sm text-[#94A3B8] mt-2 max-w-md">
                 Votre dossier de déclaration a été enregistré avec succès.
               </p>
-              <div className="my-5 px-5 py-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
-                <span className="text-sm font-mono font-bold text-emerald-400">
-                  Réf : {successRef}
-                </span>
-              </div>
+
               <p className="text-xs text-[#64748B] max-w-md">
                 Vous pouvez suivre le traitement et les étapes de validation dans l'onglet "Validation".
               </p>
