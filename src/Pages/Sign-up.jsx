@@ -24,6 +24,7 @@ import {
   BookOpen,
   Users
 } from "lucide-react";
+import cnoaLogo from "../assets/LOGOCLOA.png";
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
@@ -46,21 +47,30 @@ const WILAYAS = [
   "56 - Djanet", "57 - El M'ghair", "58 - El Meniaa"
 ];
 
-const FILE_TYPES = [
+// ─── Document types ────────────────────────────────────────────────
+const BASE_FILE_TYPES = [
   { key: 'photo', label: 'Photo' },
   { key: 'CNRC', label: 'Carte Nationale' },
-  { key: 'recu2026', label: 'Reçu 2026' },
+  { key: 'recu2026', label: 'Reçu 2027' },
   { key: 'ACTENAISSANCE', label: 'Acte de naissance' },
   { key: 'DIPLOMES', label: 'Diplôme(s)' },
+  { key: 'SERMENTTABLE', label: 'Serment' },
+  { key: 'RECUDUS', label: 'Reçu divers' },
+  { key: 'situationCNRC', label: 'Situation CNRC' },
   { key: 'c20', label: 'Certificat d\'existence' },
   { key: 'nonAffiliationcnas', label: 'Non-affiliation CNAS' },
   { key: 'affiliationcnas', label: 'Affiliation CNAS' },
   { key: 'contrattravail', label: 'Contrat de travail' },
-  { key: 'PIECEIDENTITE', label: 'Pièce d\'identité' },
-  { key: 'SERMENTTABLE', label: 'Serment' },
-  { key: 'statut', label: 'Statut' },
-  { key: 'RECUDUS', label: 'Reçu divers' },
+  { key: 'statut', label: 'Statut SCP' },
 ];
+
+// ─── Allowed file types per mode ──────────────────────────────────
+const ALLOWED_FILE_TYPES = {
+  common: ['photo', 'CNRC', 'recu2026', 'SERMENTTABLE', 'DIPLOMES', 'RECUDUS', 'ACTENAISSANCE', 'situationCNRC'],
+  liberal: ['nonAffiliationcnas', 'c20'],
+  associe: ['nonAffiliationcnas', 'c20', 'statut'],
+  salarie: ['affiliationcnas', 'contrattravail']
+};
 
 export default function FormulaireCNOA() {
   const [message, setMessage] = useState("");
@@ -78,54 +88,52 @@ export default function FormulaireCNOA() {
 
   // ─── FORM STATE ──────────────────────────────────────────────────────────
   const [formData, setFormData] = useState({
-    cloaExercice: "",
-    nin: "",
-    sexe: "",
-    serviceNationalStatus: "",
-    name: "",
-    lastname: "",
-    nomArabe: "",
-    prenomArabe: "",
-    dateOfBirth: "",
-    lieuNaissance: "",
-    numeroActeNaissance: "",
-    adressePersonnelle: "",
-    commune: "",
-    wilaya: "",
-    prenomPere: "",
-    prenomPereArabe: "",
-    nomPrenomMere: "",
-    nomPrenomMereArabe: "",
-    maritalStatus: "",
-    enfants: "",
-    fixe: "",
-    phone: "",
-    email: "",
-    emailPro: "",
-    // Diplomas
-    diplomaType: "",
-    sessionClassique: "",
-    anneeClassique: "",
-    universiteClassique: "",
+    region: "16 - Alger",
+    nin: "123456789012345678",
+    sexe: "M",
+    serviceNationalStatus: "Ayant effectué",
+    name: "Ahmed",
+    lastname: "Benziane",
+    nomArabe: "بن زيان",
+    prenomArabe: "أحمد",
+    dateOfBirth: "1985-06-15",
+    lieuNaissance: "Alger",
+    numeroActeNaissance: "123456789",
+    adressePersonnelle: "12 Rue des Oliviers, Hydra",
+    commune: "Hydra",
+    wilaya: "16 - Alger",
+    prenomPere: "Mohamed",
+    prenomPereArabe: "محمد",
+    nomPrenomMere: "Fatima Zohra",
+    nomPrenomMereArabe: "فاطمة الزهراء",
+    maritalStatus: "Marié(e)",
+    enfants: "2",
+    fixe: "023 45 67 89",
+    phone: "0555 12 34 56",
+    email: "saabimm@gmail.com",
+    emailPro: "saabimm@gmail.com",
+    diplomaType: "Classique",
+    sessionClassique: "Juin",
+    anneeClassique: "2010",
+    universiteClassique: "Université d'Alger",
     sessionLMDL: "",
     anneeLMDL: "",
     universiteLMDL: "",
     sessionLMDM: "",
     anneeLMDM: "",
     universiteLMDM: "",
-    // Professional
-    registrationNumber: "",
-    oathDate: "",
-    oathLocation: "",
-    professionalMode: "",
-    installationDate: "",
-    nif: "",
-    adressePro: "",
-    adresseProArabe: "",
-    communePro: "",
-    wilayaPro: "",
-    benefitStateAid: "",
-    moyensHumains: "",
+    registrationNumber: "12345",
+    oathDate: "2012-09-01",
+    oathLocation: "16 - Alger",
+    professionalMode: "Libéral",
+    installationDate: "2012-10-15",
+    nif: "1234567890123",
+    adressePro: "5 Rue Didouche Mourad, Alger",
+    adresseProArabe: "شارع ديدوش مراد، الجزائر",
+    communePro: "Alger",
+    wilayaPro: "16 - Alger",
+    benefitStateAid: "ANSEJ/NESDA",
+    moyensHumains: "5",
     associateName: "",
     associateRegistrationNumber: "",
     recruitmentDate: "",
@@ -135,11 +143,11 @@ export default function FormulaireCNOA() {
     employerAdresseArabe: "",
     employerCommune: "",
     employerWilaya: "",
-    password: "",
-    secondPassword: "",
+    password: "password123",
+    secondPassword: "password123",
     role: "user",
     status: "pending",
-    loi: false,
+    loi: true,
   });
 
   const [otherDiplomas, setOtherDiplomas] = useState([]);
@@ -150,47 +158,22 @@ export default function FormulaireCNOA() {
   const [newFormation, setNewFormation] = useState({ titre: "", etablissement: "", annee: "" });
   const [formationFile, setFormationFile] = useState(null);
 
+  // ─── File uploads ─────────────────────────────────────────────────────────
   const [fileUploads, setFileUploads] = useState(
-    FILE_TYPES.reduce((acc, ft) => ({ ...acc, [ft.key]: null }), {})
+    BASE_FILE_TYPES.reduce((acc, ft) => ({ ...acc, [ft.key]: null }), {})
   );
   const [uploadingFileType, setUploadingFileType] = useState(null);
 
-  const handleFileUploadForType = async (typeKey, file) => {
+  // ─── Store file objects locally (no upload to temp endpoint) ────────────
+  const handleFileUploadForType = (typeKey, file) => {
     if (!file) return;
     setUploadingFileType(typeKey);
-    try {
-      const uploadData = new FormData();
-      uploadData.append("file", file);
-      uploadData.append("folder", "uploads");
-
-      const response = await fetch(`${NEST_API_URL}/files/upload/temp`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${authData?.token || ''}` },
-        body: uploadData,
-      });
-      const data = await response.json();
-      if (response.ok) {
-        setFileUploads(prev => ({
-          ...prev,
-          [typeKey]: {
-            id: data.data.id,
-            name: file.name,
-            size: file.size,
-            type: file.type,
-            url: data.data.url,
-          }
-        }));
-      } else {
-        setMessage(`Erreur upload ${typeKey}: ${data.message}`);
-        setMessageType("error");
-      }
-    } catch (err) {
-      console.error("Upload error:", err);
-      setMessage(`Erreur réseau pour ${typeKey}`);
-      setMessageType("error");
-    } finally {
-      setUploadingFileType(null);
-    }
+    // Just store the file object – upload happens in handleSubmit
+    setFileUploads(prev => ({
+      ...prev,
+      [typeKey]: file, // store the actual File object
+    }));
+    setUploadingFileType(null);
   };
 
   const removeFileForType = (typeKey) => {
@@ -203,11 +186,8 @@ export default function FormulaireCNOA() {
       setMessageType("error");
       return;
     }
+    // For otherDiplomas, we no longer attach a file here because files are sent with signup
     const entry = { ...item };
-    if (file) {
-      entry.fileId = file.id;
-      entry.fileName = file.name;
-    }
     setList([...list, entry]);
     setItem({ titre: "", etablissement: "", annee: "" });
     setFile(null);
@@ -241,7 +221,6 @@ export default function FormulaireCNOA() {
     if (associeFields.includes(fieldName)) return isAssocie;
     if (salarieFields.includes(fieldName)) return isSalarie;
 
-    // Exclude diploma fields from being rendered elsewhere (they are handled in the custom section)
     if (fieldName.startsWith('session') || fieldName.startsWith('annee') || fieldName.startsWith('universite')) return false;
 
     return true;
@@ -341,6 +320,7 @@ export default function FormulaireCNOA() {
     );
   };
 
+  // ─── SUBMIT HANDLER ──────────────────────────────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.loi) {
@@ -363,30 +343,37 @@ export default function FormulaireCNOA() {
     setMessage("");
 
     try {
-      const { secondPassword, ...submitData } = formData;
-      const cleanedData = Object.keys(submitData).reduce((acc, key) => {
-        if (submitData[key] !== '' && submitData[key] !== null && submitData[key] !== undefined) {
-          acc[key] = submitData[key];
-        }
-        return acc;
-      }, {});
+      const form = new FormData();
 
-      const finalData = {
-        ...cleanedData,
-        enfants: cleanedData.enfants ? parseInt(cleanedData.enfants) : null,
-        otherDiplomas: otherDiplomas,
-        formations: formations,
-        files: Object.fromEntries(
-          Object.entries(fileUploads)
-            .filter(([_, val]) => val !== null)
-            .map(([key, val]) => [key, val.id])
-        ),
-      };
+      // Append all text fields (exclude secondPassword)
+      const { secondPassword, ...dataToSend } = formData;
+      Object.keys(dataToSend).forEach(key => {
+        const value = dataToSend[key];
+        if (value !== undefined && value !== null && value !== '') {
+          // For boolean, convert to string
+          if (typeof value === 'boolean') {
+            form.append(key, String(value));
+          } else {
+            form.append(key, String(value));
+          }
+        }
+      });
+
+      // Append otherDiplomas and formations as JSON strings
+      form.append('otherDiplomas', JSON.stringify(otherDiplomas));
+      form.append('formations', JSON.stringify(formations));
+
+      // Append files (only those that are actual File objects)
+      Object.keys(fileUploads).forEach(key => {
+        const file = fileUploads[key];
+        if (file && file instanceof File) {
+          form.append(`files[${key}]`, file, file.name);
+        }
+      });
 
       const response = await fetch(`${NEST_API_URL}/auth/signup`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(finalData),
+        body: form, // No Content-Type header; browser sets it to multipart/form-data
       });
 
       const data = await response.json();
@@ -415,13 +402,40 @@ export default function FormulaireCNOA() {
     }
   };
 
+  // ─── Determine which file types to show ────────────────────────────────
+  const getVisibleFileTypes = () => {
+    const mode = formData.professionalMode;
+    let allowed = [...ALLOWED_FILE_TYPES.common];
+    if (mode === 'Libéral') {
+      allowed = [...allowed, ...ALLOWED_FILE_TYPES.liberal];
+    } else if (mode === 'Associé') {
+      allowed = [...allowed, ...ALLOWED_FILE_TYPES.associe];
+    } else if (mode === 'Salarié') {
+      allowed = [...allowed, ...ALLOWED_FILE_TYPES.salarie];
+    }
+    return BASE_FILE_TYPES.filter(ft => allowed.includes(ft.key));
+  };
+
   // ─── RENDER ──────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-[#0A0F1C] py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-6xl mx-auto">
-        <SectionTitle title="Formulaire d'inscription CNOA" />
+        {/* ─── Header with logo and title ─────────────────────────────────── */}
+        <div className="flex flex-col items-center mb-8">
+          <img
+            src={cnoaLogo}
+            alt="CNOA Logo"
+            className="w-24 h-24 object-contain mb-2"
+          />
+          <h1 className="text-3xl font-bold text-[#F8FAFC] tracking-tight text-center">
+            Ordre National des Architectes
+          </h1>
+          <h3 className="text-3xl font-bold text-[#F8FAFC] tracking-tight text-center">
+            Déclarations 2027
+          </h3>
+        </div>
 
-        <div className="mt-8 bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] shadow-2xl shadow-black/50 overflow-hidden">
+        <div className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] shadow-2xl shadow-black/50 overflow-hidden">
           <div className="p-6 sm:p-8 lg:p-10">
             <form ref={formRef} className="space-y-10" onSubmit={handleSubmit}>
 
@@ -432,7 +446,7 @@ export default function FormulaireCNOA() {
                   <h3 className="text-lg font-semibold text-[#F8FAFC]">CLOA d'exercice</h3>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  {renderField("CLOA d'exercice", "cloaExercice", "select", WILAYAS.map(w => ({ value: w, label: w })), true, "", <MapPin className="w-4 h-4 text-emerald-400" />)}
+                  {renderField("CLOA d'exercice", "region", "select", WILAYAS.map(w => ({ value: w, label: w })), true, "", <MapPin className="w-4 h-4 text-emerald-400" />)}
                 </div>
               </div>
 
@@ -444,7 +458,7 @@ export default function FormulaireCNOA() {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   {renderField("NIN", "nin", "text", null, false, "Numéro d'identité nationale", <Shield className="w-4 h-4 text-emerald-400" />)}
-                  {renderField("Sexe", "sexe", "select", [{ value: "M", label: "Masculin" }, { value: "F", label: "Féminin" }], true, "", <User className="w-4 h-4 text-emerald-400" />)}
+                  {renderField("Civilité", "sexe", "select", [{ value: "M", label: "Masculin" }, { value: "F", label: "Féminin" }], true, "", <User className="w-4 h-4 text-emerald-400" />)}
                   {renderField("Service national", "serviceNationalStatus", "select", getServiceNationalOptions(), false, "", <Shield className="w-4 h-4 text-emerald-400" />)}
                   {renderField("Nom", "name", "text", null, true, "Votre nom", <User className="w-4 h-4 text-emerald-400" />)}
                   {renderField("Prénom", "lastname", "text", null, true, "Votre prénom", <User className="w-4 h-4 text-emerald-400" />)}
@@ -489,23 +503,20 @@ export default function FormulaireCNOA() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   {renderField("Téléphone fixe", "fixe", "text", null, false, "023 45 67 89", <Phone className="w-4 h-4 text-emerald-400" />)}
                   {renderField("Téléphone mobile", "phone", "text", null, false, "0555 55 55 55", <Phone className="w-4 h-4 text-emerald-400" />)}
-                  {renderField("Email personnel", "email", "email", null, true, "email@exemple.com", <Mail className="w-4 h-4 text-emerald-400" />)}
+                  {renderField("Email professionnel", "email", "email", null, true, "nom.prenom@elmi3mari.dz", <Mail className="w-4 h-4 text-emerald-400" />)}
                 </div>
               </div>
 
-              {/* ─── 4. Diplômes universitaires (fixed) ─── */}
+              {/* ─── 4. Diplômes universitaires ─── */}
               <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)]">
                 <div className="flex items-center gap-3 mb-6">
                   <GraduationCap className="w-5 h-5 text-emerald-400" />
                   <h3 className="text-lg font-semibold text-[#F8FAFC]">Diplômes universitaires</h3>
                 </div>
                 <div className="space-y-4">
-                  {/* Type selection */}
                   <div className="grid grid-cols-1">
                     <div className="space-y-1.5">
-                      <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">
-                        Type de diplôme
-                      </label>
+                      <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Type de diplôme</label>
                       <select
                         name="diplomaType"
                         value={formData.diplomaType || ""}
@@ -519,7 +530,6 @@ export default function FormulaireCNOA() {
                     </div>
                   </div>
 
-                  {/* Classique fields */}
                   {formData.diplomaType === 'Classique' && (
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                       <div className="space-y-1.5">
@@ -561,7 +571,6 @@ export default function FormulaireCNOA() {
                     </div>
                   )}
 
-                  {/* LMD fields */}
                   {formData.diplomaType === 'LMD' && (
                     <div className="space-y-4">
                       <div>
@@ -657,7 +666,6 @@ export default function FormulaireCNOA() {
                   <FileText className="w-5 h-5 text-emerald-400" />
                   <h3 className="text-lg font-semibold text-[#F8FAFC]">Autres diplômes</h3>
                 </div>
-                {/* ... (same as before) ... */}
                 <div className="flex flex-wrap gap-3 items-end mb-4">
                   <div className="flex-1 min-w-[120px]">
                     <label className="block text-xs text-[#64748B]">Titre</label>
@@ -686,20 +694,6 @@ export default function FormulaireCNOA() {
                       className="w-full px-3 py-2 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-lg focus:ring-2 focus:ring-emerald-500/50"
                     />
                   </div>
-                  <div className="flex-1 min-w-[100px]">
-                    <label className="block text-xs text-[#64748B]">Fichier (optionnel)</label>
-                    <input
-                      type="file"
-                      onChange={(e) => {
-                        const file = e.target.files[0];
-                        if (file) {
-                          handleFileUploadForType('diploma_' + Date.now(), file);
-                          setDiplomaFile(file);
-                        }
-                      }}
-                      className="w-full text-xs text-[#64748B] file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:bg-emerald-500/10 file:text-emerald-400 hover:file:bg-emerald-500/20"
-                    />
-                  </div>
                   <button
                     type="button"
                     onClick={() => addItem(otherDiplomas, setOtherDiplomas, newDiploma, setNewDiploma, diplomaFile, setDiplomaFile)}
@@ -715,7 +709,6 @@ export default function FormulaireCNOA() {
                         <div>
                           <span className="text-[#F8FAFC] font-medium">{dip.titre}</span>
                           <span className="text-[#94A3B8] text-sm ml-2">({dip.etablissement}, {dip.annee})</span>
-                          {dip.fileName && <span className="text-emerald-400 text-xs ml-2">📎 {dip.fileName}</span>}
                         </div>
                         <button
                           type="button"
@@ -736,7 +729,6 @@ export default function FormulaireCNOA() {
                   <FileText className="w-5 h-5 text-emerald-400" />
                   <h3 className="text-lg font-semibold text-[#F8FAFC]">Formations</h3>
                 </div>
-                {/* ... (same as before) ... */}
                 <div className="flex flex-wrap gap-3 items-end mb-4">
                   <div className="flex-1 min-w-[120px]">
                     <label className="block text-xs text-[#64748B]">Titre</label>
@@ -765,20 +757,6 @@ export default function FormulaireCNOA() {
                       className="w-full px-3 py-2 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-lg focus:ring-2 focus:ring-emerald-500/50"
                     />
                   </div>
-                  <div className="flex-1 min-w-[100px]">
-                    <label className="block text-xs text-[#64748B]">Fichier (optionnel)</label>
-                    <input
-                      type="file"
-                      onChange={(e) => {
-                        const file = e.target.files[0];
-                        if (file) {
-                          handleFileUploadForType('formation_' + Date.now(), file);
-                          setFormationFile(file);
-                        }
-                      }}
-                      className="w-full text-xs text-[#64748B] file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:bg-emerald-500/10 file:text-emerald-400 hover:file:bg-emerald-500/20"
-                    />
-                  </div>
                   <button
                     type="button"
                     onClick={() => addItem(formations, setFormations, newFormation, setNewFormation, formationFile, setFormationFile)}
@@ -794,7 +772,6 @@ export default function FormulaireCNOA() {
                         <div>
                           <span className="text-[#F8FAFC] font-medium">{f.titre}</span>
                           <span className="text-[#94A3B8] text-sm ml-2">({f.etablissement}, {f.annee})</span>
-                          {f.fileName && <span className="text-emerald-400 text-xs ml-2">📎 {f.fileName}</span>}
                         </div>
                         <button
                           type="button"
@@ -819,7 +796,7 @@ export default function FormulaireCNOA() {
                   {renderField("N° d'inscription", "registrationNumber", "text", null, true, "N° d'inscription", <BookOpen className="w-4 h-4 text-emerald-400" />)}
                   {renderField("Date de serment", "oathDate", "date", null, false, "", <Calendar className="w-4 h-4 text-emerald-400" />)}
                   {renderField("Lieu du serment", "oathLocation", "text", null, false, "Lieu du serment", <MapPin className="w-4 h-4 text-emerald-400" />)}
-                  {renderField("Email professionnelle", "emailPro", "email", null, false, "pro@exemple.com", <Mail className="w-4 h-4 text-emerald-400" />)}
+                  {renderField("Email professionnelle", "email", "email", null, false, "nom.prenom@elmi3mari.dz", <Mail className="w-4 h-4 text-emerald-400" />)}
                   {renderField("Mode d'exercice", "professionalMode", "select", [
                     { value: "Libéral", label: "Libéral" },
                     { value: "Associé", label: "Associé" },
@@ -827,7 +804,6 @@ export default function FormulaireCNOA() {
                   ], false, "", <Briefcase className="w-4 h-4 text-emerald-400" />)}
                 </div>
 
-                {/* Conditional fields based on professionalMode */}
                 {formData.professionalMode && (
                   <div className="mt-6 pt-6 border-t border-[rgba(255,255,255,0.06)]">
                     <h4 className="text-sm font-medium text-[#94A3B8] uppercase tracking-wider mb-4">
@@ -882,14 +858,14 @@ export default function FormulaireCNOA() {
                 )}
               </div>
 
-              {/* ─── 8. Documents obligatoires ─── */}
+              {/* ─── 8. Documents obligatoires (conditional) ─── */}
               <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)]">
                 <div className="flex items-center gap-3 mb-6">
                   <Paperclip className="w-5 h-5 text-emerald-400" />
                   <h3 className="text-lg font-semibold text-[#F8FAFC]">Documents obligatoires</h3>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {FILE_TYPES.map((ft) => (
+                  {getVisibleFileTypes().map((ft) => (
                     <div key={ft.key} className="bg-[#111827] p-3 rounded-xl border border-[rgba(255,255,255,0.06)]">
                       <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider mb-1">
                         {ft.label}
@@ -956,7 +932,7 @@ export default function FormulaireCNOA() {
                   <div>
                     <h3 className="text-lg font-semibold text-[#F8FAFC]">Déclaration légale</h3>
                     <p className="text-sm text-[#94A3B8] mt-1 leading-relaxed">
-                      Je déclare vouloir exercer la profession d'architecte pour l'année 2026,<br />
+                      Je déclare vouloir exercer la profession d'architecte pour l'année 2027,<br />
                       et déclare sur l'honneur que les renseignements ci-dessus sont exacts,<br />
                       et j'autorise l'Ordre des Architectes à utiliser mes renseignements<br />
                       dans le respect des lois en vigueur, et des Règlements de l'Ordre des Architectes.
@@ -1014,10 +990,7 @@ export default function FormulaireCNOA() {
         </div>
 
         <div className="mt-8 text-center text-[#64748B] max-w-2xl mx-auto">
-          <p className="text-sm">
-            En continuant, vous acceptez nos <a href="#" className="text-emerald-400 hover:underline">Conditions d'utilisation</a> et notre <a href="#" className="text-emerald-400 hover:underline">Politique de confidentialité</a>.
-          </p>
-          <p className="text-sm mt-2">
+          <p className="text-m mt-2">
             Vous avez déjà un compte ? <a href="/" className="text-emerald-400 hover:underline font-medium">Se connecter</a>
           </p>
         </div>

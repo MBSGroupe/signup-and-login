@@ -3,6 +3,240 @@ import { IoClose } from 'react-icons/io5';
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
+// ─── Wilaya mapping ───────────────────────────────────────────────
+const WILAYA_NAMES = {
+  "01": "Adrar",
+  "02": "Chlef",
+  "03": "Laghouat",
+  "04": "Oum El Bouaghi",
+  "05": "Batna",
+  "06": "Béjaïa",
+  "07": "Biskra",
+  "08": "Béchar",
+  "09": "Blida",
+  "10": "Bouira",
+  "11": "Tamanrasset",
+  "12": "Tébessa",
+  "13": "Tlemcen",
+  "14": "Tiaret",
+  "15": "Tizi Ouzou",
+  "16": "Alger",
+  "17": "Djelfa",
+  "18": "Jijel",
+  "19": "Sétif",
+  "20": "Saïda",
+  "21": "Skikda",
+  "22": "Sidi Bel Abbès",
+  "23": "Annaba",
+  "24": "Guelma",
+  "25": "Constantine",
+  "26": "Médéa",
+  "27": "Mostaganem",
+  "28": "M'Sila",
+  "29": "Mascara",
+  "30": "Ouargla",
+  "31": "Oran",
+  "32": "El Bayadh",
+  "33": "Illizi",
+  "34": "Bordj Bou Arréridj",
+  "35": "Boumerdès",
+  "36": "El Tarf",
+  "37": "Tindouf",
+  "38": "Tissemsilt",
+  "39": "El Oued",
+  "40": "Khenchela",
+  "41": "Souk Ahras",
+  "42": "Tipaza",
+  "43": "Mila",
+  "44": "Aïn Defla",
+  "45": "Naâma",
+  "46": "Aïn Témouchent",
+  "47": "Ghardaïa",
+  "48": "Relizane",
+  "49": "El M'ghair",
+  "50": "El Meniaa",
+  "51": "Ouled Djellal",
+  "52": "Bordj Badji Mokhtar",
+  "53": "Béni Abbès",
+  "54": "Timimoun",
+  "55": "Touggourt",
+  "56": "Djanet",
+  "57": "El M'ghair",
+  "58": "El Meniaa"
+};
+
+// ─── Field labels matching the signup form ────────────────────────
+const FIELD_LABELS = {
+  region: 'CLOA d\'exercice',
+  nin: 'NIN',
+  sexe: 'Civilité',
+  serviceNationalStatus: 'Service national',
+  name: 'Nom',
+  lastname: 'Prénom',
+  nomArabe: 'Nom (Arabe)',
+  prenomArabe: 'Prénom (Arabe)',
+  dateOfBirth: 'Date de naissance',
+  lieuNaissance: 'Lieu de naissance',
+  numeroActeNaissance: 'N° acte de naissance',
+  adressePersonnelle: 'Adresse personnelle',
+  commune: 'Commune',
+  wilaya: 'Wilaya',
+  prenomPere: 'Prénom du père',
+  prenomPereArabe: 'Prénom du père (Arabe)',
+  nomPrenomMere: 'Nom et prénom de la mère',
+  nomPrenomMereArabe: 'Nom et prénom de la mère (Arabe)',
+  maritalStatus: 'Situation familiale',
+  enfants: 'Nombre d\'enfants',
+  fixe: 'Téléphone fixe',
+  phone: 'Téléphone mobile',
+  email: 'Email personnel',
+  emailPro: 'Email professionnelle',
+  diplomaType: 'Type de diplôme',
+  sessionClassique: 'Session Classique',
+  anneeClassique: 'Année Classique',
+  universiteClassique: 'Université Classique',
+  sessionLMDL: 'Session LMD (Licence)',
+  anneeLMDL: 'Année LMD (Licence)',
+  universiteLMDL: 'Université LMD (Licence)',
+  sessionLMDM: 'Session LMD (Master)',
+  anneeLMDM: 'Année LMD (Master)',
+  universiteLMDM: 'Université LMD (Master)',
+  otherDiplomas: 'Autres diplômes',
+  formations: 'Formations',
+  registrationNumber: 'N° d\'inscription',
+  oathDate: 'Date de serment',
+  oathLocation: 'Lieu du serment',
+  professionalMode: 'Mode d\'exercice',
+  installationDate: 'Date d\'installation',
+  nif: 'NIF',
+  adressePro: 'Adresse professionnelle',
+  adresseProArabe: 'Adresse professionnelle (Arabe)',
+  communePro: 'Commune (Pro)',
+  wilayaPro: 'Wilaya (Pro)',
+  benefitStateAid: 'Aide d\'État',
+  moyensHumains: 'Moyens humains',
+  associateName: 'Nom et prénom de l\'associé',
+  associateRegistrationNumber: 'N° d\'inscription de l\'associé',
+  recruitmentDate: 'Date de recrutement',
+  employerName: 'Nom et prénom de l\'employeur',
+  employerRegistrationNumber: 'N° d\'inscription de l\'employeur',
+  employerAdresse: 'Adresse professionnelle (employeur)',
+  employerAdresseArabe: 'Adresse professionnelle (employeur, Arabe)',
+  employerCommune: 'Commune (employeur)',
+  employerWilaya: 'Wilaya (employeur)',
+};
+
+// ─── Group definitions (same as signup) ──────────────────────────
+const SECTIONS = [
+  { id: 'cloa', label: 'CLOA d\'exercice', fields: ['region'] },
+  {
+    id: 'personal',
+    label: 'Informations Personnelles',
+    fields: [
+      'nin', 'sexe', 'serviceNationalStatus', 'name', 'lastname',
+      'nomArabe', 'prenomArabe', 'dateOfBirth', 'lieuNaissance',
+      'numeroActeNaissance', 'adressePersonnelle', 'commune', 'wilaya'
+    ]
+  },
+  {
+    id: 'family',
+    label: 'Informations Familiales',
+    fields: [
+      'prenomPere', 'prenomPereArabe', 'nomPrenomMere', 'nomPrenomMereArabe',
+      'maritalStatus', 'enfants'
+    ]
+  },
+  {
+    id: 'contact',
+    label: 'Contact',
+    fields: ['fixe', 'phone', 'email', 'emailPro']
+  },
+  {
+    id: 'university',
+    label: 'Diplômes universitaires',
+    fields: [
+      'diplomaType', 'sessionClassique', 'anneeClassique', 'universiteClassique',
+      'sessionLMDL', 'anneeLMDL', 'universiteLMDL',
+      'sessionLMDM', 'anneeLMDM', 'universiteLMDM'
+    ]
+  },
+  {
+    id: 'otherDiplomas',
+    label: 'Autres diplômes',
+    fields: ['otherDiplomas']
+  },
+  {
+    id: 'formations',
+    label: 'Formations',
+    fields: ['formations']
+  },
+  {
+    id: 'professional',
+    label: 'Informations professionnelles',
+    fields: [
+      'registrationNumber', 'oathDate', 'oathLocation', 'professionalMode',
+      'installationDate', 'nif', 'adressePro', 'adresseProArabe',
+      'communePro', 'wilayaPro', 'benefitStateAid', 'moyensHumains',
+      'associateName', 'associateRegistrationNumber',
+      'recruitmentDate', 'employerName', 'employerRegistrationNumber',
+      'employerAdresse', 'employerAdresseArabe', 'employerCommune', 'employerWilaya'
+    ]
+  }
+];
+
+// ─── Formatting helpers ──────────────────────────────────────────
+const formatSexe = (value) => {
+  if (value === 'M') return 'Homme';
+  if (value === 'F') return 'Femme';
+  return value || '-';
+};
+
+const formatProfessionalMode = (value) => {
+  if (value === 'L') return 'Libéral';
+  if (value === 'A') return 'Associé';
+  if (value === 'S') return 'Salarié';
+  return value || '-';
+};
+
+const formatDiplomaType = (value) => {
+  if (value === 'C') return 'Classique';
+  if (value === 'L') return 'LMD';
+  return value || '-';
+};
+
+const formatWilaya = (value) => {
+  if (!value) return '-';
+  // If it already has the prefix (e.g., "16 - Alger"), extract the name
+  if (value.includes(' - ')) {
+    const parts = value.split(' - ');
+    return parts.length > 1 ? parts[1] : value;
+  }
+  // If it's a numeric code (e.g., "16"), look up the name
+  const trimmed = value.trim().padStart(2, '0'); // ensure two digits
+  return WILAYA_NAMES[trimmed] || value;
+};
+
+const formatValue = (value) => {
+  if (value === null || value === undefined) return '-';
+  if (typeof value === 'boolean') return value ? 'Oui' : 'Non';
+  if (typeof value === 'string' && (value.includes('T') || /^\d{4}-\d{2}-\d{2}/.test(value))) {
+    try {
+      const d = new Date(value);
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      }
+    } catch {}
+  }
+  if (value instanceof Date) {
+    if (!isNaN(value.getTime())) {
+      return value.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    }
+    return 'Date invalide';
+  }
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+};
+
 export default function UserDetailsModal({ user, onClose, authToken }) {
   const modalRef = useRef(null);
   const [visibleFields, setVisibleFields] = useState([]);
@@ -12,7 +246,6 @@ export default function UserDetailsModal({ user, onClose, authToken }) {
   useEffect(() => {
     const fetchPermissions = async () => {
       if (!authToken) {
-        // No token → no fields, no loading
         setVisibleFields([]);
         setFieldConfigs({});
         setLoading(false);
@@ -27,16 +260,12 @@ export default function UserDetailsModal({ user, onClose, authToken }) {
         );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-
-        // Extract fields and configs
         const fields = data?.data?.fields || data?.fields || [];
         const configs = data?.data?.configs || data?.configs || {};
-
         setVisibleFields(fields);
         setFieldConfigs(configs);
       } catch (err) {
         console.error('Permission fetch error:', err);
-        // On error: show nothing
         setVisibleFields([]);
         setFieldConfigs({});
       } finally {
@@ -60,71 +289,6 @@ export default function UserDetailsModal({ user, onClose, authToken }) {
     };
   }, [onClose]);
 
-  const formatValue = (value) => {
-    if (value === null || value === undefined) return '-';
-    if (typeof value === 'boolean') return value ? 'Oui' : 'Non';
-    if (typeof value === 'string' && (value.includes('T') || /^\d{4}-\d{2}-\d{2}/.test(value))) {
-      try {
-        const d = new Date(value);
-        if (!isNaN(d.getTime())) {
-          return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-        }
-      } catch {}
-    }
-    if (value instanceof Date) {
-      if (!isNaN(value.getTime())) {
-        return value.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-      }
-      return 'Date invalide';
-    }
-    if (typeof value === 'object') return JSON.stringify(value);
-    return String(value);
-  };
-
-  const getSexeLabel = (value) => {
-    if (value === 'M') return 'Homme';
-    if (value === 'F') return 'Femme';
-    return value || '-';
-  };
-
-  // Build grouped fields from configs + visibleFields
-  const buildGroupedFields = () => {
-    const groups = {};
-
-    // Only include fields that are visible and have a config
-    visibleFields.forEach((fieldKey) => {
-      const config = fieldConfigs[fieldKey];
-      if (!config) return;
-
-      const groupKey = config.ui?.group || 'Autres';
-      if (!groups[groupKey]) {
-        groups[groupKey] = {
-          label: config.ui?.groupLabel || groupKey,
-          fields: [],
-        };
-      }
-
-      groups[groupKey].fields.push({
-        key: fieldKey,
-        label: config.label || fieldKey,
-        labelAr: config.labelAr || '',
-        isArabic: false, // we can detect from labelAr if needed, but keep false
-        formatter: fieldKey === 'sexe' ? getSexeLabel : null,
-      });
-    });
-
-    // Sort fields within each group by ui.order
-    Object.keys(groups).forEach((groupKey) => {
-      groups[groupKey].fields.sort((a, b) => {
-        const orderA = fieldConfigs[a.key]?.ui?.order || 999;
-        const orderB = fieldConfigs[b.key]?.ui?.order || 999;
-        return orderA - orderB;
-      });
-    });
-
-    return groups;
-  };
-
   if (loading) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
@@ -136,7 +300,43 @@ export default function UserDetailsModal({ user, onClose, authToken }) {
     );
   }
 
-  // If no visible fields, show an empty state
+  const visibleFieldSet = new Set(visibleFields);
+
+  const getFormatter = (key) => {
+    if (key === 'sexe') return formatSexe;
+    if (key === 'professionalMode') return formatProfessionalMode;
+    if (key === 'diplomaType') return formatDiplomaType;
+    // Apply wilaya formatter to these fields
+    if (['region', 'wilaya', 'wilayaPro', 'employerWilaya', 'oathLocation'].includes(key)) {
+      return formatWilaya;
+    }
+    return null;
+  };
+
+  const renderList = (items) => {
+    if (!items || items.length === 0) return <span className="text-[#64748B]">Aucun élément</span>;
+    return (
+      <ul className="list-disc list-inside space-y-1 text-[#F8FAFC]">
+        {items.map((item, idx) => (
+          <li key={idx}>
+            {item.titre || item.name} {item.etablissement && `(${item.etablissement})`} {item.annee && `- ${item.annee}`}
+          </li>
+        ))}
+      </ul>
+    );
+  };
+
+  const hasVisibleData = (section) => {
+    return section.fields.some(key => {
+      if (!visibleFieldSet.has(key)) return false;
+      const val = user[key];
+      if (key === 'otherDiplomas' || key === 'formations') {
+        return Array.isArray(val) && val.length > 0;
+      }
+      return val !== undefined && val !== null && val !== '';
+    });
+  };
+
   if (visibleFields.length === 0) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
@@ -157,8 +357,6 @@ export default function UserDetailsModal({ user, onClose, authToken }) {
       </div>
     );
   }
-
-  const groupedFields = buildGroupedFields();
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
@@ -189,34 +387,42 @@ export default function UserDetailsModal({ user, onClose, authToken }) {
 
         {/* Content */}
         <div className="p-6 space-y-8">
-          {Object.entries(groupedFields).map(([groupKey, group]) => {
-            // Filter fields that have a non-empty value
-            const fieldsWithValue = group.fields.filter((field) => {
-              const val = user[field.key];
-              return val !== undefined && val !== null && val !== '';
-            });
-            if (fieldsWithValue.length === 0) return null;
-
+          {SECTIONS.map((section) => {
+            if (!hasVisibleData(section)) return null;
             return (
-              <div key={groupKey}>
+              <div key={section.id}>
                 <h3 className="text-lg font-semibold text-emerald-400 border-b border-[rgba(255,255,255,0.06)] pb-2 mb-4 tracking-wide">
-                  {group.label}
+                  {section.label}
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {fieldsWithValue.map((field) => {
-                    const value = user[field.key];
-                    let displayValue = field.formatter ? field.formatter(value) : formatValue(value);
+                  {section.fields.map((key) => {
+                    if (!visibleFieldSet.has(key)) return null;
+                    const value = user[key];
+                    if (key === 'otherDiplomas' || key === 'formations') {
+                      if (!Array.isArray(value) || value.length === 0) return null;
+                      const label = FIELD_LABELS[key] || key;
+                      return (
+                        <div key={key} className="p-3 rounded-lg bg-[#182233] border border-[rgba(255,255,255,0.06)] col-span-full">
+                          <p className="text-[#64748B] text-xs font-medium uppercase tracking-wider">{label}</p>
+                          <div className="mt-1">{renderList(value)}</div>
+                        </div>
+                      );
+                    }
+                    if (value === undefined || value === null || value === '') return null;
+                    const label = FIELD_LABELS[key] || key;
+                    const formatter = getFormatter(key);
+                    const displayValue = formatter ? formatter(value) : formatValue(value);
+                    const isArabic = key.includes('Arabe') || key.includes('arab');
+
                     return (
                       <div
-                        key={field.key}
+                        key={key}
                         className="p-3 rounded-lg bg-[#182233] border border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)] transition-colors"
                       >
-                        <p className="text-[#64748B] text-xs font-medium uppercase tracking-wider">
-                          {field.label}
-                        </p>
+                        <p className="text-[#64748B] text-xs font-medium uppercase tracking-wider">{label}</p>
                         <p
-                          className={`text-[#F8FAFC] mt-1 text-sm break-words ${field.isArabic ? 'font-arabic text-right' : ''}`}
-                          dir={field.isArabic ? 'rtl' : 'ltr'}
+                          className={`text-[#F8FAFC] mt-1 text-sm break-words ${isArabic ? 'font-arabic text-right' : ''}`}
+                          dir={isArabic ? 'rtl' : 'ltr'}
                         >
                           {displayValue}
                         </p>

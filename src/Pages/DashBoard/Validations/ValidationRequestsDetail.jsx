@@ -212,7 +212,7 @@ export default function ValidationRequestDetail() {
     if (currentDocIndex < totalDocs - 1) setCurrentDocIndex(currentDocIndex + 1);
   };
 
-  // ─── Rest of functions (unchanged) ────────────────────────────────
+  // ─── HANDLE STEP ACTION ────────────────────────────────────────────────
   const handleStepAction = async (stepOrder, action) => {
     const comment = comments[stepOrder] || '';
     if (!comment && action !== 'skip') {
@@ -602,14 +602,26 @@ export default function ValidationRequestDetail() {
                                 <div className="space-y-3">
                                   <div className="flex items-center justify-between">
                                     <span className="text-sm font-medium text-[#F8FAFC]">
-                                      {currentFile?.documentType || 
-                                       currentFile?.fileName || 
-                                       currentFile?.name || 
+                                      {currentFile?.documentType ||
+                                       currentFile?.fileName ||
+                                       currentFile?.name ||
                                        `Document ${currentDocIndex+1}`}
                                     </span>
-                                    <span className="text-xs text-[#64748B]">
-                                      {currentDocIndex+1} / {totalDocs}
-                                    </span>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs text-[#64748B]">
+                                        {currentDocIndex+1} / {totalDocs}
+                                      </span>
+                                      {fileUrl && (
+                                        <a
+                                          href={fileUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-xs text-emerald-400 hover:text-emerald-300 underline"
+                                        >
+                                          Ouvrir
+                                        </a>
+                                      )}
+                                    </div>
                                   </div>
 
                                   <div className="relative bg-[#111827] rounded-lg border border-[rgba(255,255,255,0.06)] overflow-hidden flex items-center justify-center h-[500px]">
@@ -640,6 +652,16 @@ export default function ValidationRequestDetail() {
                                         <span className="text-sm">
                                           {fileUrl ? 'Aperçu non disponible' : `Fichier: ${currentFile?.documentType || 'Document'}`}
                                         </span>
+                                        {fileUrl && (
+                                          <a
+                                            href={fileUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="mt-2 text-xs text-emerald-400 hover:text-emerald-300 underline"
+                                          >
+                                            Ouvrir directement
+                                          </a>
+                                        )}
                                       </div>
                                     )}
 

@@ -1,9 +1,8 @@
 import { React, useState, useEffect, useContext } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { UserContext } from "../Context/dataCont";
-import SectionTitle from "../Components/Title";
 import { Mail, Lock, LogIn, Shield, AlertCircle } from "lucide-react";
-
+import CNOALOGO from '../assets/LOGOCLOA.png';
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
@@ -104,30 +103,31 @@ const LoginForm = () => {
   return (
     <div className="min-h-screen bg-[#0A0F1C] flex flex-col items-center justify-center p-6 font-sans antialiased">
       <div className="w-full max-w-md">
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 mb-4">
-            <Shield className="w-8 h-8 text-emerald-400" />
-          </div>
-          <h1 className="text-3xl font-bold text-[#F8FAFC] tracking-tight">
-            Welcome Back
+        {/* ─── Header with logo and title ─────────────────────────────── */}
+        <div className="flex flex-col items-center mb-8">
+          <img
+            src={CNOALOGO}
+            alt="CNOA Logo"
+            className="w-20 h-20 object-contain mb-3"
+          />
+          <h1 className="text-3xl font-bold text-[#F8FAFC] tracking-tight text-center">
+            Ordre National des Architectes
           </h1>
-          <p className="text-[#94A3B8] mt-2 text-sm">
-            Log in to your secure dashboard
-          </p>
+          <p className="text-[#94A3B8] text-sm mt-1">Espace membre</p>
         </div>
 
         <div className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] shadow-2xl shadow-black/50 p-8">
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-1.5">
               <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">
-                Email Address
+                Email professionnel
               </label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748B]" />
                 <input
                   type="email"
                   name="email"
-                  placeholder="you@example.com"
+                  placeholder="nom.prenom@elmi3mari.dz"
                   value={formData.email}
                   onChange={handleChange}
                   disabled={lockTime > 0}
@@ -138,7 +138,7 @@ const LoginForm = () => {
 
             <div className="space-y-1.5">
               <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">
-                Password
+                Mot de passe
               </label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748B]" />
@@ -167,7 +167,7 @@ const LoginForm = () => {
               ) : (
                 <>
                   <LogIn className="w-4 h-4" />
-                  Log In
+                  Se connecter
                 </>
               )}
             </button>
@@ -185,22 +185,11 @@ const LoginForm = () => {
           )}
         </div>
 
-        <div className="mt-8 text-center text-[#64748B] text-sm">
+        <div className="mt-8 text-center text-[#64748B] text-m">
           <p>
-            By continuing, you agree to our{" "}
-            <a href="#" className="text-emerald-400 hover:underline">
-              Terms of Service
-            </a>{" "}
-            and{" "}
-            <a href="#" className="text-emerald-400 hover:underline">
-              Privacy Policy
-            </a>
-            .
-          </p>
-          <p className="mt-2">
-            Don't have an account?{" "}
+            Vous n'êtes pas inscrit ? Créez un compte{" "}
             <Link to="/signup" className="text-emerald-400 hover:underline font-medium">
-              Sign Up
+              S'inscrire
             </Link>
           </p>
         </div>
