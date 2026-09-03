@@ -266,38 +266,6 @@ export default function GetUsers({ mode }) {
     }
   };
 
-  const handlePrintReceipt = (user) => {
-    setOpenMenuId(null);
-    navigate(`/dash/adminUser/${user.id}`);
-  };
-
-  const handleValidateUser = async (user) => {
-    setOpenMenuId(null);
-    
-    try {
-      const response = await fetch(`${NEST_API_URL}/users/${user.id}/validate`, {
-        method: 'PATCH',
-        headers: { Authorization: `Bearer ${authData.token}` },
-      });
-      
-      const data = await response.json();
-
-      if (!response.ok) {
-        showError(data.message || 'Failed to validate user');
-        return;
-      }
-
-      if (data.success) {
-        showSuccess('User validated successfully!');
-        fetchUsers();
-      } else {
-        showWarning(data.message || 'Failed to validate user');
-      }
-    } catch (error) {
-      console.error('Error validating user:', error);
-      showError('Network error. Please check your connection.');
-    }
-  };
 
   const handleDeleteUser = async (user) => {
     setOpenMenuId(null);
@@ -418,10 +386,7 @@ export default function GetUsers({ mode }) {
                     <Shield className="w-3 h-3 mr-1" />
                     {authData?.user?.role || 'Administrator'}
                   </span>
-                  <span className="text-sm text-[#94A3B8] flex items-center gap-1">
-                    <User className="w-3.5 h-3.5" />
-                    ID: {authData?.user?.id || 'N/A'}
-                  </span>
+
                   <span className="text-sm text-[#94A3B8] flex items-center gap-1">
                     <Calendar className="w-3.5 h-3.5" />
                     Member since {new Date(authData?.user?.createdAt).getFullYear() || '2024'}
@@ -440,13 +405,6 @@ export default function GetUsers({ mode }) {
           >
             <Plus className="w-4 h-4" />
             Add Member
-          </button>
-          <button 
-            onClick={handleExport}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#182233] hover:bg-[#1F2937] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] transition-all duration-200"
-          >
-            <Download className="w-4 h-4" />
-            Export
           </button>
           <button 
             onClick={() => setShowFilters(!showFilters)}
@@ -700,9 +658,7 @@ export default function GetUsers({ mode }) {
                           Prénom {sortBy === 'lastname' && (sortOrder === 'asc' ? '↑' : '↓')}
                         </th>
                         <th className="py-4 px-6 text-left text-xs uppercase tracking-wider text-[#64748B] font-semibold">Email</th>
-                        <th className="py-4 px-6 text-left text-xs uppercase tracking-wider text-[#64748B] font-semibold">Profession</th>
                         <th className="py-4 px-6 text-left text-xs uppercase tracking-wider text-[#64748B] font-semibold">CLOA</th>
-                        <th className="py-4 px-6 text-left text-xs uppercase tracking-wider text-[#64748B] font-semibold">Rôle</th>
                         <th className="py-4 px-6 text-left text-xs uppercase tracking-wider text-[#64748B] font-semibold">Statut</th>
                         <th className="py-4 px-6 text-right text-xs uppercase tracking-wider text-[#64748B] font-semibold">Actions</th>
                       </tr>
@@ -717,17 +673,7 @@ export default function GetUsers({ mode }) {
                             <td className="py-3 px-6 text-[#F8FAFC] font-medium">{user.name || '-'}</td>
                             <td className="py-3 px-6 text-[#F8FAFC]">{user.lastname || '-'}</td>
                             <td className="py-3 px-6 text-[#94A3B8] truncate max-w-[150px]">{user.email || '-'}</td>
-                            <td className="py-3 px-6 text-[#F8FAFC]">{user.profession || '-'}</td>
-                            <td className="py-3 px-6 text-[#F8FAFC]">{user.wilaya || '-'}</td>
-                            <td className="py-3 px-6">
-                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                user.role === 'admin' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' :
-                                user.role === 'super_admin' ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' :
-                                'bg-blue-500/10 text-blue-400 border border-blue-500/20'
-                              }`}>
-                                {user.role || 'user'}
-                              </span>
-                            </td>
+                            <td className="py-3 px-6 text-[#F8FAFC]">{user.region || '-'}</td>
                             <td className="py-3 px-6">
                               <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                                 user.status === 'active' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
@@ -770,23 +716,7 @@ export default function GetUsers({ mode }) {
                                       <FileText className="w-4 h-4 text-[#64748B]" />
                                       Situation du membre
                                     </button>
-                                    <button
-                                      onClick={() => handlePrintReceipt(user)}
-                                      className="w-full px-4 py-2.5 text-left text-[#F8FAFC] hover:bg-[#1F2937] transition-colors flex items-center gap-3 text-sm"
-                                    >
-                                      <Printer className="w-4 h-4 text-[#64748B]" />
-                                      Imprimer un reçu
-                                    </button>
                                     <div className="border-t border-[rgba(255,255,255,0.06)] my-1"></div>
-                                    {!user.isAdminVerified && (
-                                      <button
-                                        onClick={() => handleValidateUser(user)}
-                                        className="w-full px-4 py-2.5 text-left text-[#F8FAFC] hover:bg-[#1F2937] transition-colors flex items-center gap-3 text-sm"
-                                      >
-                                        <UserCheck className="w-4 h-4 text-emerald-400" />
-                                        Valider le compte
-                                      </button>
-                                    )}
                                     <button
                                       onClick={() => {
                                         setOpenMenuId(null);

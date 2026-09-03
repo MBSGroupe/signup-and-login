@@ -160,11 +160,7 @@ export default function SideBar() {
                     onClick={() => handleNavigation("/dash/allUsers")}
                     active={isActive("/dash/allUsers")}
                   />
-                  <SubItem
-                    label="Créer utilisateur"
-                    onClick={() => handleNavigation("/dash/createUser")}
-                    active={isActive("/dash/createUser")}
-                  />
+
                 </div>
               )}
             </div>

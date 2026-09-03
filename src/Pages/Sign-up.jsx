@@ -88,52 +88,52 @@ export default function FormulaireCNOA() {
 
   // ─── FORM STATE ──────────────────────────────────────────────────────────
   const [formData, setFormData] = useState({
-    region: "16 - Alger",
-    nin: "123456789012345678",
-    sexe: "M",
-    serviceNationalStatus: "Ayant effectué",
-    name: "Ahmed",
-    lastname: "Benziane",
-    nomArabe: "بن زيان",
-    prenomArabe: "أحمد",
-    dateOfBirth: "1985-06-15",
-    lieuNaissance: "Alger",
-    numeroActeNaissance: "123456789",
-    adressePersonnelle: "12 Rue des Oliviers, Hydra",
-    commune: "Hydra",
-    wilaya: "16 - Alger",
-    prenomPere: "Mohamed",
-    prenomPereArabe: "محمد",
-    nomPrenomMere: "Fatima Zohra",
-    nomPrenomMereArabe: "فاطمة الزهراء",
-    maritalStatus: "Marié(e)",
-    enfants: "2",
-    fixe: "023 45 67 89",
-    phone: "0555 12 34 56",
-    email: "saabimm@gmail.com",
-    emailPro: "saabimm@gmail.com",
-    diplomaType: "Classique",
-    sessionClassique: "Juin",
-    anneeClassique: "2010",
-    universiteClassique: "Université d'Alger",
+    region: "",
+    nin: "",
+    sexe: "",
+    serviceNationalStatus: "",
+    name: "",
+    lastname: "",
+    nomArabe: "",
+    prenomArabe: "",
+    dateOfBirth: "",
+    lieuNaissance: "",
+    numeroActeNaissance: "",
+    adressePersonnelle: "",
+    commune: "",
+    wilaya: "",
+    prenomPere: "",
+    prenomPereArabe: "",
+    nomPrenomMere: "",
+    nomPrenomMereArabe: "",
+    maritalStatus: "",
+    enfants: "",
+    fixe: "",
+    phone: "",
+    email: "",
+    emailPro: "",
+    diplomaType: "",
+    sessionClassique: "",
+    anneeClassique: "",
+    universiteClassique: "",
     sessionLMDL: "",
     anneeLMDL: "",
     universiteLMDL: "",
     sessionLMDM: "",
     anneeLMDM: "",
     universiteLMDM: "",
-    registrationNumber: "12345",
-    oathDate: "2012-09-01",
-    oathLocation: "16 - Alger",
-    professionalMode: "Libéral",
-    installationDate: "2012-10-15",
-    nif: "1234567890123",
-    adressePro: "5 Rue Didouche Mourad, Alger",
-    adresseProArabe: "شارع ديدوش مراد، الجزائر",
-    communePro: "Alger",
-    wilayaPro: "16 - Alger",
-    benefitStateAid: "ANSEJ/NESDA",
-    moyensHumains: "5",
+    registrationNumber: "",
+    oathDate: "",
+    oathLocation: "",
+    professionalMode: "",
+    installationDate: "",
+    nif: "",
+    adressePro: "",
+    adresseProArabe: "",
+    communePro: "",
+    wilayaPro: "",
+    benefitStateAid: "",
+    moyensHumains: "",
     associateName: "",
     associateRegistrationNumber: "",
     recruitmentDate: "",
@@ -143,11 +143,11 @@ export default function FormulaireCNOA() {
     employerAdresseArabe: "",
     employerCommune: "",
     employerWilaya: "",
-    password: "password123",
-    secondPassword: "password123",
+    password: "",
+    secondPassword: "",
     role: "user",
     status: "pending",
-    loi: true,
+    loi: false,
   });
 
   const [otherDiplomas, setOtherDiplomas] = useState([]);
@@ -168,10 +168,9 @@ export default function FormulaireCNOA() {
   const handleFileUploadForType = (typeKey, file) => {
     if (!file) return;
     setUploadingFileType(typeKey);
-    // Just store the file object – upload happens in handleSubmit
     setFileUploads(prev => ({
       ...prev,
-      [typeKey]: file, // store the actual File object
+      [typeKey]: file,
     }));
     setUploadingFileType(null);
   };
@@ -186,7 +185,6 @@ export default function FormulaireCNOA() {
       setMessageType("error");
       return;
     }
-    // For otherDiplomas, we no longer attach a file here because files are sent with signup
     const entry = { ...item };
     setList([...list, entry]);
     setItem({ titre: "", etablissement: "", annee: "" });
@@ -339,18 +337,29 @@ export default function FormulaireCNOA() {
       return;
     }
 
+    // ─── NEW: Validate required files ──────────────────────────
+    const visibleFileTypes = getVisibleFileTypes();
+    const missingFiles = visibleFileTypes.filter(
+      (ft) => !fileUploads[ft.key] || !(fileUploads[ft.key] instanceof File)
+    );
+    if (missingFiles.length > 0) {
+      const missingLabels = missingFiles.map(ft => ft.label).join(', ');
+      setMessage(`Veuillez joindre tous les documents obligatoires : ${missingLabels}`);
+      setMessageType('error');
+      return;
+    }
+    // ─────────────────────────────────────────────────────────────
+
     setIsLoading(true);
     setMessage("");
 
     try {
       const form = new FormData();
 
-      // Append all text fields (exclude secondPassword)
       const { secondPassword, ...dataToSend } = formData;
       Object.keys(dataToSend).forEach(key => {
         const value = dataToSend[key];
         if (value !== undefined && value !== null && value !== '') {
-          // For boolean, convert to string
           if (typeof value === 'boolean') {
             form.append(key, String(value));
           } else {
@@ -359,11 +368,9 @@ export default function FormulaireCNOA() {
         }
       });
 
-      // Append otherDiplomas and formations as JSON strings
       form.append('otherDiplomas', JSON.stringify(otherDiplomas));
       form.append('formations', JSON.stringify(formations));
 
-      // Append files (only those that are actual File objects)
       Object.keys(fileUploads).forEach(key => {
         const file = fileUploads[key];
         if (file && file instanceof File) {
@@ -373,7 +380,7 @@ export default function FormulaireCNOA() {
 
       const response = await fetch(`${NEST_API_URL}/auth/signup`, {
         method: "POST",
-        body: form, // No Content-Type header; browser sets it to multipart/form-data
+        body: form,
       });
 
       const data = await response.json();
@@ -431,7 +438,7 @@ export default function FormulaireCNOA() {
             Ordre National des Architectes
           </h1>
           <h3 className="text-3xl font-bold text-[#F8FAFC] tracking-tight text-center">
-            Déclarations 2027
+            Déclaration 2027
           </h3>
         </div>
 
@@ -457,7 +464,7 @@ export default function FormulaireCNOA() {
                   <h3 className="text-lg font-semibold text-[#F8FAFC]">Informations Personnelles</h3>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {renderField("NIN", "nin", "text", null, false, "Numéro d'identité nationale", <Shield className="w-4 h-4 text-emerald-400" />)}
+                  {renderField("NIN", "nin", "text", null, true, "Numéro d'identité nationale", <Shield className="w-4 h-4 text-emerald-400" />)}
                   {renderField("Civilité", "sexe", "select", [{ value: "M", label: "Masculin" }, { value: "F", label: "Féminin" }], true, "", <User className="w-4 h-4 text-emerald-400" />)}
                   {renderField("Service national", "serviceNationalStatus", "select", getServiceNationalOptions(), false, "", <Shield className="w-4 h-4 text-emerald-400" />)}
                   {renderField("Nom", "name", "text", null, true, "Votre nom", <User className="w-4 h-4 text-emerald-400" />)}
@@ -480,8 +487,8 @@ export default function FormulaireCNOA() {
                   <h3 className="text-lg font-semibold text-[#F8FAFC]">Informations Familiales</h3>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {renderField("Prénom du père", "prenomPere", "text", null, false, "Prénom du père")}
-                  {renderField("Prénom du père (Arabe)", "prenomPereArabe", "text", null, false, "اسم الأب")}
+                  {renderField("Prénom du père", "prenomPere", "text", null, true, "Prénom du père")}
+                  {renderField("Prénom du père (Arabe)", "prenomPereArabe", "text", null, true, "اسم الأب")}
                   {renderField("Nom et prénom de la mère", "nomPrenomMere", "text", null, false, "Nom et prénom de la mère")}
                   {renderField("Nom et prénom de la mère (Arabe)", "nomPrenomMereArabe", "text", null, false, "اسم الأم")}
                   {renderField("Situation familiale", "maritalStatus", "select", [
@@ -503,7 +510,7 @@ export default function FormulaireCNOA() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   {renderField("Téléphone fixe", "fixe", "text", null, false, "023 45 67 89", <Phone className="w-4 h-4 text-emerald-400" />)}
                   {renderField("Téléphone mobile", "phone", "text", null, false, "0555 55 55 55", <Phone className="w-4 h-4 text-emerald-400" />)}
-                  {renderField("Email professionnel", "email", "email", null, true, "nom.prenom@elmi3mari.dz", <Mail className="w-4 h-4 text-emerald-400" />)}
+                  {renderField("Email", "email", "email", null, true, "example@yahoo.com", <Mail className="w-4 h-4 text-emerald-400" />)}
                 </div>
               </div>
 
@@ -796,7 +803,6 @@ export default function FormulaireCNOA() {
                   {renderField("N° d'inscription", "registrationNumber", "text", null, true, "N° d'inscription", <BookOpen className="w-4 h-4 text-emerald-400" />)}
                   {renderField("Date de serment", "oathDate", "date", null, false, "", <Calendar className="w-4 h-4 text-emerald-400" />)}
                   {renderField("Lieu du serment", "oathLocation", "text", null, false, "Lieu du serment", <MapPin className="w-4 h-4 text-emerald-400" />)}
-                  {renderField("Email professionnelle", "email", "email", null, false, "nom.prenom@elmi3mari.dz", <Mail className="w-4 h-4 text-emerald-400" />)}
                   {renderField("Mode d'exercice", "professionalMode", "select", [
                     { value: "Libéral", label: "Libéral" },
                     { value: "Associé", label: "Associé" },
@@ -868,7 +874,7 @@ export default function FormulaireCNOA() {
                   {getVisibleFileTypes().map((ft) => (
                     <div key={ft.key} className="bg-[#111827] p-3 rounded-xl border border-[rgba(255,255,255,0.06)]">
                       <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider mb-1">
-                        {ft.label}
+                        {ft.label} <span className="text-rose-400 ml-1">*</span>
                       </label>
                       <div className="flex items-center gap-2">
                         {fileUploads[ft.key] ? (

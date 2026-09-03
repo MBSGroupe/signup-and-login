@@ -197,7 +197,9 @@ export default function ValidationRequestDetail() {
     return false;
   };
 
-  const declarationFiles = targetFiles.filter(f => f.folder === 'declaration');
+  const declarationFiles = targetFiles.filter(f => 
+  f.folder === 'declaration' || f.folder === 'signup'
+);
   const totalDocs = declarationFiles.length;
   const currentFile = totalDocs > 0 ? declarationFiles[currentDocIndex] : null;
   const fileUrl = currentFile ? getFilePreviewUrl(currentFile) : null;
