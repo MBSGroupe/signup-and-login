@@ -177,17 +177,26 @@ export default function ValidationRequestDetail() {
     }
   }, [id, authData?.token, setAuthData]);
 
+  // ─── FIX: always return absolute URL ────────────────────────────────────
   const getFilePreviewUrl = (file) => {
+    // If we have a fileId, construct URL directly
     if (file.fileId) {
       return `${BACKEND_BASE_URL}/storage/${encodeURIComponent(file.fileId)}`;
     }
-    if (file.url) {
-      return file.url.replace(/http:\/\/localhost:\d+/, BACKEND_BASE_URL);
+
+    // If file.url or file.path is given, ensure it becomes absolute
+    let urlPath = file.url || file.path || '';
+    if (!urlPath) return null;
+
+    // If it's already an absolute URL (starts with http), return as is
+    if (urlPath.startsWith('http://') || urlPath.startsWith('https://')) {
+      return urlPath;
     }
-    if (file.path) {
-      return file.path.replace(/http:\/\/localhost:\d+/, BACKEND_BASE_URL);
-    }
-    return null;
+
+    // Otherwise, prepend BACKEND_BASE_URL
+    // Ensure we don't double‑slash
+    const cleanPath = urlPath.startsWith('/') ? urlPath : `/${urlPath}`;
+    return `${BACKEND_BASE_URL}${cleanPath}`;
   };
 
   const isFilePdf = (file) => {
@@ -197,9 +206,9 @@ export default function ValidationRequestDetail() {
     return false;
   };
 
-  const declarationFiles = targetFiles.filter(f => 
-  f.folder === 'declaration' || f.folder === 'signup'
-);
+  const declarationFiles = targetFiles.filter(f =>
+    f.folder === 'declaration' || f.folder === 'signup'
+  );
   const totalDocs = declarationFiles.length;
   const currentFile = totalDocs > 0 ? declarationFiles[currentDocIndex] : null;
   const fileUrl = currentFile ? getFilePreviewUrl(currentFile) : null;

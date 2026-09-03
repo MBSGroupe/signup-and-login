@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X,
@@ -25,7 +25,8 @@ export default function DeclarationModal({
   targetUserId,
   authToken,
   onSuccess,
-  schema = null
+  schema = null,
+  existingRequestId = null
 }) {
   const { showError, showSuccess } = useError();
 
@@ -102,7 +103,7 @@ export default function DeclarationModal({
     formData.append('folder', 'declaration');
     formData.append('documentType', docType); // ✅ Added
 
-    const uploadUrl = targetUserId 
+    const uploadUrl = targetUserId
       ? `${NEST_API_URL}/files/${targetUserId}`
       : `${NEST_API_URL}/files/upload/temp`;
 
@@ -191,48 +192,88 @@ export default function DeclarationModal({
         throw new Error(errorData.message || 'Échec de la mise à jour du NIN');
       }
 
-      // 3. Create validation request
+      // 3. Notifier le backend de la demande ou de la resoumission
       setUploadMessage('Enregistrement de la demande de Déclaration...');
       const schemaName = schema?.name || 'Declaration';
-      const schemaId = schema?.id || schema?._id;
 
-      const requestPayload = {
-        targetId: targetUserId,
-        targetType: schema?.targetType || 'User',
-        schemaName: schemaName,
-      };
+      let reqId = existingRequestId;
+      let generatedRef = `DEC-2026-${Math.floor(1000 + Math.random() * 9000)}`;
 
-
-      const res = await fetch(`${NEST_API_URL}/validation/requests`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`
-        },
-        body: JSON.stringify(requestPayload)
-      });
-
-      const data = await res.json();
-
-      if (res.ok && (data.success || data.id || data.data)) {
-        const generatedRef =
-          data?.data?.reference ||
-          data?.reference ||
-          `DEC-2026-${Math.floor(1000 + Math.random() * 9000)}`;
-
-        setSuccessRef(generatedRef);
-        showSuccess('Demande de Déclaration soumise avec succès !');
-        if (onSuccess) await onSuccess();
-      } else {
-        const errMsg = (data.message || data.error || '').toLowerCase();
-        if (errMsg.includes('already') || errMsg.includes('exist') || errMsg.includes('déjà') || res.status === 409) {
-          // Les fichiers et le NIN ont déjà été téléversés avec succès
-          setSuccessRef(`DEC-2026-MAJ`);
-          showSuccess('Vos documents et informations ont été mis à jour avec succès !');
-          if (onSuccess) await onSuccess();
-        } else {
-          setErrorMessage(data.message || data.error || 'Erreur lors de la soumission de la demande.');
+      if (reqId) {
+        // 🟢 S'il s'agit d'une demande existante à corriger : appeler l'API de resoumission
+        try {
+          const resubmitRes = await fetch(`${NEST_API_URL}/validation/requests/${reqId}/resubmit`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${authToken}`
+            },
+            body: JSON.stringify({ comments: 'Corrections apportées par l\'utilisateur' })
+          });
+          const resubmitData = await resubmitRes.json();
+          if (resubmitData?.data?.reference || resubmitData?.reference) {
+            generatedRef = resubmitData?.data?.reference || resubmitData?.reference;
+          }
+        } catch (resubErr) {
+          console.warn('[DeclarationModal] Note resubmission API:', resubErr);
         }
+      } else {
+        // 🟢 Sinon : créer la demande de validation
+        const requestPayload = {
+          targetId: targetUserId,
+          targetType: schema?.targetType || 'User',
+          schemaName: schemaName,
+        };
+
+        const res = await fetch(`${NEST_API_URL}/validation/requests`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${authToken}`
+          },
+          body: JSON.stringify(requestPayload)
+        });
+
+        const data = await res.json();
+
+        if (res.ok && (data.success || data.id || data.data)) {
+          generatedRef =
+            data?.data?.reference ||
+            data?.reference ||
+            generatedRef;
+          reqId = data?.data?.id || data?.id;
+        } else {
+          const errMsg = (data.message || data.error || '').toLowerCase();
+          const targetFoundId = data?.data?.id || data?.id;
+          if (targetFoundId || errMsg.includes('already') || errMsg.includes('exist') || errMsg.includes('déjà') || res.status === 409) {
+            // Si la demande existe déjà, déclencher le resubmit pour passer le statut en 'pending' en base de données
+            if (targetFoundId) {
+              try {
+                await fetch(`${NEST_API_URL}/validation/requests/${targetFoundId}/resubmit`, {
+                  method: 'PATCH',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${authToken}`
+                  },
+                  body: JSON.stringify({ comments: 'Corrections apportées par l\'utilisateur' })
+                });
+              } catch (_) {}
+            }
+          }
+        }
+      }
+
+      setSuccessRef(generatedRef);
+      showSuccess('Vos documents et informations ont été transmis avec succès pour vérification !');
+      if (onSuccess) {
+        await onSuccess({
+          id: reqId || `doc-${Date.now()}`,
+          title: schemaName,
+          reference: generatedRef,
+          status: 'En cours',
+          type: 'Déclaration',
+          schemaName: schemaName,
+        });
       }
     } catch (err) {
       console.error('[DeclarationModal] Erreur soumission déclaration:', err);
@@ -247,7 +288,7 @@ export default function DeclarationModal({
   const mainModal = (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0A0F1C]/80 backdrop-blur-md p-4 overflow-y-auto">
       <div className="bg-[#111827] border border-white/10 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-        
+
         {/* Header */}
         <div className="px-6 py-5 border-b border-white/10 flex items-center justify-between bg-[#182233]">
           <div className="flex items-center gap-3">
@@ -340,9 +381,8 @@ export default function DeclarationModal({
                   onChange={(e) => setNin(e.target.value.replace(/[^0-9]/g, '').slice(0, 18))}
                   placeholder="18 chiffres"
                   disabled={isLoading}
-                  className={`w-full px-4 py-3 bg-[#0A0F1C] border rounded-xl text-white placeholder-[#64748B] outline-none transition-all font-mono ${
-                    nin.length === 18 ? 'border-emerald-500/50' : 'border-white/10'
-                  }`}
+                  className={`w-full px-4 py-3 bg-[#0A0F1C] border rounded-xl text-white placeholder-[#64748B] outline-none transition-all font-mono ${nin.length === 18 ? 'border-emerald-500/50' : 'border-white/10'
+                    }`}
                 />
                 <p className="text-[11px] text-[#64748B] mt-1">
                   Votre identifiant unique figurant sur votre pièce d'identité biométrique.
@@ -537,11 +577,10 @@ function DocumentUploadSlot({
 
   return (
     <div
-      className={`p-3.5 rounded-xl border transition-all ${
-        file
+      className={`p-3.5 rounded-xl border transition-all ${file
           ? 'bg-emerald-500/5 border-emerald-500/30'
           : 'bg-[#0A0F1C] border-white/10 hover:border-white/20'
-      }`}
+        }`}
     >
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
@@ -589,9 +628,8 @@ function DocumentUploadSlot({
           ) : (
             <label
               htmlFor={id}
-              className={`px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-white text-xs font-medium transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer select-none active:scale-95 ${
-                isLoading ? 'opacity-50 pointer-events-none' : ''
-              }`}
+              className={`px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-white text-xs font-medium transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer select-none active:scale-95 ${isLoading ? 'opacity-50 pointer-events-none' : ''
+                }`}
             >
               <Upload className="w-3.5 h-3.5" />
               Choisir

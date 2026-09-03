@@ -1,5 +1,5 @@
 import Title from '../Components/Title';
-import { useContext, useEffect, useState, useRef } from "react";
+import { useContext, useEffect, useState, useRef, useCallback } from "react";
 import { UserContext } from "../Context/dataCont";
 import { useParams, useNavigate } from "react-router-dom";
 import PDFPreviewModal from '../Components/Modals/pdfPreviexModal';
@@ -51,6 +51,15 @@ import {
   ChevronUp,
   Loader2,
   XCircle,
+  HelpCircle,
+  Download,
+  Upload,
+  RefreshCw,
+  Search,
+  Filter,
+  Check,
+  Printer,
+  FileCheck,
   SkipForward,
   ClipboardList
 } from 'lucide-react';
@@ -99,6 +108,22 @@ export default function ProfilePage({ user }) {
   // 🟢 [AJOUT] : États pour l'ouverture du formulaire modal de Déclaration et le schéma sélectionné
   const [isDeclarationModalOpen, setIsDeclarationModalOpen] = useState(false);
   const [selectedDeclarationSchema, setSelectedDeclarationSchema] = useState(null);
+  const [selectedDeclarationRequestId, setSelectedDeclarationRequestId] = useState(null);
+  const resubmissionMapRef = useRef({});
+  const [resubmissionMap, setResubmissionMap] = useState({});
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('resubmitted_validation_map');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && typeof parsed === 'object') {
+          resubmissionMapRef.current = parsed;
+          setResubmissionMap(parsed);
+        }
+      }
+    } catch (_) { }
+  }, []);
 
   const toggleRequestExpand = (reqId) => {
     setExpandedRequests(prev => ({
@@ -334,8 +359,6 @@ export default function ProfilePage({ user }) {
 
       const data = await res.json();
 
-      console.log(data);
-
       if (res.ok && data.success) {
         if (type === 'deposit') {
           showSuccess(
@@ -459,7 +482,6 @@ export default function ProfilePage({ user }) {
   };
 
   const fetchPdfBlob = async (finalPdfUrl) => {
-    // If the URL is relative, prepend the backend URL
     const isAbsolute = finalPdfUrl.startsWith('http://') || finalPdfUrl.startsWith('https://');
     const fullUrl = isAbsolute ? finalPdfUrl : `${NEST_API_URL}${finalPdfUrl.startsWith('/') ? '' : '/'}${finalPdfUrl}`;
 
@@ -600,7 +622,6 @@ export default function ProfilePage({ user }) {
       });
       if (res.ok) {
         const data = await res.json();
-        console.log('Validation requests:', data);
         const requests = data?.data;
         setValidationRequests(Array.isArray(requests) ? requests : []);
       }
@@ -610,6 +631,7 @@ export default function ProfilePage({ user }) {
       setValidationLoading(false);
     }
   };
+
   const getRequestName = (req) => {
     if (!req) return 'Demande';
     if (req.schemaName) return req.schemaName;
@@ -639,6 +661,203 @@ export default function ProfilePage({ user }) {
     }
 
     return req.targetType ? `Validation ${req.targetType}` : 'Demande';
+  };
+
+  // 🟢 [MODIFIÉ - SYNCHRONISATION MULTI-PLATEFORME] :
+  // Détecte si la demande a été resoumise/corrigée soit côté serveur (resubmittedAt, statut PENDING/IN_PROGRESS), soit localement
+  const isResubmittedItem = useCallback((itemOrStatus) => {
+    if (!itemOrStatus) return false;
+    const rawObj = itemOrStatus.rawItem || itemOrStatus;
+
+    // 🟢 1. Détection directe renvoyée par le backend (même si l'action a été faite sur le mobile)
+    if (rawObj.resubmittedAt || rawObj.resubmitted_at || rawObj.isResubmitted) {
+      return true;
+    }
+
+    // 🟢 2. Si le statut de la demande backend est repassé en PENDING / IN_PROGRESS / SUBMITTED
+    const rawStatus = String(rawObj.status || rawObj.rawStatus || rawObj.state || itemOrStatus.status || '').trim().toUpperCase();
+    if (['PENDING', 'IN_PROGRESS', 'SUBMITTED', 'EN_COURS', 'PROCESSING', 'UNDER_REVIEW'].includes(rawStatus)) {
+      return true;
+    }
+
+    // 🟢 3. Vérification de la map locale enregistrée (localStorage)
+    const currentMap = resubmissionMapRef.current;
+    if (!currentMap || Object.keys(currentMap).length === 0) return false;
+
+    const candidates = [
+      String(itemOrStatus.id || ''),
+      String(rawObj.id || ''),
+      String(itemOrStatus.targetId || rawObj.targetId || ''),
+      String(itemOrStatus.schemaId || rawObj.schemaId || itemOrStatus.validationSchemaId || rawObj.validationSchemaId || ''),
+      String(itemOrStatus.schemaName || rawObj.schemaName || itemOrStatus.title || rawObj.title || '').trim().toLowerCase(),
+    ].filter(Boolean);
+
+    let resubmittedAt;
+    for (const cand of candidates) {
+      if (currentMap[cand]) {
+        resubmittedAt = currentMap[cand];
+        break;
+      }
+    }
+    if (!resubmittedAt) return false;
+
+    // Déterminer la date de la dernière action admin
+    const steps = Array.isArray(rawObj.steps)
+      ? rawObj.steps
+      : Array.isArray(rawObj.validationSteps)
+        ? rawObj.validationSteps
+        : [];
+    const activeCorrectionStep = steps.find(
+      (st) =>
+        (st.type === "verification" || !st.type) &&
+        st.comments &&
+        (st.status === "pending" || st.status === "changes_requested")
+    );
+
+    const adminActionDateStr = activeCorrectionStep?.pendingSince || activeCorrectionStep?.updatedAt || rawObj.updatedAt;
+    if (adminActionDateStr) {
+      const adminActionTime = new Date(adminActionDateStr).getTime();
+      if (!isNaN(adminActionTime) && adminActionTime > resubmittedAt + 3000) {
+        return false;
+      }
+    }
+
+    return true;
+  }, []);
+
+  // 🟢 [MODIFIÉ - SYNCHRONISATION MULTI-PLATEFORME] :
+  // Normalise le statut d'une demande pour l'affichage UI
+  const mapApiStatusToDisplay = useCallback((itemOrStatus) => {
+    const rawObj = itemOrStatus?.rawItem || itemOrStatus;
+    const rawStatus = typeof itemOrStatus === 'string'
+      ? itemOrStatus
+      : itemOrStatus?.status || itemOrStatus?.rawStatus || itemOrStatus?.state || itemOrStatus?.decision;
+    const s = String(rawStatus || '').toUpperCase().trim();
+
+    // 1. Demande Approuvée / Validée
+    if (['APPROVED', 'VALIDATED', 'VALIDE', 'VALIDÉ', 'DONE', 'ACTIVE'].includes(s)) {
+      return 'Validé';
+    }
+
+    // 2. Demande Rejetée / Annulée
+    if (['REJECTED', 'REJETÉ', 'REJETE', 'CANCELLED', 'ANNULÉ', 'REFUSED'].includes(s)) {
+      return 'Rejeté';
+    }
+
+    // 3. Demande Expirée
+    if (['EXPIRED', 'EXPIRÉ'].includes(s)) {
+      return 'Expiré';
+    }
+
+    // 4. Si la demande a été corrigée/resoumise (sur web ou mobile)
+    if (isResubmittedItem(itemOrStatus)) {
+      return 'En cours';
+    }
+
+    // 5. Statut explicite de modifications requises non encore corrigé
+    const isDirectChangesRequested = [
+      'CHANGES_REQUESTED',
+      'CHANGES_REQUIRED',
+      'CORRECTION',
+      'CORRECTIONS_REQUESTED',
+      'MODIFICATION',
+      'MODIFICATIONS_REQUISES',
+      'A_CORRIGER',
+      'À CORRIGER',
+      'REQUIRE_ACTION',
+      'ACTION_REQUIRED'
+    ].includes(s);
+
+    if (isDirectChangesRequested) {
+      if (rawObj?.resubmittedAt || rawObj?.resubmitted_at) {
+        return 'En cours';
+      }
+      return 'Modifications requises';
+    }
+
+    // 6. Demande en cours de traitement (PENDING, IN_PROGRESS, etc.)
+    if (['PENDING', 'IN_PROGRESS', 'IN_REVIEW', 'PROCESSING', 'EN_COURS', 'SUBMITTED', 'UNDER_REVIEW'].includes(s)) {
+      return 'En cours';
+    }
+
+    // 7. Cas spécifique PARTIAL avec étape active non traitée
+    if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
+      const steps = Array.isArray(rawObj?.steps)
+        ? rawObj.steps
+        : Array.isArray(rawObj?.validationSteps)
+          ? rawObj.validationSteps
+          : [];
+
+      const hasActiveChangesRequestedStep = steps.some((st) => {
+        const stepStatus = String(st.status || '').toUpperCase().trim();
+        const hasCommentOrReason = Boolean(
+          (st.comments && String(st.comments).trim().length > 0) ||
+          (st.reason && String(st.reason).trim().length > 0)
+        );
+        return (
+          s === 'PARTIAL' && (stepStatus === 'CHANGES_REQUESTED' || stepStatus === 'CORRECTION' || ((stepStatus === 'PENDING' || !stepStatus) && hasCommentOrReason))
+        );
+      });
+
+      if (hasActiveChangesRequestedStep) {
+        return 'Modifications requises';
+      }
+    }
+
+    return 'En cours';
+  }, [isResubmittedItem]);
+
+  // 🟢 [MODIFIÉ] : Callback exécuté lors du succès de la Déclaration / Correction
+  const handleDeclarationSuccess = async (result) => {
+    setIsDeclarationModalOpen(false);
+    setSelectedDeclarationRequestId(null);
+    const now = Date.now();
+    const newMap = { ...resubmissionMapRef.current };
+
+    if (targetUserId) newMap[String(targetUserId)] = now;
+    if (result?.id) newMap[String(result.id)] = now;
+    if (result?.reference) newMap[String(result.reference)] = now;
+    if (selectedDeclarationSchema?.id) newMap[String(selectedDeclarationSchema.id)] = now;
+    if (selectedDeclarationSchema?.name) newMap[String(selectedDeclarationSchema.name).trim().toLowerCase()] = now;
+
+    // Associer aussi les ID des demandes existantes de type déclaration
+    validationRequests.forEach(req => {
+      const name = (req.schemaName || req.schema?.name || req.title || '').toLowerCase();
+      if (name.includes('déclaration') || name.includes('declaration')) {
+        if (req.id) newMap[String(req.id)] = now;
+      }
+    });
+
+    resubmissionMapRef.current = newMap;
+    setResubmissionMap(newMap);
+    try {
+      localStorage.setItem('resubmitted_validation_map', JSON.stringify(newMap));
+    } catch (_) { }
+
+    // Mise à jour optimiste immédiate de la liste des validations
+    setValidationRequests(prev =>
+      prev.map(req => {
+        const name = (req.schemaName || req.schema?.name || req.title || '').toLowerCase();
+        if (name.includes('déclaration') || name.includes('declaration') || req.id === result?.id || req.id === selectedDeclarationRequestId) {
+          return {
+            ...req,
+            status: 'pending',
+            steps: (req.steps || []).map((st, idx) =>
+              (idx === 0 || st.status === 'changes_requested')
+                ? { ...st, status: 'pending', statusLabel: 'En attente' }
+                : st
+            )
+          };
+        }
+        return req;
+      })
+    );
+
+    try {
+      await fetchValidationRequests();
+    } catch (err) {
+      console.log('Error refreshing requests after declaration:', err);
+    }
   };
 
   const fetchSchemas = async () => {
@@ -728,6 +947,7 @@ export default function ProfilePage({ user }) {
       setDemandSubmitting(false);
     }
   };
+
   // ─── Initial data fetch ──────────────────────────────────────────────────
 
   useEffect(() => {
@@ -756,7 +976,6 @@ export default function ProfilePage({ user }) {
         setPermissions({ fields });
 
         // --- 2. Operations on User ---
-
         const checkOp = async (operation, model) => {
           const res = await fetch(`${NEST_API_URL}/permissions/${targetUserId}/check-operation`, {
             method: 'POST',
@@ -852,7 +1071,6 @@ export default function ProfilePage({ user }) {
   const visibleFields = permissions?.fields || [];
   const isVisible = (fieldName) => visibleFields.includes(fieldName);
 
-  // --- UPDATED ESSENTIAL FIELDS (matching the new User model) ---
   const essentialFields = [
     // Identity
     { key: 'nomArabe', label: 'الاسم', isArabic: true, icon: <User className="w-4 h-4" /> },
@@ -1072,7 +1290,6 @@ export default function ProfilePage({ user }) {
 
               {/* ─── Permission‑driven actions ─────────────────────────── */}
               <div className="flex flex-wrap items-center gap-2" ref={menuRef}>
-                {/* Versement / Retrait – only if canUpdateUser */}
                 {canUpdateUser && (
                   <>
                     <button
@@ -1145,8 +1362,8 @@ export default function ProfilePage({ user }) {
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
                     className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === tab.id
-                        ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/20"
-                        : "text-[#94A3B8] hover:bg-white/5 hover:text-white"
+                      ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/20"
+                      : "text-[#94A3B8] hover:bg-white/5 hover:text-white"
                       }`}
                   >
                     {tab.icon} {tab.label}
@@ -1209,7 +1426,7 @@ export default function ProfilePage({ user }) {
                           handleReplace={handleReplace}
                           canReplace={canUpdateFile}
                           canDelete={canDeleteFile}
-                          canPreview={true} // always allow preview if the file is accessible
+                          canPreview={true}
                         />
                       ))}
                     {canCreateFile && <AddFileCard onUpload={handleUpload} />}
@@ -1291,6 +1508,7 @@ export default function ProfilePage({ user }) {
                   )}
                 </div>
               )}
+
               {/* ─── Validations Tab ──────────────────────────────── */}
               {activeTab === 'validation' && (
                 <div className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-6">
@@ -1311,6 +1529,7 @@ export default function ProfilePage({ user }) {
                         const progressPercent = totalSteps > 0 ? Math.round((approvedSteps / totalSteps) * 100) : 0;
                         const isExpanded = expandedRequests[req.id] ?? true;
                         const requestName = getRequestName(req);
+                        const displayStatus = mapApiStatusToDisplay(req);
 
                         return (
                           <div key={req.id || reqIdx} className="bg-[#0A0F1C] rounded-xl border border-white/10 p-5 transition-all">
@@ -1333,14 +1552,35 @@ export default function ProfilePage({ user }) {
                                   </p>
                                 </div>
                                 <div className="flex items-center gap-3">
-                                  {/* 🟢 [MODIFICATION 1] : Badge adapté pour le statut 'changes_requested' */}
-                                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${req.status === 'approved' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-                                    req.status === 'rejected' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
-                                      req.status === 'changes_requested' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-                                        'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
-                                    }`}>
-                                    {req.status === 'changes_requested' ? 'Modifications requises' : req.status}
-                                  </span>
+                                  {/* 🟢 Badge de statut dynamique */}
+                                  {(() => {
+                                    if (displayStatus === 'Validé') {
+                                      return (
+                                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+                                          Validée
+                                        </span>
+                                      );
+                                    }
+                                    if (displayStatus === 'Rejeté') {
+                                      return (
+                                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border bg-rose-500/10 text-rose-400 border-rose-500/20">
+                                          Rejetée
+                                        </span>
+                                      );
+                                    }
+                                    if (displayStatus === 'Modifications requises') {
+                                      return (
+                                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border bg-amber-500/10 text-amber-400 border-amber-500/20">
+                                          Modifications requises
+                                        </span>
+                                      );
+                                    }
+                                    return (
+                                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border bg-blue-500/10 text-blue-400 border-blue-500/20">
+                                        En cours
+                                      </span>
+                                    );
+                                  })()}
                                   <button
                                     type="button"
                                     onClick={() => toggleRequestExpand(req.id)}
@@ -1352,27 +1592,30 @@ export default function ProfilePage({ user }) {
                                 </div>
                               </div>
 
-                              {/* 🟢 [MODIFIÉ] : Bannière d'alerte et boutons affichés UNIQUEMENT si l'étape retournée est de type 'verification' */}
+                              {/* 🟢 Bannière d'alerte et bouton 'Corriger mon dossier' UNIQUEMENT si le statut est 'Modifications requises' */}
                               {(() => {
-                                const verificationStepWithCorrection = req.steps?.find(s => 
-                                  (s.type === 'verification' || !s.type) && s.comments && s.status === 'pending'
-                                );
-                                const showCorrectionBanner = req.status === 'changes_requested' || (req.status === 'partial' && !!verificationStepWithCorrection);
+                                if (displayStatus !== 'Modifications requises') return null;
 
-                                if (!showCorrectionBanner) return null;
+                                const verificationStepWithCorrection = req.steps?.find(s =>
+                                  (s.status === 'changes_requested' || s.status === 'pending' || !s.status) && (s.comments || s.reason)
+                                );
 
                                 return (
-                                  <div className="mb-4 p-3.5 bg-amber-500/10 border border-amber-500/20 rounded-xl">
-                                    <div className="flex items-start justify-between gap-3 flex-wrap">
-                                      <div className="flex-1 min-w-[220px]">
-                                        <p className="text-xs font-semibold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-                                          <AlertCircle className="w-4 h-4" /> Action requise sur votre dossier
+                                  <div className="mb-4 p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl shadow-sm">
+                                    <div className="flex items-start justify-between gap-4 flex-wrap">
+                                      <div className="flex-1 min-w-[240px]">
+                                        <p className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                                          <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" /> Action requise sur votre dossier
                                         </p>
-                                        <p className="text-sm text-[#F8FAFC] mt-1">
-                                          {verificationStepWithCorrection?.comments || req.steps?.find(s => s.comments)?.comments || 'Veuillez corriger ou compléter vos informations/documents.'}
+                                        <p className="text-sm text-[#F8FAFC] mt-1.5 leading-relaxed">
+                                          {verificationStepWithCorrection?.comments ||
+                                            verificationStepWithCorrection?.reason ||
+                                            req.steps?.find(s => s.comments || s.reason)?.comments ||
+                                            req.steps?.find(s => s.comments || s.reason)?.reason ||
+                                            'Votre dossier nécessite des corrections. Veuillez mettre à jour vos informations ou pièces justificatives puis renvoyer la demande.'}
                                         </p>
                                       </div>
-                                      <div className="flex items-center gap-2 shrink-0">
+                                      <div className="flex items-center shrink-0">
                                         <button
                                           type="button"
                                           onClick={() => {
@@ -1380,47 +1623,14 @@ export default function ProfilePage({ user }) {
                                               (s.name || s.title || '').toLowerCase().includes('déclaration') ||
                                               (s.name || s.title || '').toLowerCase().includes('declaration')
                                             );
+                                            setSelectedDeclarationRequestId(req.id || null);
                                             setSelectedDeclarationSchema(declSchema || null);
                                             setIsDeclarationModalOpen(true);
                                           }}
-                                          className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5"
+                                          className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-semibold transition-all flex items-center gap-2 shadow-lg shadow-amber-500/20 cursor-pointer"
                                         >
-                                          <Edit className="w-3.5 h-3.5" />
+                                          <Edit className="w-4 h-4" />
                                           Corriger mon dossier
-                                        </button>
-                                        <button
-                                          onClick={async () => {
-                                            const confirmed = await confirm({
-                                              title: 'Renvoyer la demande',
-                                              message: 'Avez-vous bien mis à jour vos informations et documents avant de renvoyer ?',
-                                            });
-                                            if (!confirmed) return;
-                                            try {
-                                              const res = await fetch(`${NEST_API_URL}/validation/requests/${req.id}/resubmit`, {
-                                                method: 'PATCH',
-                                                headers: {
-                                                  'Content-Type': 'application/json',
-                                                  Authorization: `Bearer ${authData.token}`,
-                                                },
-                                                body: JSON.stringify({ comments: 'Corrections apportées par l\'utilisateur' }),
-                                              });
-                                              const data = await res.json();
-                                              if (res.ok) {
-                                                showSuccess('Dossier renvoyé avec succès pour vérification !');
-                                                await fetchValidationRequests();
-                                              } else {
-                                                showSuccess('Dossier renvoyé pour vérification !');
-                                                await fetchValidationRequests();
-                                              }
-                                            } catch (err) {
-                                              console.error('Error resubmitting:', err);
-                                              showError('Erreur réseau lors du renvoi');
-                                            }
-                                          }}
-                                          className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 shadow-lg shadow-emerald-500/20"
-                                        >
-                                          <CheckCircle className="w-3.5 h-3.5" />
-                                          Renvoyer mon dossier
                                         </button>
                                       </div>
                                     </div>
@@ -1448,14 +1658,21 @@ export default function ProfilePage({ user }) {
                                   <div className="absolute left-[11px] top-2 bottom-2 w-0.5 bg-[#1F2937]" />
 
                                   {req.steps?.map((step, idx) => {
+                                    // 🟢 [MODIFIÉ - SYNCHRONISATION MULTI-PLATEFORME] :
+                                    // Si la demande est 'En cours' (corrigée sur mobile ou web), l'étape ne reste pas sur changes_requested
+                                    const isReqChangesRequested = displayStatus === 'Modifications requises';
                                     const isDone = step.status === 'approved';
-                                    const isPending = step.status === 'pending';
+                                    const isChangesRequested = isReqChangesRequested && (step.status === 'changes_requested' || idx === 0);
+                                    const isPending = !isDone && !isChangesRequested && step.status !== 'rejected' && step.status !== 'skipped';
                                     const isRejected = step.status === 'rejected' || step.status === 'expired';
                                     const isSkipped = step.status === 'skipped';
 
-                                    let icon = <Clock className="w-4 h-4 text-yellow-400" />;
-                                    let circleBg = 'bg-yellow-500/20 border-yellow-500/40';
-                                    if (isDone) {
+                                    let icon = <Clock className="w-4 h-4 text-amber-400" />;
+                                    let circleBg = 'bg-amber-500/20 border-amber-500/40';
+                                    if (isChangesRequested) {
+                                      icon = <AlertCircle className="w-4 h-4 text-amber-400" />;
+                                      circleBg = 'bg-amber-500/20 border-amber-500/40';
+                                    } else if (isDone) {
                                       icon = <CheckCircle className="w-4 h-4 text-emerald-400" />;
                                       circleBg = 'bg-emerald-500/20 border-emerald-500/40';
                                     } else if (isRejected) {
@@ -1465,6 +1682,16 @@ export default function ProfilePage({ user }) {
                                       icon = <SkipForward className="w-4 h-4 text-gray-400" />;
                                       circleBg = 'bg-gray-500/20 border-gray-500/40';
                                     }
+
+                                    const stepStatusLabel = isChangesRequested
+                                      ? 'Modifications requises'
+                                      : isDone
+                                        ? 'Approuvée'
+                                        : isRejected
+                                          ? 'Rejetée'
+                                          : isSkipped
+                                            ? 'Sautée'
+                                            : 'En attente';
 
                                     return (
                                       <div key={idx} className="relative pb-6 last:pb-0">
@@ -1476,34 +1703,43 @@ export default function ProfilePage({ user }) {
                                         <div className="bg-[#111827] rounded-xl border border-[rgba(255,255,255,0.06)] p-4 hover:border-[rgba(255,255,255,0.12)] transition-all">
                                           <div className="flex items-center justify-between mb-2">
                                             <p className="text-sm font-semibold text-[#F8FAFC]">
-                                              {step.stepName}
+                                              {step.stepName || step.name || `Étape ${step.stepOrder || idx + 1}`}
                                             </p>
-                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${isDone ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-                                              isRejected ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
-                                                isSkipped ? 'bg-gray-500/10 text-gray-400 border-gray-500/20' :
-                                                  'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
+                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${isChangesRequested ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                                                isDone ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                                                  isRejected ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
+                                                    isSkipped ? 'bg-gray-500/10 text-gray-400 border-gray-500/20' :
+                                                      'bg-blue-500/10 text-blue-400 border-blue-500/20'
                                               }`}>
-                                              {step.status}
+                                              {stepStatusLabel}
                                             </span>
                                           </div>
 
-                                          <p className="text-xs text-[#94A3B8]">
-                                            Rôle requis : {step.requiredRole}
-                                          </p>
+                                          {step.requiredRole && (
+                                            <p className="text-xs text-[#94A3B8]">
+                                              Rôle requis : {step.requiredRole}
+                                            </p>
+                                          )}
 
                                           {step.allowedUserIds?.length > 0 && (
                                             <p className="text-xs text-[#94A3B8] mt-1">
                                               Assignée à : {step.allowedUserIds.map(u => u.name || u.email || u.id).join(', ')}
                                             </p>
                                           )}
-                                          {step.comments && (
-                                            <div className="mt-2 p-2 bg-[#111827] rounded-lg border border-[rgba(255,255,255,0.06)]">
-                                              <p className="text-xs text-[#64748B] uppercase tracking-wider">Commentaire</p>
-                                              <p className="text-xs text-[#F8FAFC] mt-0.5">{step.comments}</p>
+                                          {(step.comments || step.reason) && (
+                                            <div className={`mt-2.5 p-2.5 rounded-lg border ${step.status === 'rejected' ? 'bg-rose-500/10 border-rose-500/20 text-rose-300' : 'bg-[#182233] border-white/10'}`}>
+                                              <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                                                💬 Commentaire :
+                                              </p>
+                                              <p className="text-xs text-[#F8FAFC] mt-0.5 font-medium leading-relaxed">
+                                                "{step.comments || step.reason}"
+                                              </p>
                                             </div>
                                           )}
                                           {step.approvedBy && (
-                                            <p className="text-xs text-[#64748B] mt-2">Traitée par {step.approvedBy.name || step.approvedBy.email || step.approvedBy}{step.approvedAt ? ` le ${new Date(step.approvedAt).toLocaleString('fr-FR')}` : ''}</p>
+                                            <p className="text-xs text-[#64748B] mt-2">
+                                              Traitée par {step.approvedBy.name || step.approvedBy.email || step.approvedBy}{step.approvedAt ? ` le ${new Date(step.approvedAt).toLocaleString('fr-FR')}` : ''}
+                                            </p>
                                           )}
                                           {step.timeout?.duration > 0 && step.status === 'pending' && (
                                             <div className="mt-2 flex items-center gap-1.5 text-xs text-orange-400">
@@ -1537,8 +1773,8 @@ export default function ProfilePage({ user }) {
                   )}
                 </div>
               )}
+
               {/* ─── Demandes Tab ──────────────────────────────── */}
-              {/*  [AJOUT] : Onglet Demandes avec affichage des démarches disponibles et bouton "Faire la demande" */}
               {activeTab === 'Demandes' && (
                 <div className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-6">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
@@ -1606,27 +1842,24 @@ export default function ProfilePage({ user }) {
                             {(() => {
                               const existingDecl = validationRequests.find(r =>
                                 ((r.schemaName || r.schema?.name || '').toLowerCase().includes('déclaration') ||
-                                 (r.schemaName || r.schema?.name || '').toLowerCase().includes('declaration')) &&
+                                  (r.schemaName || r.schema?.name || '').toLowerCase().includes('declaration')) &&
                                 !['rejected', 'cancelled'].includes(r.status?.toLowerCase())
                               );
 
-                              const isNeedsCorrection = existingDecl && (
-                                existingDecl.status === 'changes_requested' ||
-                                (existingDecl.status === 'partial' && existingDecl.steps?.some(s => (s.type === 'verification' || !s.type) && s.comments && s.status === 'pending'))
-                              );
+                              const isNeedsCorrection = existingDecl && mapApiStatusToDisplay(existingDecl) === 'Modifications requises';
 
                               return (
                                 <button
                                   type="button"
                                   onClick={() => {
+                                    setSelectedDeclarationRequestId(existingDecl?.id || null);
                                     setSelectedDeclarationSchema(declSchema || null);
                                     setIsDeclarationModalOpen(true);
                                   }}
-                                  className={`w-full py-2.5 px-4 text-white text-xs font-semibold rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                                    isNeedsCorrection
-                                      ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20'
-                                      : 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/20'
-                                  }`}
+                                  className={`w-full py-2.5 px-4 text-white text-xs font-semibold rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer ${isNeedsCorrection
+                                    ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20'
+                                    : 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/20'
+                                    }`}
                                 >
                                   {isNeedsCorrection ? (
                                     <>
@@ -1647,7 +1880,7 @@ export default function ProfilePage({ user }) {
                       );
                     })()}
 
-                    {/* Autres schémas dynamiques s'il en existe d'autres */}
+                    {/* Autres schémas dynamiques */}
                     {availableSchemas
                       .filter(s => {
                         const name = (s.name || s.title || '').toLowerCase();
@@ -1782,14 +2015,20 @@ export default function ProfilePage({ user }) {
       )}
 
       {/* ─── Declaration Request Modal ─────────────────────────────────────── */}
-      {/* 🟢 [AJOUT] : Montage du modal de demande de Déclaration connecté aux API */}
+      {/* 🟢 [MODIFIÉ] : Transmission de l'utilisateur pour pré-remplir le NIN et gestion propre de la fermeture */}
       <DeclarationModal
         isOpen={isDeclarationModalOpen}
-        onClose={() => setIsDeclarationModalOpen(false)}
+        onClose={() => {
+          setIsDeclarationModalOpen(false);
+          setSelectedDeclarationRequestId(null);
+        }}
         targetUserId={targetUserId}
         authToken={authData?.token}
-        onSuccess={fetchValidationRequests}
+        onSuccess={handleDeclarationSuccess}
         schema={selectedDeclarationSchema}
+        existingRequestId={selectedDeclarationRequestId}
+        user={displayUser}
+        initialNin={displayUser?.nin}
       />
 
       {/* ─── PDF Preview Modal ────────────────────────────────────────────── */}
