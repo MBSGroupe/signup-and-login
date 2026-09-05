@@ -45,7 +45,6 @@ const REGISTRATION_STATUS_OPTIONS = ['Inscrit', 'Radié', 'Suspendu'];
 const PROFESSIONAL_MODE_OPTIONS = ['Libéral', 'Associé', 'Salarié'];
 const SERVICE_NATIONAL_OPTIONS = ['Ayant effectué', 'Exempté', 'En cours', 'Non concerné'];
 const STATUS_OPTIONS = ['pending', 'active', 'suspended', 'archived'];
-// Professions and regions remain dynamic (you can hardcode them if needed)
 
 export default function GetUsers({ mode }) {
   const { data, setData } = useContext(UserDataContext);
@@ -121,10 +120,12 @@ export default function GetUsers({ mode }) {
       if (selectedProfessionalMode !== 'all') params.append('professionalMode', selectedProfessionalMode);
       if (selectedServiceNational !== 'all') params.append('serviceNationalStatus', selectedServiceNational);
 
-      const response = await fetch(`${NEST_API_URL}/users?${params.toString()}`, {
-        method: "GET",
-        headers: { Authorization: `Bearer ${authData.token}` },
-      });
+      const response = await fetchWithRefresh(
+        `${NEST_API_URL}/users?${params.toString()}`,
+        { method: "GET" },
+        authData.token,
+        setAuthData
+      );
       
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       
@@ -197,8 +198,6 @@ export default function GetUsers({ mode }) {
     mode
   ]);
 
-  // No longer compute unique values from displayedUsers – use static arrays instead
-
   const handleUserClick = (user) => {
     setSelectedUser(user);
     setIsModalOpen(true);
@@ -228,14 +227,16 @@ export default function GetUsers({ mode }) {
     setOpenMenuId(null);
     
     try {
-      const response = await fetch(`${NEST_API_URL}/pdf/preview/situation`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authData.token}`,
+      const response = await fetchWithRefresh(
+        `${NEST_API_URL}/pdf/preview/situation`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: user.id }),
         },
-        body: JSON.stringify({ userId: user.id }),
-      });
+        authData.token,
+        setAuthData
+      );
 
       if (!response.ok) {
         let errorMessage = 'Failed to generate preview';
@@ -277,10 +278,12 @@ export default function GetUsers({ mode }) {
 
     if (confirmed) {
       try {
-        const response = await fetch(`${NEST_API_URL}/users/${user.id}`, {
-          method: 'DELETE',
-          headers: { Authorization: `Bearer ${authData.token}` },
-        });
+        const response = await fetchWithRefresh(
+          `${NEST_API_URL}/users/${user.id}`,
+          { method: 'DELETE' },
+          authData.token,
+          setAuthData
+        );
         
         const data = await response.json();
 

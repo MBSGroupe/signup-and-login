@@ -30,17 +30,19 @@ export default function CreateUser() {
     const fetchCreatableFields = async () => {
       try {
         // 1. First check if user can create
-        const canCreateRes = await fetch(`${NEST_API_URL}/permissions/${viewerId}/check-operation`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${authData.token}`,
+        const canCreateRes = await fetchWithRefresh(
+          `${NEST_API_URL}/permissions/${viewerId}/check-operation`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              operation: "create",
+              model: "User"
+            })
           },
-          body: JSON.stringify({
-            operation: "create",
-            model: "User"
-          }),
-        });
+          authData.token,
+          setAuthData
+        );
         
         const canCreateData = await canCreateRes.json();
         
@@ -52,9 +54,12 @@ export default function CreateUser() {
         }
 
         // 2. Fetch creatable fields using the correct route
-        const fieldsRes = await fetch(`${NEST_API_URL}/permissions/user/${viewerId}/creatable-fields?model=User`, {
-          headers: { Authorization: `Bearer ${authData.token}` }
-        });
+        const fieldsRes = await fetchWithRefresh(
+          `${NEST_API_URL}/permissions/user/${viewerId}/creatable-fields?model=User`,
+          { method: "GET" },
+          authData.token,
+          setAuthData
+        );
         
         const fieldsData = await fieldsRes.json();
         
@@ -83,7 +88,7 @@ export default function CreateUser() {
     if (authData?.token && viewerId) {
       fetchCreatableFields();
     }
-  }, [authData, viewerId]);
+  }, [authData, viewerId, setAuthData]);
   
   const handleChange = (e) => {
     const { name, value, type } = e.target;
@@ -154,11 +159,16 @@ export default function CreateUser() {
     console.log('Payload being sent:', JSON.stringify(payload, null, 2));
 
     try {
-      const response = await fetchWithRefresh(`${NEST_API_URL}/users`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      }, authData.token, setAuthData);
+      const response = await fetchWithRefresh(
+        `${NEST_API_URL}/users`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        },
+        authData.token,
+        setAuthData
+      );
 
       const data = await response.json();
       

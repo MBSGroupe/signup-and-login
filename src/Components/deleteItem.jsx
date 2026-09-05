@@ -5,7 +5,7 @@ import { UserContext } from '../Context/dataCont';
 import { fetchWithRefresh } from './api';
 import { AlertTriangle, Trash2, X, Check, Loader2, ArrowLeft } from "lucide-react";
 
-export default function DeleteItem({ mode }) { // mode = "user" ou "cotisation"
+export default function DeleteItem({ mode }) {
   const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
   const { authData, setAuthData } = useContext(UserContext);
   const { id } = useParams();
@@ -14,11 +14,10 @@ export default function DeleteItem({ mode }) { // mode = "user" ou "cotisation"
   const [loading, setLoading] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
 
-  // Définir l'URL et les libellés selon le mode
   const config = {
     user: {
       endpoint: `${NEST_API_URL}/users/${id}`,
-      method : 'DELETE',
+      method: 'DELETE',
       redirect: -1,
       successMsg: "✅ Utilisateur supprimé avec succès.",
       confirmMsg: "Êtes-vous sûr de vouloir supprimer cet utilisateur ? Cette action est irréversible.",
@@ -29,7 +28,7 @@ export default function DeleteItem({ mode }) { // mode = "user" ou "cotisation"
     },
     cotisation: {
       endpoint: `${NEST_API_URL}/fee/cancel/${id}`,
-      method : 'PATCH',
+      method: 'PATCH',
       redirect: "/dash/allCotisations",
       successMsg: "✅ Cotisation annulée avec succès.",
       confirmMsg: "Êtes-vous sûr de vouloir annuler cette cotisation ? Cette action est irréversible.",
@@ -47,31 +46,30 @@ export default function DeleteItem({ mode }) { // mode = "user" ou "cotisation"
     try {
       const response = await fetchWithRefresh(
         current.endpoint,
-        {
-          method: current.method,
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${authData.token}`,
-          },
-        },
+        { method: current.method }, // ✅ No Authorization header, no Content-Type
         authData.token,
         setAuthData
       );
 
-      const data = await response.json();
-
-      if (response.ok) {
-        setMessage(current.successMsg);
-        setTimeout(() => {
-          if (typeof current.redirect === 'number') {
-            navigate(current.redirect);
-          } else {
-            navigate(current.redirect);
-          }
-        }, 2000);
-      } else {
-        setMessage(data.message || "❌ Échec de la suppression.");
+      if (!response.ok) {
+        let errorMsg = "❌ Échec de l'opération.";
+        try {
+          const data = await response.json();
+          errorMsg = data.message || errorMsg;
+        } catch (_) {}
+        setMessage(errorMsg);
+        setLoading(false);
+        return;
       }
+
+      setMessage(current.successMsg);
+      setTimeout(() => {
+        if (typeof current.redirect === 'number') {
+          navigate(current.redirect);
+        } else {
+          navigate(current.redirect);
+        }
+      }, 2000);
     } catch (err) {
       console.error(err);
       setMessage("⚠️ Erreur réseau. Veuillez réessayer.");
@@ -80,12 +78,12 @@ export default function DeleteItem({ mode }) { // mode = "user" ou "cotisation"
     }
   };
 
+  // ─── Render (unchanged) ──────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-[#0A0F1C] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] shadow-2xl shadow-black/50 p-8 text-center">
           {message ? (
-            // RESULT STATE
             <>
               <div className="flex justify-center mb-4">
                 {message.includes("succès") ? (
@@ -115,7 +113,6 @@ export default function DeleteItem({ mode }) { // mode = "user" ou "cotisation"
               </button>
             </>
           ) : !confirmed ? (
-            // CONFIRMATION STATE
             <>
               <div className="flex justify-center mb-4">
                 <div className="w-16 h-16 rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center">
@@ -151,7 +148,6 @@ export default function DeleteItem({ mode }) { // mode = "user" ou "cotisation"
               </div>
             </>
           ) : (
-            // ACTION STATE (confirmed, waiting for delete)
             <>
               <div className="flex justify-center mb-4">
                 <Loader2 className="w-12 h-12 text-emerald-400 animate-spin" />

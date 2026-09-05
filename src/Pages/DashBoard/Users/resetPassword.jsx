@@ -64,17 +64,19 @@ export default function ResetPassword() {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch(`${NEST_API_URL}/users/${id}/reset-password`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${authData.token}`,
+      const response = await fetchWithRefresh(
+        `${NEST_API_URL}/users/${id}/reset-password`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            currentPassword: formData.currentPassword,
+            newPassword: formData.newPassword,
+          }),
         },
-        body: JSON.stringify({
-          currentPassword: formData.currentPassword,
-          newPassword: formData.newPassword,
-        }),
-      });
+        authData.token,
+        setAuthData
+      );
 
       const data = await response.json();
 

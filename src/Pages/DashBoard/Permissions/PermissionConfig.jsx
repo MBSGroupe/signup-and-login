@@ -1,9 +1,9 @@
 // pages/DashBoard/Permissions/PermissionManager.jsx
 import { useContext, useEffect, useState } from "react";
 import { UserContext } from "../../../Context/dataCont";
+import { fetchWithRefresh } from "../../../Components/api";
 import Title from "../../../Components/Title";
 import { useNavigate } from "react-router-dom";
-import { useApi } from "../../../Hooks/useApi";
 import { useModal } from "../../../Context/ModalContext";
 import BackButton from "../../../Components/Buttons/BackButton";
 import {
@@ -24,8 +24,7 @@ import {
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
 export default function PermissionManager() {
-  const { authData } = useContext(UserContext);
-  const { callApi } = useApi();
+  const { authData, setAuthData } = useContext(UserContext);
   const { confirm } = useModal();
   const navigate = useNavigate();
   const [schemas, setSchemas] = useState({});
@@ -39,25 +38,32 @@ export default function PermissionManager() {
 
   const fetchSchemas = async () => {
     setLoading(true);
-    const result = await callApi(async () => {
-      const res = await fetch(`${NEST_API_URL}/permissions/schemas`, {
-        headers: { Authorization: `Bearer ${authData.token}` }
-      });
-      return res;
-    }, { showSuccessMessage: false });
-
-    if (result) {
-      const schemasData = result.schemas || [];
-      const grouped = schemasData.reduce((acc, schema) => {
-        if (!acc[schema.model]) acc[schema.model] = [];
-        acc[schema.model].push(schema);
-        return acc;
-      }, {});
-      setSchemas(grouped);
-    } else {
-      setSchemas({});
+    setError("");
+    try {
+      const res = await fetchWithRefresh(
+        `${NEST_API_URL}/permissions/schemas`,
+        { method: "GET" },
+        authData.token,
+        setAuthData
+      );
+      const data = await res.json();
+      console.log(data)
+      if (res.ok) {
+        const schemasData = data.data.schemas || [];
+        const grouped = schemasData.reduce((acc, schema) => {
+          if (!acc[schema.model]) acc[schema.model] = [];
+          acc[schema.model].push(schema);
+          return acc;
+        }, {});
+        setSchemas(grouped);
+      } else {
+        setError(data.message || "Erreur lors du chargement");
+      }
+    } catch (err) {
+      setError("Erreur réseau");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleNewVersion = (model) => {
@@ -71,20 +77,25 @@ export default function PermissionManager() {
     });
     if (!confirmed) return;
 
-    const result = await callApi(async () => {
+    try {
       const url = `${NEST_API_URL}/permissions/rollback?model=${model}`;
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${authData.token}` }
-      });
-      return res;
-    }, {
-      showSuccessMessage: true,
-      successMessage: "Rollback effectué avec succès"
-    });
-
-    if (result) {
-      await fetchSchemas();
+      const res = await fetchWithRefresh(
+        url,
+        { method: "POST" },
+        authData.token,
+        setAuthData
+      );
+      const data = await res.json();
+      if (res.ok) {
+        // Success – refresh the list
+        await fetchSchemas();
+        // Optional: show success message (you could use a toast)
+        alert("Rollback effectué avec succès");
+      } else {
+        alert(data.message || "Erreur lors du rollback");
+      }
+    } catch (err) {
+      alert("Erreur réseau");
     }
   };
 
@@ -106,6 +117,13 @@ export default function PermissionManager() {
           <AlertTriangle className="w-12 h-12 text-rose-400 mx-auto mb-4" />
           <p className="text-[#F8FAFC] text-lg font-medium">Erreur</p>
           <p className="text-[#94A3B8] text-sm mt-1">{error}</p>
+          <button
+            onClick={fetchSchemas}
+            className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Réessayer
+          </button>
         </div>
       </div>
     );
@@ -114,7 +132,6 @@ export default function PermissionManager() {
   return (
     <div className="min-h-screen bg-[#0A0F1C] p-6 md:p-8 ml-[30px] mt-16">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
         <div className="flex flex-wrap items-center gap-4 mb-6">
           <BackButton fallbackPath="/dash" />
           <div className="flex items-center gap-3">
@@ -130,9 +147,15 @@ export default function PermissionManager() {
               </p>
             </div>
           </div>
+          <button
+            onClick={fetchSchemas}
+            className="ml-auto inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1F2937] hover:bg-[#2A3A4A] text-[#94A3B8] hover:text-white transition border border-white/5"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Actualiser
+          </button>
         </div>
 
-        {/* Schemas list */}
         <div className="space-y-6">
           {Object.entries(schemas).length === 0 ? (
             <div className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] p-12 text-center shadow-2xl shadow-black/50">
@@ -148,7 +171,6 @@ export default function PermissionManager() {
                   key={model}
                   className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] shadow-2xl shadow-black/50 overflow-hidden"
                 >
-                  {/* Model header */}
                   <div className="flex flex-wrap items-center justify-between gap-4 px-6 py-4 border-b border-[rgba(255,255,255,0.06)]">
                     <div className="flex items-center gap-3">
                       <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
@@ -179,7 +201,6 @@ export default function PermissionManager() {
                     </div>
                   </div>
 
-                  {/* Versions table */}
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead>

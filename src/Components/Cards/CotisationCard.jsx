@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import { UserContext } from "../../Context/dataCont";
+import { fetchWithRefresh } from "../../Components/api";
 import MarkFeePaidModal from "../Modals/PayFee";
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
@@ -67,10 +68,12 @@ export default function CotisationCard({ cotisation, onCotisationUpdated, isOwne
 
   const handleCancel = async () => {
     try {
-      const response = await fetch(`${NEST_API_URL}/fees/${cotisation.id}/cancel`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${authData.token}` },
-      });
+      const response = await fetchWithRefresh(
+        `${NEST_API_URL}/fees/${cotisation.id}/cancel`,
+        { method: "POST" },
+        authData.token,
+        setAuthData
+      );
       if (response.ok) {
         if (onCotisationUpdated) onCotisationUpdated();
       } else {
@@ -85,10 +88,12 @@ export default function CotisationCard({ cotisation, onCotisationUpdated, isOwne
 
   const handleReactivate = async () => {
     try {
-      const response = await fetch(`${NEST_API_URL}/fees/${cotisation.id}/reactivate`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${authData.token}` },
-      });
+      const response = await fetchWithRefresh(
+        `${NEST_API_URL}/fees/${cotisation.id}/reactivate`,
+        { method: "POST" },
+        authData.token,
+        setAuthData
+      );
       if (response.ok) {
         if (onCotisationUpdated) onCotisationUpdated();
       } else {

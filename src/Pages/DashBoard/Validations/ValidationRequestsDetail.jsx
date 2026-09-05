@@ -177,24 +177,15 @@ export default function ValidationRequestDetail() {
     }
   }, [id, authData?.token, setAuthData]);
 
-  // ─── FIX: always return absolute URL ────────────────────────────────────
   const getFilePreviewUrl = (file) => {
-    // If we have a fileId, construct URL directly
     if (file.fileId) {
       return `${BACKEND_BASE_URL}/storage/${encodeURIComponent(file.fileId)}`;
     }
-
-    // If file.url or file.path is given, ensure it becomes absolute
     let urlPath = file.url || file.path || '';
     if (!urlPath) return null;
-
-    // If it's already an absolute URL (starts with http), return as is
     if (urlPath.startsWith('http://') || urlPath.startsWith('https://')) {
       return urlPath;
     }
-
-    // Otherwise, prepend BACKEND_BASE_URL
-    // Ensure we don't double‑slash
     const cleanPath = urlPath.startsWith('/') ? urlPath : `/${urlPath}`;
     return `${BACKEND_BASE_URL}${cleanPath}`;
   };
@@ -223,7 +214,6 @@ export default function ValidationRequestDetail() {
     if (currentDocIndex < totalDocs - 1) setCurrentDocIndex(currentDocIndex + 1);
   };
 
-  // ─── HANDLE STEP ACTION ────────────────────────────────────────────────
   const handleStepAction = async (stepOrder, action) => {
     const comment = comments[stepOrder] || '';
     if (!comment && action !== 'skip') {
@@ -350,7 +340,7 @@ export default function ValidationRequestDetail() {
         `${API_URL}/users/${targetId}`,
         {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authData.token}` },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(localEdits),
         },
         authData.token,
@@ -411,7 +401,6 @@ export default function ValidationRequestDetail() {
   return (
     <div className="min-h-screen bg-[#0A0F1C] p-6 md:p-8 ml-[30px] mt-16">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
         <div className="flex flex-wrap items-center gap-4 mb-6">
           <BackButton fallbackPath="/dash/validation/requests" />
           <div className="flex items-center gap-3">
@@ -429,7 +418,6 @@ export default function ValidationRequestDetail() {
           </div>
         </div>
 
-        {/* Request info card */}
         <div className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] p-6 mb-6 shadow-2xl shadow-black/50">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="flex items-center gap-3">
@@ -471,7 +459,6 @@ export default function ValidationRequestDetail() {
           )}
         </div>
 
-        {/* Steps */}
         <h3 className="text-lg font-semibold text-[#F8FAFC] mb-4 flex items-center gap-2">
           <Clock className="w-5 h-5 text-emerald-400" />
           Étapes à valider
@@ -534,7 +521,6 @@ export default function ValidationRequestDetail() {
                           <Loader2 className="w-5 h-5 text-emerald-400 animate-spin mx-auto my-4" />
                         ) : targetUserData ? (
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {/* User information */}
                             <div className="bg-[#0A0F1C] rounded-xl border border-[rgba(255,255,255,0.06)] p-4">
                               <h6 className="text-xs font-semibold text-[#94A3B8] uppercase tracking-wider mb-3">
                                 Informations du membre
@@ -602,7 +588,6 @@ export default function ValidationRequestDetail() {
                               )}
                             </div>
 
-                            {/* ─── SLIDESHOW DOCUMENTS ─────────────────── */}
                             <div className="bg-[#0A0F1C] rounded-xl border border-[rgba(255,255,255,0.06)] p-4">
                               <h6 className="text-xs font-semibold text-[#94A3B8] uppercase tracking-wider mb-3">
                                 Documents fournis ({totalDocs})
@@ -721,7 +706,6 @@ export default function ValidationRequestDetail() {
                             </div>
                           </div>
                         ) : (
-                          /* Fallback for non-User targets */
                           <div className="bg-[#0A0F1C] rounded-xl border border-[rgba(255,255,255,0.06)] p-5">
                             <h6 className="text-xs font-semibold text-[#94A3B8] uppercase tracking-wider mb-3 flex items-center gap-2">
                               <FileText className="w-4 h-4 text-emerald-400" />
@@ -751,7 +735,6 @@ export default function ValidationRequestDetail() {
                       </div>
                     )}
 
-                    {/* Comment + Actions */}
                     <div className="mt-4 pt-4 border-t border-[rgba(255,255,255,0.06)]">
                       <div className="space-y-3">
                         <div>

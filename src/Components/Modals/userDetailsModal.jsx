@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useContext } from 'react';
 import { IoClose } from 'react-icons/io5';
+import { UserContext } from '../../Context/dataCont';
+import { fetchWithRefresh } from '../../Components/api';
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
@@ -206,13 +208,11 @@ const formatDiplomaType = (value) => {
 
 const formatWilaya = (value) => {
   if (!value) return '-';
-  // If it already has the prefix (e.g., "16 - Alger"), extract the name
   if (value.includes(' - ')) {
     const parts = value.split(' - ');
     return parts.length > 1 ? parts[1] : value;
   }
-  // If it's a numeric code (e.g., "16"), look up the name
-  const trimmed = value.trim().padStart(2, '0'); // ensure two digits
+  const trimmed = value.trim().padStart(2, '0');
   return WILAYA_NAMES[trimmed] || value;
 };
 
@@ -242,6 +242,7 @@ export default function UserDetailsModal({ user, onClose, authToken }) {
   const [visibleFields, setVisibleFields] = useState([]);
   const [fieldConfigs, setFieldConfigs] = useState({});
   const [loading, setLoading] = useState(true);
+  const { authData, setAuthData } = useContext(UserContext); // we need these for fetchWithRefresh
 
   useEffect(() => {
     const fetchPermissions = async () => {
@@ -252,11 +253,11 @@ export default function UserDetailsModal({ user, onClose, authToken }) {
         return;
       }
       try {
-        const res = await fetch(
+        const res = await fetchWithRefresh(
           `${NEST_API_URL}/permissions/user/${user.id}/viewable-fields?model=User`,
-          {
-            headers: { Authorization: `Bearer ${authToken}` },
-          }
+          { method: "GET" },
+          authToken, // use the passed token, but we also have authData.token
+          setAuthData
         );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
@@ -274,7 +275,7 @@ export default function UserDetailsModal({ user, onClose, authToken }) {
     };
 
     fetchPermissions();
-  }, [user, authToken]);
+  }, [user, authToken, setAuthData]);
 
   useEffect(() => {
     const handleEsc = (e) => { if (e.key === 'Escape') onClose(); };
@@ -306,7 +307,6 @@ export default function UserDetailsModal({ user, onClose, authToken }) {
     if (key === 'sexe') return formatSexe;
     if (key === 'professionalMode') return formatProfessionalMode;
     if (key === 'diplomaType') return formatDiplomaType;
-    // Apply wilaya formatter to these fields
     if (['region', 'wilaya', 'wilayaPro', 'employerWilaya', 'oathLocation'].includes(key)) {
       return formatWilaya;
     }

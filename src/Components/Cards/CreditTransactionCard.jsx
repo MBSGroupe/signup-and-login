@@ -1,5 +1,6 @@
 import { useContext, useState } from "react";
 import { UserContext } from "../../Context/dataCont";
+import { fetchWithRefresh } from "../../Components/api";
 import PDFPreviewModal from '../Modals/pdfPreviexModal';   // fixed import
 
 const API_URL = import.meta.env.VITE_NEST_API_URL;
@@ -16,7 +17,7 @@ const BTN_INFO =
   "inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg transition-colors shadow-lg shadow-blue-600/20";
 
 export default function CreditTransactionCard({ transaction, handlePopup }) {
-  const { authData } = useContext(UserContext);
+  const { authData, setAuthData } = useContext(UserContext);
   const [showPreview, setShowPreview] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
@@ -38,10 +39,12 @@ export default function CreditTransactionCard({ transaction, handlePopup }) {
     if (transaction.amount <= 0) return;
     setIsDownloading(true);
     try {
-      const response = await fetch(`${API_URL}/pdf/versement/${transaction.id}/receipt`, {
-        method: 'GET',
-        headers: { Authorization: `Bearer ${authData.token}` },
-      });
+      const response = await fetchWithRefresh(
+        `${API_URL}/pdf/versement/${transaction.id}/receipt`,
+        { method: 'GET' },
+        authData.token,
+        setAuthData
+      );
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(errorText || 'Erreur lors du téléchargement');
@@ -71,14 +74,16 @@ export default function CreditTransactionCard({ transaction, handlePopup }) {
 
     setIsSendingEmail(true);
     try {
-      const res = await fetch(`${API_URL}/pdf/versement/${transaction.id}/email`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authData.token}`,
+      const res = await fetchWithRefresh(
+        `${API_URL}/pdf/versement/${transaction.id}/email`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ recipientEmail: recipient }),
         },
-        body: JSON.stringify({ recipientEmail: recipient }),
-      });
+        authData.token,
+        setAuthData
+      );
       if (!res.ok) {
         const err = await res.json().catch(() => ({ message: 'Échec de l\'envoi' }));
         throw new Error(err.message);

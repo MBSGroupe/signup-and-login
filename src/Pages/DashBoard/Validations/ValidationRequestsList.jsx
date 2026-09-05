@@ -177,7 +177,7 @@ export default function ValidationRequestsList() {
       case 'User': return <User className="w-4 h-4" />;
       case 'File': return <FileText className="w-4 h-4" />;
       case 'Cotisation': return <CreditCard className="w-4 h-4" />;
-      default: return <Layers className="w-4 h-4" />;
+      default: return <FileText className="w-4 h-4" />; // fallback
     }
   };
 
@@ -265,7 +265,7 @@ export default function ValidationRequestsList() {
         `${API_URL}/validation/requests/mass-approve`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authData.token}` },
+          headers: { 'Content-Type': 'application/json' }, // ✅ Authorization header removed – fetchWithRefresh adds it
           body: JSON.stringify({ requestIds: selectedRequests, comments: 'Validation en masse' }),
         },
         authData.token,

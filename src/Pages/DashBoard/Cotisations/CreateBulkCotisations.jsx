@@ -21,7 +21,8 @@ import {
   PlusCircle,
   ArrowLeft,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  RefreshCw
 } from 'lucide-react';
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
@@ -48,9 +49,11 @@ export default function CreateBulkCotisation() {
     const fetchCreatableFields = async () => {
       try {
         const viewerId = authData.user?._id || authData.user?.id;
-        const response = await fetch(
+        const response = await fetchWithRefresh(
           `${NEST_API_URL}/permissions/user/${viewerId}/creatable-fields?model=Fee`,
-          { headers: { Authorization: `Bearer ${authData.token}` } }
+          { method: 'GET' },
+          authData.token,
+          setAuthData
         );
         const responseData = await response.json();
         const data = responseData.data || responseData;

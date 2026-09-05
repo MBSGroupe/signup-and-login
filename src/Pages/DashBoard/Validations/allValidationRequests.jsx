@@ -87,7 +87,6 @@ export default function AllValidationRequests() {
     }
   };
 
-  // 🟢 [MODIFICATION] : Helper dynamique pour afficher la cible ou le nom de la demande sans type rigide
   const getTargetDisplay = (req) => {
     if (req.payload?.title || req.data?.title) {
       return req.payload?.title || req.data?.title;
@@ -109,7 +108,6 @@ export default function AllValidationRequests() {
     }
   };
 
-  // 🟢 [MODIFICATION] : Icône dynamique basée sur le type de cible ou icône par défaut
   const getTargetIcon = (type) => {
     switch (type) {
       case 'User':
@@ -137,7 +135,6 @@ export default function AllValidationRequests() {
   return (
     <div className="min-h-screen bg-[#0A0F1C] p-6 md:p-8 ml-[30px] mt-16">
       <div className="max-w-7xl mx-auto">
-        {/* Header with Back Button and Title */}
         <div className="flex flex-wrap items-center gap-4 mb-6">
           <BackButton fallbackPath="/dash/validation/requests" />
           <div className="flex items-center gap-3">
@@ -155,7 +152,6 @@ export default function AllValidationRequests() {
           </div>
         </div>
 
-        {/* Filter bar */}
         <div className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] p-4 mb-6 shadow-lg flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-2 text-[#94A3B8]">
             <Filter className="w-4 h-4" />
@@ -179,7 +175,6 @@ export default function AllValidationRequests() {
           </span>
         </div>
 
-        {/* Request list */}
         {requests.length === 0 ? (
           <div className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] p-12 text-center shadow-2xl shadow-black/50">
             <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto mb-4">
@@ -198,13 +193,11 @@ export default function AllValidationRequests() {
               >
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                   <div className="flex-1 min-w-0">
-                    {/* Target type & name */}
                     <div className="flex items-center gap-3">
                       <span className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
                         {getTargetIcon(req.targetType)}
                       </span>
                       <div>
-                        {/* 🟢 [MODIFICATION] : Affichage du nom réel de la demande */}
                         <h3 className="text-lg font-semibold text-[#F8FAFC] truncate">
                           {req.validationSchema?.name || req.schemaName || `${req.targetType} – ${getTargetDisplay(req)}`}
                         </h3>
@@ -226,7 +219,6 @@ export default function AllValidationRequests() {
                       </div>
                     </div>
 
-                    {/* Status badge */}
                     <div className="mt-2 flex items-center gap-3">
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadge(req.status)}`}>
                         {getStatusIcon(req.status)}
@@ -240,7 +232,6 @@ export default function AllValidationRequests() {
                     </div>
                   </div>
 
-                  {/* Action arrow */}
                   <div className="flex items-center gap-2 text-[#64748B] group-hover:text-emerald-400 transition-colors">
                     <span className="text-sm font-medium">Voir</span>
                     <ChevronRight className="w-5 h-5" />

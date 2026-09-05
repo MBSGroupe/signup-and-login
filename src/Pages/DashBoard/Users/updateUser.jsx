@@ -3,6 +3,7 @@ import { UserContext } from "../../../Context/dataCont";
 import Title from "../../../Components/Title";
 import { useParams, useNavigate } from "react-router-dom";
 import BackButton from "../../../Components/Buttons/BackButton";
+import { fetchWithRefresh } from "../../../Components/api";
 import wilayasData from "../../../assets/data/wilayas.json";
 import { User, Mail, Phone, MapPin, Briefcase, Calendar, Shield, Loader2, Save, X } from "lucide-react";
 
@@ -28,19 +29,23 @@ export default function UpdateUser() {
         setLoading(true);
 
         // 1. Fetch user data
-        const userRes = await fetch(`${NEST_API_URL}/users/${id}`, {
-          method: "GET",
-          headers: { Authorization: `Bearer ${authData.token}` }
-        });
+        const userRes = await fetchWithRefresh(
+          `${NEST_API_URL}/users/${id}`,
+          { method: "GET" },
+          authData.token,
+          setAuthData
+        );
         const userResult = await userRes.json();
         const userDataObj = userResult.data?.user || userResult.data || userResult;
         setUserData(userDataObj);
 
         // 2. Fetch permissions for this user
-        const permRes = await fetch(`${NEST_API_URL}/permissions/user/${id}/editable-fields?model=User`, {
-          method: "GET",
-          headers: { Authorization: `Bearer ${authData.token}` }
-        });
+        const permRes = await fetchWithRefresh(
+          `${NEST_API_URL}/permissions/user/${id}/editable-fields?model=User`,
+          { method: "GET" },
+          authData.token,
+          setAuthData
+        );
         const permResult = await permRes.json();
         const permData = permResult.data || permResult;
         setPermissions(permData);
@@ -65,7 +70,7 @@ export default function UpdateUser() {
     if (id && authData?.token) {
       fetchData();
     }
-  }, [id, authData]);
+  }, [id, authData, setAuthData]);
 
   const handleChange = (e) => {
     const { name, value, type } = e.target;
@@ -180,14 +185,16 @@ export default function UpdateUser() {
     console.log(payload)
 
     try {
-      const response = await fetch(`${NEST_API_URL}/users/${id}`, {
-        method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${authData.token}`,
-          "Content-Type": "application/json",
+      const response = await fetchWithRefresh(
+        `${NEST_API_URL}/users/${id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
         },
-        body: JSON.stringify(payload),
-      });
+        authData.token,
+        setAuthData
+      );
 
       const result = await response.json();
 
@@ -224,11 +231,16 @@ export default function UpdateUser() {
     uploadData.append("folder", "profile");
 
     try {
-      const response = await fetch(`${NEST_API_URL}/files/upload/${id}`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${authData.token}` },
-        body: uploadData,
-      });
+      const response = await fetchWithRefresh(
+        `${NEST_API_URL}/files/upload/${id}`,
+        {
+          method: "POST",
+          body: uploadData,
+          // ❌ No Content-Type header – fetch will set it with boundary
+        },
+        authData.token,
+        setAuthData
+      );
 
       const result = await response.json();
 

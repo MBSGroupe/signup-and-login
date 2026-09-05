@@ -3,7 +3,6 @@ import { useContext, useEffect, useState, useRef, useCallback } from "react";
 import { UserContext } from "../Context/dataCont";
 import { useParams, useNavigate } from "react-router-dom";
 import PDFPreviewModal from '../Components/Modals/pdfPreviexModal';
-// 🟢 [AJOUT] : Modal pour le formulaire de demande Déclaration (NIN, CNRC, Paiement, CNAS)
 import DeclarationModal from '../Components/Modals/DeclarationModal';
 import { useError } from '../Context/ErrorContext';
 import { useModal } from '../Context/ModalContext';
@@ -14,6 +13,8 @@ import CotisationCard from '../Components/Cards/CotisationCard';
 import AddFileCard from '../Components/Cards/AddFileCard';
 import CreditTransactionCard from '../Components/Cards/CreditTransactionCard';
 import PaymentCard from '../Components/Cards/PayementCard';
+
+import { fetchWithRefresh } from '../Components/api'; 
 
 import {
   User,
@@ -105,7 +106,6 @@ export default function ProfilePage({ user }) {
   const [expandedRequests, setExpandedRequests] = useState({});
   const [demandSubmitting, setDemandSubmitting] = useState(false);
   const [availableSchemas, setAvailableSchemas] = useState([]);
-  // 🟢 [AJOUT] : États pour l'ouverture du formulaire modal de Déclaration et le schéma sélectionné
   const [isDeclarationModalOpen, setIsDeclarationModalOpen] = useState(false);
   const [selectedDeclarationSchema, setSelectedDeclarationSchema] = useState(null);
   const [selectedDeclarationRequestId, setSelectedDeclarationRequestId] = useState(null);
@@ -159,11 +159,16 @@ export default function ProfilePage({ user }) {
       uploadData.append("file", file);
       uploadData.append("folder", "uploads");
 
-      const response = await fetch(`${NEST_API_URL}/files/${displayUser.id}`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${authData.token}` },
-        body: uploadData,
-      });
+      const response = await fetchWithRefresh(
+        `${NEST_API_URL}/files/${displayUser.id}`,
+        {
+          method: "POST",
+          body: uploadData,
+          // No Content-Type header – fetch will add it with boundary
+        },
+        authData.token,
+        setAuthData
+      );
 
       const data = await response.json();
 
@@ -203,11 +208,15 @@ export default function ProfilePage({ user }) {
       uploadData.append("file", newFile);
       uploadData.append("folder", "uploads");
 
-      const response = await fetch(`${NEST_API_URL}/files/${file.id}`, {
-        method: "PATCH",
-        headers: { Authorization: `Bearer ${authData.token}` },
-        body: uploadData,
-      });
+      const response = await fetchWithRefresh(
+        `${NEST_API_URL}/files/${file.id}`,
+        {
+          method: "PATCH",
+          body: uploadData,
+        },
+        authData.token,
+        setAuthData
+      );
 
       const data = await response.json();
 
@@ -243,10 +252,14 @@ export default function ProfilePage({ user }) {
     try {
       setIsUploading(true);
 
-      const response = await fetch(`${NEST_API_URL}/files/${file.id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${authData.token}` },
-      });
+      const response = await fetchWithRefresh(
+        `${NEST_API_URL}/files/${file.id}`,
+        {
+          method: "DELETE",
+        },
+        authData.token,
+        setAuthData
+      );
 
       const data = await response.json();
 
@@ -277,9 +290,12 @@ export default function ProfilePage({ user }) {
 
   const refreshUserAndFees = async () => {
     try {
-      const userRes = await fetch(`${NEST_API_URL}/users/${targetUserId}`, {
-        headers: { Authorization: `Bearer ${authData.token}` }
-      });
+      const userRes = await fetchWithRefresh(
+        `${NEST_API_URL}/users/${targetUserId}`,
+        { method: 'GET' },
+        authData.token,
+        setAuthData
+      );
 
       if (userRes.ok) {
         const userData = await userRes.json();
@@ -301,9 +317,12 @@ export default function ProfilePage({ user }) {
 
   const refreshUserFees = async () => {
     try {
-      const feesRes = await fetch(`${NEST_API_URL}/fees/user/${targetUserId}`, {
-        headers: { Authorization: `Bearer ${authData.token}` }
-      });
+      const feesRes = await fetchWithRefresh(
+        `${NEST_API_URL}/fees/user/${targetUserId}`,
+        { method: 'GET' },
+        authData.token,
+        setAuthData
+      );
 
       if (feesRes.ok) {
         const feesData = await feesRes.json();
@@ -318,9 +337,12 @@ export default function ProfilePage({ user }) {
 
   const fetchCreditTransactions = async () => {
     try {
-      const res = await fetch(`${NEST_API_URL}/fees/credit/user/${targetUserId}`, {
-        headers: { Authorization: `Bearer ${authData.token}` }
-      });
+      const res = await fetchWithRefresh(
+        `${NEST_API_URL}/fees/credit/user/${targetUserId}`,
+        { method: 'GET' },
+        authData.token,
+        setAuthData
+      );
 
       if (res.ok) {
         const transactionData = await res.json();
@@ -343,19 +365,23 @@ export default function ProfilePage({ user }) {
       : -Math.abs(amount);
 
     try {
-      const res = await fetch(`${NEST_API_URL}/fees/versement`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authData.token}`
+      const res = await fetchWithRefresh(
+        `${NEST_API_URL}/fees/versement`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId: targetUserId,
+            amount: finalAmount,
+            paymentMethod: method,
+            notes
+          })
         },
-        body: JSON.stringify({
-          userId: targetUserId,
-          amount: finalAmount,
-          paymentMethod: method,
-          notes
-        })
-      });
+        authData.token,
+        setAuthData
+      );
 
       const data = await res.json();
 
@@ -393,12 +419,14 @@ export default function ProfilePage({ user }) {
 
   const handleValidateUser = async () => {
     try {
-      const response = await fetch(`${NEST_API_URL}/users/${targetUserId}/validate`, {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${authData.token}`
-        }
-      });
+      const response = await fetchWithRefresh(
+        `${NEST_API_URL}/users/${targetUserId}/validate`,
+        {
+          method: 'PATCH',
+        },
+        authData.token,
+        setAuthData
+      );
 
       const data = await response.json();
 
@@ -426,11 +454,12 @@ export default function ProfilePage({ user }) {
       let statusRes;
 
       try {
-        statusRes = await fetch(`${NEST_API_URL}/pdf/jobs/${jobId}`, {
-          headers: {
-            Authorization: `Bearer ${authData.token}`,
-          },
-        });
+        statusRes = await fetchWithRefresh(
+          `${NEST_API_URL}/pdf/jobs/${jobId}`,
+          { method: 'GET' },
+          authData.token,
+          setAuthData
+        );
       } catch (error) {
         attempts++;
         continue;
@@ -487,16 +516,18 @@ export default function ProfilePage({ user }) {
 
     const isCloudinary = fullUrl.startsWith('https://res.cloudinary.com');
 
-    const pdfRes = await fetch(
-      fullUrl,
-      isCloudinary
-        ? {}
-        : {
-          headers: {
-            Authorization: `Bearer ${authData.token}`,
-          },
-        }
-    );
+    // For Cloudinary, no auth needed; otherwise use fetchWithRefresh
+    let pdfRes;
+    if (isCloudinary) {
+      pdfRes = await fetch(fullUrl);
+    } else {
+      pdfRes = await fetchWithRefresh(
+        fullUrl,
+        { method: 'GET' },
+        authData.token,
+        setAuthData
+      );
+    }
 
     if (!pdfRes.ok) {
       throw new Error('Impossible de récupérer le PDF final');
@@ -509,16 +540,20 @@ export default function ProfilePage({ user }) {
     let jobRes;
 
     try {
-      jobRes = await fetch(`${NEST_API_URL}${endpoint}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authData.token}`,
+      jobRes = await fetchWithRefresh(
+        `${NEST_API_URL}${endpoint}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId: targetUserId,
+          }),
         },
-        body: JSON.stringify({
-          userId: targetUserId,
-        }),
-      });
+        authData.token,
+        setAuthData
+      );
     } catch (networkError) {
       throw new Error(
         'Erreur réseau – impossible de contacter le serveur.'
@@ -617,9 +652,12 @@ export default function ProfilePage({ user }) {
     if (!targetUserId) return;
     setValidationLoading(true);
     try {
-      const res = await fetch(`${NEST_API_URL}/validation/requests/user/${targetUserId}`, {
-        headers: { Authorization: `Bearer ${authData.token}` },
-      });
+      const res = await fetchWithRefresh(
+        `${NEST_API_URL}/validation/requests/user/${targetUserId}`,
+        { method: 'GET' },
+        authData.token,
+        setAuthData
+      );
       if (res.ok) {
         const data = await res.json();
         const requests = data?.data;
@@ -663,24 +701,19 @@ export default function ProfilePage({ user }) {
     return req.targetType ? `Validation ${req.targetType}` : 'Demande';
   };
 
-  // 🟢 [MODIFIÉ - SYNCHRONISATION MULTI-PLATEFORME] :
-  // Détecte si la demande a été resoumise/corrigée soit côté serveur (resubmittedAt, statut PENDING/IN_PROGRESS), soit localement
   const isResubmittedItem = useCallback((itemOrStatus) => {
     if (!itemOrStatus) return false;
     const rawObj = itemOrStatus.rawItem || itemOrStatus;
 
-    // 🟢 1. Détection directe renvoyée par le backend (même si l'action a été faite sur le mobile)
     if (rawObj.resubmittedAt || rawObj.resubmitted_at || rawObj.isResubmitted) {
       return true;
     }
 
-    // 🟢 2. Si le statut de la demande backend est repassé en PENDING / IN_PROGRESS / SUBMITTED
     const rawStatus = String(rawObj.status || rawObj.rawStatus || rawObj.state || itemOrStatus.status || '').trim().toUpperCase();
     if (['PENDING', 'IN_PROGRESS', 'SUBMITTED', 'EN_COURS', 'PROCESSING', 'UNDER_REVIEW'].includes(rawStatus)) {
       return true;
     }
 
-    // 🟢 3. Vérification de la map locale enregistrée (localStorage)
     const currentMap = resubmissionMapRef.current;
     if (!currentMap || Object.keys(currentMap).length === 0) return false;
 
@@ -701,7 +734,6 @@ export default function ProfilePage({ user }) {
     }
     if (!resubmittedAt) return false;
 
-    // Déterminer la date de la dernière action admin
     const steps = Array.isArray(rawObj.steps)
       ? rawObj.steps
       : Array.isArray(rawObj.validationSteps)
@@ -725,8 +757,6 @@ export default function ProfilePage({ user }) {
     return true;
   }, []);
 
-  // 🟢 [MODIFIÉ - SYNCHRONISATION MULTI-PLATEFORME] :
-  // Normalise le statut d'une demande pour l'affichage UI
   const mapApiStatusToDisplay = useCallback((itemOrStatus) => {
     const rawObj = itemOrStatus?.rawItem || itemOrStatus;
     const rawStatus = typeof itemOrStatus === 'string'
@@ -734,27 +764,22 @@ export default function ProfilePage({ user }) {
       : itemOrStatus?.status || itemOrStatus?.rawStatus || itemOrStatus?.state || itemOrStatus?.decision;
     const s = String(rawStatus || '').toUpperCase().trim();
 
-    // 1. Demande Approuvée / Validée
     if (['APPROVED', 'VALIDATED', 'VALIDE', 'VALIDÉ', 'DONE', 'ACTIVE'].includes(s)) {
       return 'Validé';
     }
 
-    // 2. Demande Rejetée / Annulée
     if (['REJECTED', 'REJETÉ', 'REJETE', 'CANCELLED', 'ANNULÉ', 'REFUSED'].includes(s)) {
       return 'Rejeté';
     }
 
-    // 3. Demande Expirée
     if (['EXPIRED', 'EXPIRÉ'].includes(s)) {
       return 'Expiré';
     }
 
-    // 4. Si la demande a été corrigée/resoumise (sur web ou mobile)
     if (isResubmittedItem(itemOrStatus)) {
       return 'En cours';
     }
 
-    // 5. Statut explicite de modifications requises non encore corrigé
     const isDirectChangesRequested = [
       'CHANGES_REQUESTED',
       'CHANGES_REQUIRED',
@@ -775,12 +800,10 @@ export default function ProfilePage({ user }) {
       return 'Modifications requises';
     }
 
-    // 6. Demande en cours de traitement (PENDING, IN_PROGRESS, etc.)
     if (['PENDING', 'IN_PROGRESS', 'IN_REVIEW', 'PROCESSING', 'EN_COURS', 'SUBMITTED', 'UNDER_REVIEW'].includes(s)) {
       return 'En cours';
     }
 
-    // 7. Cas spécifique PARTIAL avec étape active non traitée
     if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
       const steps = Array.isArray(rawObj?.steps)
         ? rawObj.steps
@@ -807,7 +830,6 @@ export default function ProfilePage({ user }) {
     return 'En cours';
   }, [isResubmittedItem]);
 
-  // 🟢 [MODIFIÉ] : Callback exécuté lors du succès de la Déclaration / Correction
   const handleDeclarationSuccess = async (result) => {
     setIsDeclarationModalOpen(false);
     setSelectedDeclarationRequestId(null);
@@ -820,7 +842,6 @@ export default function ProfilePage({ user }) {
     if (selectedDeclarationSchema?.id) newMap[String(selectedDeclarationSchema.id)] = now;
     if (selectedDeclarationSchema?.name) newMap[String(selectedDeclarationSchema.name).trim().toLowerCase()] = now;
 
-    // Associer aussi les ID des demandes existantes de type déclaration
     validationRequests.forEach(req => {
       const name = (req.schemaName || req.schema?.name || req.title || '').toLowerCase();
       if (name.includes('déclaration') || name.includes('declaration')) {
@@ -834,7 +855,6 @@ export default function ProfilePage({ user }) {
       localStorage.setItem('resubmitted_validation_map', JSON.stringify(newMap));
     } catch (_) { }
 
-    // Mise à jour optimiste immédiate de la liste des validations
     setValidationRequests(prev =>
       prev.map(req => {
         const name = (req.schemaName || req.schema?.name || req.title || '').toLowerCase();
@@ -862,9 +882,12 @@ export default function ProfilePage({ user }) {
 
   const fetchSchemas = async () => {
     try {
-      const res = await fetch(`${NEST_API_URL}/validation/schemas`, {
-        headers: { Authorization: `Bearer ${authData.token}` },
-      });
+      const res = await fetchWithRefresh(
+        `${NEST_API_URL}/validation/schemas`,
+        { method: 'GET' },
+        authData.token,
+        setAuthData
+      );
       if (res.ok) {
         const data = await res.json();
         const schemasList = data?.schemas || data?.data || data || [];
@@ -875,7 +898,6 @@ export default function ProfilePage({ user }) {
     }
   };
 
-  // 🟢 [MODIFICATION] : Création dynamique de demande à partir du schéma
   const handleCreateDemand = async (schemaOrName) => {
     if (demandSubmitting) return;
 
@@ -889,7 +911,6 @@ export default function ProfilePage({ user }) {
     });
     if (!confirmed) return;
 
-    // Vérifier si une demande active existe déjà
     const existingRequest = validationRequests.find(req => {
       const reqName = (getRequestName(req) || '').toLowerCase();
       const defName = (schemaName || '').toLowerCase();
@@ -916,14 +937,18 @@ export default function ProfilePage({ user }) {
         schemaName: schemaName,
       };
 
-      const res = await fetch(`${NEST_API_URL}/validation/requests`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authData.token}`,
+      const res = await fetchWithRefresh(
+        `${NEST_API_URL}/validation/requests`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
         },
-        body: JSON.stringify(payload),
-      });
+        authData.token,
+        setAuthData
+      );
 
       const data = await res.json();
       if (res.ok && (data.success || data.id || data.data)) {
@@ -957,9 +982,12 @@ export default function ProfilePage({ user }) {
 
         let userData = user;
         if (!userData && id) {
-          const userRes = await fetch(`${NEST_API_URL}/users/${id}`, {
-            headers: { Authorization: `Bearer ${authData.token}` }
-          });
+          const userRes = await fetchWithRefresh(
+            `${NEST_API_URL}/users/${id}`,
+            { method: 'GET' },
+            authData.token,
+            setAuthData
+          );
           const result = await userRes.json();
           userData = result.data;
         }
@@ -967,9 +995,11 @@ export default function ProfilePage({ user }) {
         setDisplayUser(userData || authData.user);
 
         // --- 1. Viewable fields ---
-        const permRes = await fetch(
+        const permRes = await fetchWithRefresh(
           `${NEST_API_URL}/permissions/user/${targetUserId}/viewable-fields?model=User`,
-          { headers: { Authorization: `Bearer ${authData.token}` } }
+          { method: 'GET' },
+          authData.token,
+          setAuthData
         );
         const permData = await permRes.json();
         const fields = permData.data?.fields || permData.fields || [];
@@ -977,14 +1007,18 @@ export default function ProfilePage({ user }) {
 
         // --- 2. Operations on User ---
         const checkOp = async (operation, model) => {
-          const res = await fetch(`${NEST_API_URL}/permissions/${targetUserId}/check-operation`, {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${authData.token}`,
-              'Content-Type': 'application/json',
+          const res = await fetchWithRefresh(
+            `${NEST_API_URL}/permissions/${targetUserId}/check-operation`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ operation, model }),
             },
-            body: JSON.stringify({ operation, model }),
-          });
+            authData.token,
+            setAuthData
+          );
           const data = await res.json();
           return data.data?.canPerform || false;
         };
@@ -1004,17 +1038,23 @@ export default function ProfilePage({ user }) {
         setCanDeleteFile(canDeleteF);
 
         // --- 3. Fees, payments, credit transactions, validations ---
-        const feesRes = await fetch(`${NEST_API_URL}/fees/user/${targetUserId}`, {
-          headers: { Authorization: `Bearer ${authData.token}` }
-        });
+        const feesRes = await fetchWithRefresh(
+          `${NEST_API_URL}/fees/user/${targetUserId}`,
+          { method: 'GET' },
+          authData.token,
+          setAuthData
+        );
         if (feesRes.ok) {
           const feesData = await feesRes.json();
           setUserFees(feesData.data);
         }
 
-        const paymentsRes = await fetch(`${NEST_API_URL}/fees/payements/user/${targetUserId}`, {
-          headers: { Authorization: `Bearer ${authData.token}` }
-        });
+        const paymentsRes = await fetchWithRefresh(
+          `${NEST_API_URL}/fees/payements/user/${targetUserId}`,
+          { method: 'GET' },
+          authData.token,
+          setAuthData
+        );
         if (paymentsRes.ok) {
           const paymentsData = await paymentsRes.json();
           setPayments(paymentsData.data);
@@ -1658,8 +1698,6 @@ export default function ProfilePage({ user }) {
                                   <div className="absolute left-[11px] top-2 bottom-2 w-0.5 bg-[#1F2937]" />
 
                                   {req.steps?.map((step, idx) => {
-                                    // 🟢 [MODIFIÉ - SYNCHRONISATION MULTI-PLATEFORME] :
-                                    // Si la demande est 'En cours' (corrigée sur mobile ou web), l'étape ne reste pas sur changes_requested
                                     const isReqChangesRequested = displayStatus === 'Modifications requises';
                                     const isDone = step.status === 'approved';
                                     const isChangesRequested = isReqChangesRequested && (step.status === 'changes_requested' || idx === 0);
@@ -2015,7 +2053,6 @@ export default function ProfilePage({ user }) {
       )}
 
       {/* ─── Declaration Request Modal ─────────────────────────────────────── */}
-      {/* 🟢 [MODIFIÉ] : Transmission de l'utilisateur pour pré-remplir le NIN et gestion propre de la fermeture */}
       <DeclarationModal
         isOpen={isDeclarationModalOpen}
         onClose={() => {
@@ -2039,14 +2076,18 @@ export default function ProfilePage({ user }) {
           onClose={() => setPdfPreview({ isOpen: false, type: 'degree', data: null })}
           onGenerate={pdfPreview.onGenerate}
           onEmail={async (userId, recipientEmail) => {
-            const res = await fetch(`${NEST_API_URL}/pdf/send-degree-email`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${authData.token}`,
+            const res = await fetchWithRefresh(
+              `${NEST_API_URL}/pdf/send-degree-email`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ userId, recipientEmail }),
               },
-              body: JSON.stringify({ userId, recipientEmail }),
-            });
+              authData.token,
+              setAuthData
+            );
             if (!res.ok) throw new Error('Échec de l’envoi');
           }}
         />

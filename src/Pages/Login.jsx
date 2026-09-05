@@ -61,6 +61,7 @@ const LoginForm = () => {
     try {
       const response = await fetch(`${NEST_API_URL}/auth/login`, {
         method: "POST",
+        credentials: 'include',
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
       });
@@ -69,8 +70,8 @@ const LoginForm = () => {
       console.log(respData);
       
       if (response.ok && respData.success) {
-        const { user, token } = respData.data;
-        setAuthData({ user, token });
+        const { user, accessToken } = respData.data;
+        setAuthData({ user, token: accessToken });
         
         if (user.role === 'admin' || user.role === 'super_admin') {
           navigate('/dash');

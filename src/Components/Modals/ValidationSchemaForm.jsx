@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { UserContext } from '../../Context/dataCont';
 import { useApi } from '../../Hooks/useApi';
 import { useModal } from '../../Context/ModalContext';
+import { fetchWithRefresh } from '../../Components/api'; // ✅ added
 import {
   Plus,
   Trash2,
@@ -47,7 +48,6 @@ const TIMEOUT_ACTIONS = [
 ];
 const STEP_ROLES = ['user', 'moderator', 'admin', 'super_admin'];
 const REJECT_ACTIONS = ['reject_request', 'escalate', 'skip_step', 'notify_only', 'wait_for_another', 'cancel_request', 'go_back'];
-// 🟢 [MODIFICATION] : callService commenté dans les actions post-validation
 const FINAL_ACTIONS = [
   'setField',
   // 'callService',
@@ -90,7 +90,6 @@ const PREDEFINED_SERVICES = [
       },
     ],
   },
-  /// sendmail
   {
     name: 'MailerService',
     label: 'MailerService (Service d\'envoi d\'emails)',
@@ -190,7 +189,6 @@ function MultiSelect({ options, value = [], onChange, placeholder }) {
   );
 }
 
-// email content conversion
 const htmlToPlainText = (html = '') => {
   if (!html) return '';
   return html
@@ -281,22 +279,28 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
   const fetchUsersByRole = async (role) => {
     if (usersByRole[role]) return usersByRole[role];
     setLoadingUsers(true);
-    const result = await callApi(async () => {
-      const res = await fetch(`${API_URL}/users/role/${role}`, {
-        method: 'GET',
-        headers: { Authorization: `Bearer ${authData.token}` },
-      });
-      return res;
-    }, { showSuccessMessage: false });
-
-    if (result) {
+    try {
+      const res = await fetchWithRefresh(
+        `${API_URL}/users/role/${role}`,
+        { method: 'GET' },
+        authData.token,
+        setAuthData
+      );
+      if (!res.ok) {
+        console.error('Failed to fetch users by role');
+        setLoadingUsers(false);
+        return [];
+      }
+      const result = await res.json();
       const users = result || [];
       setUsersByRole(prev => ({ ...prev, [role]: users }));
       setLoadingUsers(false);
       return users;
+    } catch (error) {
+      console.error('Error fetching users by role:', error);
+      setLoadingUsers(false);
+      return [];
     }
-    setLoadingUsers(false);
-    return [];
   };
 
   const addStep = () => {
@@ -516,7 +520,7 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
       if (Array.isArray(parsed)) updateFinalActionParam('onRejection', 'args', parsed);
     } catch (e) { console.warn('Invalid JSON, keeping previous args'); }
   };
-  //service 
+
   const renderCallServiceFields = (actionType) => {
     const isApproval = actionType === 'onApproval';
     const currentService = formData[actionType]?.params?.service || '';
@@ -558,7 +562,6 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
 
     return (
       <div className="space-y-4">
-        {/* Service */}
         <div className="space-y-1">
           <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Service </label>
           <select
@@ -573,7 +576,6 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
           </select>
         </div>
 
-        {/* Méthode */}
         <div className="space-y-1">
           <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Méthode</label>
           <select
@@ -588,7 +590,6 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
           </select>
         </div>
 
-        {/* Arguments JSON */}
         <div className="space-y-1">
           <div className="flex items-center justify-between">
             <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Arguments (JSON)</label>
@@ -606,7 +607,6 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
       </div>
     );
   };
-  // send mail
 
   const renderSendEmailFields = (actionType) => {
     const isApproval = actionType === 'onApproval';
@@ -635,13 +635,11 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
 
     return (
       <div className="space-y-4">
-        {/* Info destinataire automatique */}
         <div className="flex items-center gap-2.5 p-3 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-xl text-xs text-[#94A3B8]">
           <Mail className="w-4 h-4 text-cyan-400 shrink-0" />
           <span>L'email sera automatiquement envoyé à l'adresse de la personne ayant soumis la demande (<code className="text-cyan-300 font-mono text-[11px]">$userEmail</code>).</span>
         </div>
 
-        {/* Modèles rapides */}
         <div className="flex items-center gap-2">
           <span className="text-xs text-[#94A3B8]">Modèle rapide :</span>
           <button
@@ -653,7 +651,6 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
           </button>
         </div>
 
-        {/* Sujet */}
         <div className="space-y-1">
           <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Sujet de l'email</label>
           <input
@@ -665,11 +662,9 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
           />
         </div>
 
-        {/* Contenu */}
         <div className="space-y-1">
           <div className="flex items-center justify-between">
             <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Contenu de l'email</label>
-            {/* 🟢 [MODIFICATION] : Affichage des variables dynamiques disponibles incluant le motif de rejet */}
             <span className="text-[11px] text-[#64748B]">Variables: $userName, $userEmail, $rejectReason</span>
           </div>
           <EmailContentTextarea
@@ -690,25 +685,32 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
     const method = initialData ? 'PUT' : 'POST';
     const url = initialData ? `${API_URL}/validation/schemas/${schemaId}` : `${API_URL}/validation/schemas`;
 
-    const result = await callApi(async () => {
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authData.token}` },
-        body: JSON.stringify(formData),
-      });
-      console.log(formData, "form data")
-      return res;
-
-    }, {
-      showSuccessMessage: true,
-      successMessage: initialData ? 'Schéma mis à jour avec succès' : 'Schéma créé avec succès',
-    });
-
-    if (result) {
-      onSuccess?.();
+    try {
+      const res = await fetchWithRefresh(
+        url,
+        {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData),
+        },
+        authData.token,
+        setAuthData
+      );
+      console.log(formData, "form data");
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || 'Erreur lors de l\'enregistrement');
+      }
+      // If we get here, success
+      if (onSuccess) onSuccess();
       navigate('/dash/validation/schemas');
+    } catch (error) {
+      console.error('Submit error:', error);
+      // Optionally show error via modal or toast
+      alert(error.message || 'Erreur réseau');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleCancel = async (e) => {
@@ -801,7 +803,6 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
   return (
     <div className="min-h-screen bg-[#0A0F1C] p-6 md:p-8">
       <div className="max-w-7xl mx-auto">
-
         <form onSubmit={handleSubmit} className="space-y-8">
           {/* --- General info --- */}
           {(isFieldAllowed('name') || isFieldAllowed('targetType') || isFieldAllowed('description')) && (
@@ -884,7 +885,6 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
                           <div className="w-9 h-5 bg-[#1F2937] rounded-full peer peer-checked:bg-emerald-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4"></div>
                           <span className="ml-2 text-sm text-[#94A3B8]">Requis</span>
                         </label>
-                        {/* Mass Validation toggle */}
                         <label className="relative inline-flex items-center cursor-pointer">
                           <input
                             type="checkbox"
@@ -941,7 +941,6 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
                         )}
                         <p className="text-xs text-[#64748B] mt-1">Laissez vide pour autoriser tout le rôle.</p>
                       </div>
-                      {/* Step Type */}
                       <div className="space-y-1">
                         <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Type d'étape</label>
                         <select
@@ -998,7 +997,6 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
                       </div>
                     </div>
 
-                    {/* Conditions */}
                     <div className="mt-5 pt-4 border-t border-[rgba(255,255,255,0.06)]">
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">

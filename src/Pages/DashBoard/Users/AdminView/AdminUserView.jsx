@@ -1,55 +1,60 @@
 import { useEffect, useState, useContext } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import ProfilePage from "../../../ProfilePage";
+import { UserContext } from "../../../../Context/dataCont";
+import { fetchWithRefresh } from "../../../../Components/api"; // ✅ correct path
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
-import { UserContext } from "../../../../Context/dataCont";
+
 export default function AdminUserView() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { authData, setAuthData } = useContext(UserContext);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [validating, setValidating] = useState(false);
-  const [showPopup, setShowPopup] = useState(false)
-  const { authData, setAuthData } = useContext(UserContext);
+  const [showPopup, setShowPopup] = useState(false);
+
   // Fetch user data
   useEffect(() => {
     const getUser = async () => {
       try {
-        const res = await fetch(`${NEST_API_URL}/users/${id}`, {
-          headers: { "Content-Type": "application/json", 
-            Authorization: `Bearer ${authData.token}`,
-          },
-
-          method: "GET"
-        });
+        const res = await fetchWithRefresh(
+          `${NEST_API_URL}/users/${id}`,
+          { method: "GET" },
+          authData.token,
+          setAuthData
+        );
         const userData = await res.json();
         setUser(userData.data.user);
-        setMessage(userData.data.message)
+        setMessage(userData.data.message);
       } catch (err) {
         console.log(err);
       } finally {
         setLoading(false);
       }
     };
-    getUser();
-  }, [id]);
+    if (authData?.token) getUser();
+  }, [id, authData?.token, setAuthData]);
 
   // Validate user
   const handleValidate = async () => {
     setValidating(true);
     try {
-      const res = await fetch(`${NEST_API_URL}/user/validate/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-      });
+      const res = await fetchWithRefresh(
+        `${NEST_API_URL}/user/validate/${id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+        },
+        authData.token,
+        setAuthData
+      );
       const ValidationData = await res.json();
       setMessage(ValidationData.data.message || "User validated");
-      setUser(prev => ({ ...prev, isAdminVerified: true })); // Update local state
+      setUser((prev) => ({ ...prev, isAdminVerified: true }));
       setShowPopup(true);
-
-      // Auto hide popup after 3 seconds
       setTimeout(() => setShowPopup(false), 3000);
     } catch (err) {
       console.error(err);
@@ -68,14 +73,10 @@ export default function AdminUserView() {
 
   return (
     <div className="min-h-screen bg-gray-900 py-16 px-4 relative">
-
-      {/* PROFILE */}
       <div className="max-w-5xl mx-auto">
         <ProfilePage user={user} />
       </div>
 
-
-      {/* POPUP MESSAGE */}
       {showPopup && (
         <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-gray-800/90 text-yellow-300
                         px-6 py-4 rounded-xl shadow-lg border border-yellow-400/30 transition-all">

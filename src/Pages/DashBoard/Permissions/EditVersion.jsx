@@ -21,9 +21,12 @@ export default function EditVersion() {
   useEffect(() => {
     const fetchVersion = async () => {
       try {
-        const res = await fetch(`${NEST_API_URL}/permissions/schemas/${versionId}`, {
-          headers: { Authorization: `Bearer ${authData.token}` }
-        });
+        const res = await fetchWithRefresh(
+          `${NEST_API_URL}/permissions/schemas/${versionId}`,
+          { method: "GET" },
+          authData.token,
+          setAuthData
+        );
         const data = await res.json();
         if (res.ok && data.success !== false) {
           const versionData = data.data?.version || data.version;
@@ -45,7 +48,7 @@ export default function EditVersion() {
       }
     };
     if (authData?.token) fetchVersion();
-  }, [versionId, authData, navigate]);
+  }, [versionId, authData, navigate, setAuthData]);
 
   const handleSubmit = async (updatedSchema, status) => {
     console.log(updatedSchema);
@@ -95,7 +98,6 @@ export default function EditVersion() {
   return (
     <div className="min-h-screen bg-[#0A0F1C] p-6 md:p-8 ml-[30px] mt-16">
       <div className="max-w-7xl mx-auto">
-        {/* Header with back button and title */}
         <div className="flex flex-wrap items-center gap-4 mb-6">
           <BackButton fallbackPath="/dash/permissions" />
           <div className="flex items-center gap-3">
@@ -113,7 +115,6 @@ export default function EditVersion() {
           </div>
         </div>
 
-        {/* Form wrapper */}
         <div className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] shadow-2xl shadow-black/50 p-6 md:p-8">
           <VersionForm
             initialSchema={schema}

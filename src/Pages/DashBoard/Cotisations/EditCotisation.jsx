@@ -24,9 +24,13 @@ export default function EditCotisation() {
       try {
         setLoading(true);
 
-        const cotRes = await fetch(`${API_URL}/fees/${id}`, {
-          headers: { Authorization: `Bearer ${authData.token}` }
-        });
+        // 1. Fetch cotisation data
+        const cotRes = await fetchWithRefresh(
+          `${API_URL}/fees/${id}`,
+          { method: "GET" },
+          authData.token,
+          setAuthData
+        );
         const cotData = await cotRes.json();
         if (!cotRes.ok) throw new Error(cotData.message || "Erreur lors du chargement");
 
@@ -35,9 +39,12 @@ export default function EditCotisation() {
         const ownerId = cotisation.userId;
         if (!ownerId) throw new Error("Propriétaire de la cotisation introuvable");
 
-        const permRes = await fetch(
+        // 2. Fetch permissions for this cotisation's owner
+        const permRes = await fetchWithRefresh(
           `${API_URL}/permissions/user/${ownerId}/editable-fields?model=Fee`,
-          { headers: { Authorization: `Bearer ${authData.token}` } }
+          { method: "GET" },
+          authData.token,
+          setAuthData
         );
         const permData = await permRes.json();
         
@@ -51,7 +58,7 @@ export default function EditCotisation() {
           configs: permissionsData.configs || {}
         });
 
-        // 4. Initialiser le formulaire
+        // 3. Initialize form
         const initialForm = {};
         (permissionsData.fields || []).forEach((field) => {
           if (cotisation[field] !== undefined) {
@@ -68,7 +75,7 @@ export default function EditCotisation() {
     };
 
     fetchCotisation();
-  }, [id, authData]);
+  }, [id, authData, setAuthData]);
 
   const handleChange = (e) => {
     const { name, value, type } = e.target;
@@ -174,7 +181,6 @@ export default function EditCotisation() {
         );
         break;
       default:
-        // text, email, etc.
         inputElement = (
           <input
             type={config.type || "text"}
@@ -220,7 +226,6 @@ export default function EditCotisation() {
         <p className="text-gray-400 text-center mb-6">Année {formData.year}</p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Render fields dynamically in order */}
           {permissions.fields
             .sort(
               (a, b) =>

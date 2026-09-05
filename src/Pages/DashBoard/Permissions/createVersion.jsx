@@ -20,9 +20,12 @@ export default function NewVersion() {
   useEffect(() => {
     const fetchCurrentSchema = async () => {
       try {
-        const res = await fetch(`${NEST_API_URL}/permissions/schemas?model=${model}`, {
-          headers: { Authorization: `Bearer ${authData.token}` }
-        });
+        const res = await fetchWithRefresh(
+          `${NEST_API_URL}/permissions/schemas?model=${model}`,
+          { method: "GET" },
+          authData.token,
+          setAuthData
+        );
         const data = await res.json();
         if (res.ok && data.success !== false) {
           const schemasData = data.data?.schemas || data.schemas || [];
@@ -42,7 +45,7 @@ export default function NewVersion() {
       }
     };
     if (authData?.token) fetchCurrentSchema();
-  }, [model, authData]);
+  }, [model, authData, setAuthData]);
 
   const handleSubmit = async (schema, status) => {
     console.log(schema, status);
@@ -53,7 +56,7 @@ export default function NewVersion() {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ schema, status }) 
+          body: JSON.stringify({ schema, status })
         },
         authData.token,
         setAuthData
@@ -85,7 +88,6 @@ export default function NewVersion() {
   return (
     <div className="min-h-screen bg-[#0A0F1C] p-6 md:p-8 ml-[30px] mt-16">
       <div className="max-w-7xl mx-auto">
-        {/* Header with back button and title */}
         <div className="flex flex-wrap items-center gap-4 mb-6">
           <BackButton fallbackPath="/dash/permissions" />
           <div className="flex items-center gap-3">
@@ -103,7 +105,6 @@ export default function NewVersion() {
           </div>
         </div>
 
-        {/* Form wrapper */}
         <div className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] shadow-2xl shadow-black/50 p-6 md:p-8">
           <VersionForm
             initialSchema={initialSchema}

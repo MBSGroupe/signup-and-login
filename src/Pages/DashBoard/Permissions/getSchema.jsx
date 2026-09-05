@@ -2,6 +2,7 @@
 import { useContext, useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { UserContext } from "../../../Context/dataCont";
+import { fetchWithRefresh } from "../../../Components/api";
 import Title from "../../../Components/Title";
 import BackButton from "../../../Components/Buttons/BackButton";
 import {
@@ -44,7 +45,7 @@ const statusColors = {
 export default function PermissionDetails() {
   const { model, versionId } = useParams();
   const navigate = useNavigate();
-  const { authData } = useContext(UserContext);
+  const { authData, setAuthData } = useContext(UserContext);
   const [schema, setSchema] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -53,9 +54,12 @@ export default function PermissionDetails() {
   useEffect(() => {
     const fetchSchema = async () => {
       try {
-        const res = await fetch(`${NEST_API_URL}/permissions/schemas/${versionId}`, {
-          headers: { Authorization: `Bearer ${authData.token}` }
-        });
+        const res = await fetchWithRefresh(
+          `${NEST_API_URL}/permissions/schemas/${versionId}`,
+          { method: "GET" },
+          authData.token,
+          setAuthData
+        );
         const data = await res.json();
         if (res.ok && data.success !== false) {
           const found = data.data?.version || data.version;
@@ -74,15 +78,17 @@ export default function PermissionDetails() {
       }
     };
     if (authData?.token) fetchSchema();
-  }, [model, versionId, authData]);
+  }, [model, versionId, authData, setAuthData]);
 
   const handleRestore = async () => {
     try {
       const url = `${NEST_API_URL}/permissions/reactivate/${schema.id}?model=${model}`;
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${authData.token}` }
-      });
+      const res = await fetchWithRefresh(
+        url,
+        { method: "POST" },
+        authData.token,
+        setAuthData
+      );
       const data = await res.json();
       if (res.ok && data.success !== false) {
         window.location.reload();
@@ -157,7 +163,6 @@ export default function PermissionDetails() {
   return (
     <div className="min-h-screen bg-[#0A0F1C] p-6 md:p-8 ml-[30px] mt-16">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
         <div className="flex flex-wrap items-center gap-4 mb-6">
           <BackButton fallbackPath="/dash/permissions" />
           <div className="flex items-center gap-3">
@@ -175,7 +180,6 @@ export default function PermissionDetails() {
           </div>
         </div>
 
-        {/* Info card */}
         <div className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] p-6 mb-6 shadow-2xl shadow-black/50">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="flex items-center gap-3">
@@ -239,7 +243,6 @@ export default function PermissionDetails() {
           )}
         </div>
 
-        {/* Tabs */}
         <div className="flex overflow-x-auto gap-1 border-b border-[rgba(255,255,255,0.06)] pb-px">
           <button
             onClick={() => setActiveTab("fields")}
@@ -287,7 +290,6 @@ export default function PermissionDetails() {
           </button>
         </div>
 
-        {/* Tab content */}
         <div className="bg-[#111827] rounded-b-2xl border-x border-b border-[rgba(255,255,255,0.06)] p-6">
           {activeTab === "fields" && (
             <div className="overflow-x-auto">

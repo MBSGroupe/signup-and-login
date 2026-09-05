@@ -2,6 +2,7 @@ import { useEffect, useContext, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { UserDataContext } from '../../Context/userDataCont';
 import { UserContext } from '../../Context/dataCont';
+import { fetchWithRefresh } from '../../Components/api'; // ✅ IMPORT
 import SectionTitle from '../../Components/Title';
 import { 
   Users, 
@@ -24,7 +25,7 @@ export default function AdminDashboard() {
   const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
   
   const { data, setData } = useContext(UserDataContext);
-  const { authData } = useContext(UserContext);
+  const { authData, setAuthData } = useContext(UserContext); // ✅ added setAuthData
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -32,13 +33,12 @@ export default function AdminDashboard() {
 
     const getElements = async () => {
       try {
-        const response = await fetch(`${NEST_API_URL}/admin/allUsers`, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${authData.token}`,
-          },
-        });
+        const response = await fetchWithRefresh(
+          `${NEST_API_URL}/admin/allUsers`,
+          { method: "GET" },
+          authData.token,
+          setAuthData
+        );
         const results = await response.json();
         setData(results);
       } catch (error) {
@@ -47,7 +47,7 @@ export default function AdminDashboard() {
     };
 
     getElements();
-  }, [authData.token, setData]);
+  }, [authData.token, setAuthData, setData]); // ✅ added setAuthData to deps
 
   // Compute statistics from the data
   const stats = useMemo(() => {

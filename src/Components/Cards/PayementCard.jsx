@@ -1,12 +1,13 @@
 import { useContext, useState } from "react";
 import { UserContext } from "../../Context/dataCont";
+import { fetchWithRefresh } from "../../Components/api";
 import PDFPreviewModal from '../Modals/pdfPreviexModal';
 import { Download, Eye, Mail, CreditCard, Calendar, AlertCircle } from "lucide-react";
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
 export default function PaymentCard({ payment, handlePopup }) {
-  const { authData } = useContext(UserContext);
+  const { authData, setAuthData } = useContext(UserContext);
   const [showPreview, setShowPreview] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
@@ -18,14 +19,16 @@ export default function PaymentCard({ payment, handlePopup }) {
 
   // Common function: fetch PDF preview blob from the backend
   const fetchReceiptBlob = async () => {
-    const response = await fetch(`${NEST_API_URL}/pdf/preview/receipt`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${authData.token}`,
+    const response = await fetchWithRefresh(
+      `${NEST_API_URL}/pdf/preview/receipt`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentId }),
       },
-      body: JSON.stringify({ paymentId }),
-    });
+      authData.token,
+      setAuthData
+    );
 
     if (!response.ok) {
       let errorMsg = 'Échec de la génération du reçu';
@@ -86,14 +89,16 @@ export default function PaymentCard({ payment, handlePopup }) {
 
     setIsSendingEmail(true);
     try {
-      const res = await fetch(`${NEST_API_URL}/pdf/send-receipt-email`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authData.token}`,
+      const res = await fetchWithRefresh(
+        `${NEST_API_URL}/pdf/send-receipt-email`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ paymentId, recipientEmail: recipient }),
         },
-        body: JSON.stringify({ paymentId, recipientEmail: recipient }),
-      });
+        authData.token,
+        setAuthData
+      );
       if (!res.ok) {
         const err = await res.json().catch(() => ({ message: 'Échec de l\'envoi' }));
         throw new Error(err.message);
