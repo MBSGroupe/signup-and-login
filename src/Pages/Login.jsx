@@ -174,6 +174,9 @@ const LoginForm = () => {
             </button>
           </form>
 
+          {/* 👇 ADD FORGOT PASSWORD LINK HERE */}
+
+
           {message && (
             <div className={`mt-5 p-3 rounded-xl text-sm font-medium flex items-center gap-2 ${
               message.includes('Trop de tentatives') || message.includes('Erreur')
@@ -193,6 +196,15 @@ const LoginForm = () => {
               S'inscrire
             </Link>
           </p>
+
+            <div className="mt-4 text-center">
+            <Link
+              to="/forgot-password"
+              className="text-sm text-emerald-400 hover:underline font-medium"
+            >
+              Mot de Passe Oublié ?
+            </Link>
+          </div>
         </div>
       </div>
     </div>

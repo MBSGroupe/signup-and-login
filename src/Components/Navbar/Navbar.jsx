@@ -78,10 +78,10 @@ export default function Navbar() {
                     Edit Profile
                   </button>
                   <button
-                    onClick={() => { navigate("/auth/resetPsw"); setDropdownOpen(false); }}
+                    onClick={() => { navigate("/auth/change-password"); setDropdownOpen(false); }}
                     className="block w-full text-left px-4 py-2.5 text-sm text-[#F8FAFC] hover:bg-[#22C55E]/10 hover:text-[#22C55E] transition-colors"
                   >
-                    Edit Password
+                    Change Password
                   </button>
                   <button
                     onClick={() => { navigate("/auth/preferences"); setDropdownOpen(false); }}

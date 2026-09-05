@@ -5,11 +5,10 @@ import DashLayout from './Layouts/DashLayout';
 
 import ProtectedRoute from './Layouts/ProtectedRoute';
 import AdminRoute from './Layouts/AdminRoute';
-
+import ChangePassword from './Pages/DashBoard/Users/changePassword';
 import LoginForm from './Pages/Login';
 import FormulaireCNOA from './Pages/Sign-up';
 import ProfilePage from './Pages/ProfilePage';
-import ResetPassword from './Pages/DashBoard/Users/resetPassword';
 import OnboardingPage from './Pages/OnboardingPage';
 import VerifyPage from './Pages/VerificationPage';
 import VerifyPendingPage from './Pages/VerifyPending';
@@ -42,8 +41,9 @@ import ValidationSchemaDetails from './Pages/DashBoard/Validations/ValidationSch
 import ValidationRequestProgress from './Pages/DashBoard/Validations/ValidationRequestsProgress';
 
 import BackgroundManager from './Pages/DashBoard/EtatsDeSortie/BackgroundManager'
+import ForgotPassword from './Pages/ForgotPassword';
+import ResetPassword from './Pages/ResetPassword';
 
-// 👇 IMPORT THE NEW COMPONENT
 import PixelNo from './Components/NO';
 
 export default function App() {
@@ -55,22 +55,25 @@ export default function App() {
         <Route index element={<LoginForm />} />
         <Route path="signup" element={<FormulaireCNOA />} />
         
-        {/* 👇 ADD THE NEW ROUTE HERE */}
-      <Route 
-        path="pixel-no" 
-        element={
-          <PixelNo 
-            rows={25}
-            cols={50}
-            pixelSize={20}
-            gap={2}
-            color="#facc15"
-            bgColor="#0f0f1a"
-            speed={2}
-            onComplete={() => console.log('Pixel NO complete!')}
-          />
-        } 
-      />
+        {/* 👇 ADD PASSWORD RESET ROUTES HERE */}
+        <Route path="forgot-password" element={<ForgotPassword />} />
+        <Route path="reset-password" element={<ResetPassword />} />
+
+        <Route 
+          path="pixel-no" 
+          element={
+            <PixelNo 
+              rows={25}
+              cols={50}
+              pixelSize={20}
+              gap={2}
+              color="#facc15"
+              bgColor="#0f0f1a"
+              speed={2}
+              onComplete={() => console.log('Pixel NO complete!')}
+            />
+          } 
+        />
       </Route>
 
       {/* AUTH LAYOUT (logged in pages) */}
@@ -79,33 +82,23 @@ export default function App() {
         <Route path="verify" element={<VerifyPage />} />
         <Route path="notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
         <Route path="preferences" element={<ProtectedRoute><PreferencesPage /></ProtectedRoute>} />
-        {/* Pages accessible to any logged-in user */}
-        <Route path="profile" element={
-          <ProtectedRoute><ProfilePage /></ProtectedRoute>
-        } />
-        <Route path="resetPsw" element={
-          <ProtectedRoute><ResetPassword /></ProtectedRoute>
-        } />
-        <Route path="update/:id" element={
-          <ProtectedRoute> <UpdateUser /> </ProtectedRoute>} />
-        <Route path="edit/fee/:id" element={
-          <ProtectedRoute> <EditCotisation /> </ProtectedRoute>} />
-        <Route path="onboarding" element={
-          <ProtectedRoute><OnboardingPage /></ProtectedRoute>
-        } /> 
+        <Route path="profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+        <Route path="update/:id" element={<ProtectedRoute><UpdateUser /></ProtectedRoute>} />
+        <Route path="edit/fee/:id" element={<ProtectedRoute><EditCotisation /></ProtectedRoute>} />
+        <Route path="onboarding" element={<ProtectedRoute><OnboardingPage /></ProtectedRoute>} />
+        <Route path="change-password" element={<ProtectedRoute>< ChangePassword/></ProtectedRoute>} />
+
+
       </Route>
 
       {/* DASHBOARD / ADMIN LAYOUT */}
-      <Route path="/dash" element={
-        <AdminRoute><DashLayout /></AdminRoute>
-      }>
+      <Route path="/dash" element={<AdminRoute><DashLayout /></AdminRoute>}>
         <Route index element={<AdminDashboard />} />
         <Route path="allUsers" element={<GetUsers mode="users" />} />
         <Route path="allMembers" element={<GetUsers mode="membres" />} />
         <Route path="allCotisations" element={<GetCotisations/>} />
         <Route path="createUser" element={<CreateUser/>} />
         <Route path="ajouterCotisation" element={<CreateBulkCotisation />} />
-
 
         <Route path="permissions" element={<PermissionManager />} />
         <Route path="permissions/:model/:versionId" element={<PermissionDetails />} />
@@ -131,7 +124,6 @@ export default function App() {
         <Route path="adminUser/:id" element={<AdminUserView />} />
         <Route path="feeStats" element={<FeeStats />} />
         <Route path="userStats" element={<UserStats />} />
-
       </Route>
 
     </Routes>
