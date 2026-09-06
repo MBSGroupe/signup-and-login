@@ -59,6 +59,9 @@ export default function App() {
         <Route path="forgot-password" element={<ForgotPassword />} />
         <Route path="reset-password" element={<ResetPassword />} />
 
+
+        <Route path="verify-pending" element={<VerifyPendingPage />} />
+        <Route path="verify" element={<VerifyPage />} />
         <Route 
           path="pixel-no" 
           element={
@@ -78,8 +81,7 @@ export default function App() {
 
       {/* AUTH LAYOUT (logged in pages) */}
       <Route path="/auth" element={<AuthLayout />}>
-        <Route path="verify-pending" element={<VerifyPendingPage />} />
-        <Route path="verify" element={<VerifyPage />} />
+
         <Route path="notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
         <Route path="preferences" element={<ProtectedRoute><PreferencesPage /></ProtectedRoute>} />
         <Route path="profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />

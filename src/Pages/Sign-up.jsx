@@ -24,7 +24,22 @@ import {
   BookOpen,
   Users
 } from "lucide-react";
+
+import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+
 import cnoaLogo from "../assets/LOGOCLOA.png";
+
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: markerIcon2x,
+  iconUrl: markerIcon,
+  shadowUrl: markerShadow,
+});
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
@@ -49,22 +64,21 @@ const WILAYAS = [
 
 // ─── Document types ────────────────────────────────────────────────
 const BASE_FILE_TYPES = [
-  { key: 'photo', label: 'Photo' },
-  { key: 'CNRC', label: 'Carte Nationale' },
-  { key: 'recu2026', label: 'Reçu 2027' },
-  { key: 'ACTENAISSANCE', label: 'Acte de naissance' },
-  { key: 'DIPLOMES', label: 'Diplôme(s)' },
-  { key: 'SERMENTTABLE', label: 'Serment' },
-  { key: 'RECUDUS', label: 'Reçu divers' },
-  { key: 'situationCNRC', label: 'Situation CNRC' },
-  { key: 'c20', label: 'Certificat d\'existence' },
-  { key: 'nonAffiliationcnas', label: 'Non-affiliation CNAS' },
-  { key: 'affiliationcnas', label: 'Affiliation CNAS' },
-  { key: 'contrattravail', label: 'Contrat de travail' },
-  { key: 'statut', label: 'Statut SCP' },
+  { key: 'photo', label: 'Photo', required: true },
+  { key: 'CNRC', label: 'Carte Nationale', required: true },
+  { key: 'recu2026', label: 'Reçu 2027', required: true },
+  { key: 'ACTENAISSANCE', label: 'Acte de naissance', required: true },
+  { key: 'DIPLOMES', label: 'Diplôme(s)', required: true },
+  { key: 'SERMENTTABLE', label: 'Serment', required: true },
+  { key: 'RECUDUS', label: 'Recus des dus (si pas à jours)', required: false },
+  { key: 'situationCNRC', label: 'Situation CNRC', required: true },
+  { key: 'c20', label: 'Certificat d\'existence', required: true },
+  { key: 'nonAffiliationcnas', label: 'Non-affiliation CNAS', required: true },
+  { key: 'affiliationcnas', label: 'Affiliation CNAS', required: true },
+  { key: 'contrattravail', label: 'Contrat de travail', required: true },
+  { key: 'statut', label: 'Statut SCP', required: true },
 ];
 
-// ─── Allowed file types per mode ──────────────────────────────────
 const ALLOWED_FILE_TYPES = {
   common: ['photo', 'CNRC', 'recu2026', 'SERMENTTABLE', 'DIPLOMES', 'RECUDUS', 'ACTENAISSANCE', 'situationCNRC'],
   liberal: ['nonAffiliationcnas', 'c20'],
@@ -72,11 +86,49 @@ const ALLOWED_FILE_TYPES = {
   salarie: ['affiliationcnas', 'contrattravail']
 };
 
+// ─── Validation regexes ────────────────────────────────────────────
+const REGISTRATION_NUMBER_REGEX = /^\d{5}\/\d{2}\/\d{2}[ALS]$/;
+const EMAIL_REGEX = /^[^\s@]+@elmi3mari\.dz$/;
+
+function LocationPicker({ value, onChange }) {
+  const [position, setPosition] = useState(
+    value ? value.split(',').map(Number) : [36.7538, 3.0588]
+  );
+
+  const MapClickHandler = () => {
+    useMapEvents({
+      click(e) {
+        const { lat, lng } = e.latlng;
+        setPosition([lat, lng]);
+        onChange(`${lat},${lng}`);
+      },
+    });
+    return null;
+  };
+
+  return (
+    <div className="space-y-2">
+      <MapContainer center={position} zoom={13} style={{ height: '220px', width: '100%', borderRadius: '8px' }}>
+        <TileLayer
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        />
+        <Marker position={position} />
+        <MapClickHandler />
+      </MapContainer>
+      <p className="text-xs text-[#64748B]">Cliquez sur la carte pour définir les coordonnées GPS.</p>
+      {value && (
+        <p className="text-xs text-emerald-400">GPS sélectionné : {value}</p>
+      )}
+    </div>
+  );
+}
+
 export default function FormulaireCNOA() {
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const { setAuthData, authData } = useContext(UserContext);
+  const { setAuthData } = useContext(UserContext);
   const navigate = useNavigate();
   const formRef = useRef(null);
 
@@ -86,56 +138,54 @@ export default function FormulaireCNOA() {
   const dd = String(today.getDate()).padStart(2, "0");
   const maxDate = `${yyyy}-${mm}-${dd}`;
 
-  // ─── FORM STATE ──────────────────────────────────────────────────────────
   const [formData, setFormData] = useState({
-    region: "",
-    nin: "",
-    sexe: "",
-    serviceNationalStatus: "",
-    name: "",
-    lastname: "",
-    nomArabe: "",
-    prenomArabe: "",
-    dateOfBirth: "",
-    lieuNaissance: "",
-    numeroActeNaissance: "",
-    adressePersonnelle: "",
-    commune: "",
-    wilaya: "",
-    prenomPere: "",
-    prenomPereArabe: "",
-    nomPrenomMere: "",
-    nomPrenomMereArabe: "",
-    maritalStatus: "",
-    enfants: "",
-    fixe: "",
-    phone: "",
-    email: "",
-    emailPro: "",
-    diplomaType: "",
-    sessionClassique: "",
-    anneeClassique: "",
-    universiteClassique: "",
+    region: "16 - Alger",
+    nin: "123456789012345678",
+    sexe: "M",
+    serviceNationalStatus: "Ayant effectué",
+    name: "Ali",
+    lastname: "Benamar",
+    nomArabe: "بن عمار",
+    prenomArabe: "علي",
+    dateOfBirth: "1985-06-15",
+    lieuNaissance: "Alger",
+    numeroActeNaissance: "123456789",
+    adressePersonnelle: "12 Rue des Oliviers, Hydra",
+    commune: "Hydra",
+    wilaya: "16 - Alger",
+    prenomPere: "Mohamed",
+    prenomPereArabe: "محمد",
+    nomPrenomMere: "Fatima Zohra",
+    nomPrenomMereArabe: "فاطمة الزهراء",
+    maritalStatus: "Marié(e)",
+    enfants: "2",
+    fixe: "023 45 67 89",
+    phone: "0555 12 34 56",
+    email: "ali.benamar@example.com",
+    emailPro: "ali.benamar.pro@example.com",
+    diplomaType: "Classique",
+    sessionClassique: "Juin",
+    anneeClassique: "2010",
+    universiteClassique: "Université d'Alger",
     sessionLMDL: "",
     anneeLMDL: "",
     universiteLMDL: "",
     sessionLMDM: "",
     anneeLMDM: "",
     universiteLMDM: "",
-    registrationNumber: "",
-    oathDate: "",
-    oathLocation: "",
-    professionalMode: "",
-    installationDate: "",
-    nif: "",
-    adressePro: "",
-    adresseProArabe: "",
-    communePro: "",
-    wilayaPro: "",
-    benefitStateAid: "",
-    moyensHumains: "",
-    associateName: "",
-    associateRegistrationNumber: "",
+    registrationNumber: "13148/25/12L",
+    oathDate: "2012-09-01",
+    oathLocation: "16 - Alger",
+    professionalMode: "Libéral",
+    installationDate: "2012-10-15",
+    nif: "1234567890123",
+    adressePro: "5 Rue Didouche Mourad, Alger",
+    adresseProArabe: "شارع ديدوش مراد، الجزائر",
+    communePro: "Alger",
+    wilayaPro: "16 - Alger",
+    benefitStateAid: "ANSEJ/NESDA",
+    moyensHumains: "5",
+    gps: "36.7538,3.0588",
     recruitmentDate: "",
     employerName: "",
     employerRegistrationNumber: "",
@@ -143,11 +193,11 @@ export default function FormulaireCNOA() {
     employerAdresseArabe: "",
     employerCommune: "",
     employerWilaya: "",
-    password: "",
-    secondPassword: "",
+    password: "Test1234!",
+    secondPassword: "Test1234!",
     role: "user",
     status: "pending",
-    loi: false,
+    loi: true,
   });
 
   const [otherDiplomas, setOtherDiplomas] = useState([]);
@@ -158,20 +208,21 @@ export default function FormulaireCNOA() {
   const [newFormation, setNewFormation] = useState({ titre: "", etablissement: "", annee: "" });
   const [formationFile, setFormationFile] = useState(null);
 
-  // ─── File uploads ─────────────────────────────────────────────────────────
+  const [associates, setAssociates] = useState([]);
+  const [newAssociate, setNewAssociate] = useState({ name: "", registrationNumber: "" });
+
   const [fileUploads, setFileUploads] = useState(
     BASE_FILE_TYPES.reduce((acc, ft) => ({ ...acc, [ft.key]: null }), {})
   );
   const [uploadingFileType, setUploadingFileType] = useState(null);
 
-  // ─── Store file objects locally (no upload to temp endpoint) ────────────
+  // Track invalid fields for red borders
+  const [invalidFields, setInvalidFields] = useState({});
+
   const handleFileUploadForType = (typeKey, file) => {
     if (!file) return;
     setUploadingFileType(typeKey);
-    setFileUploads(prev => ({
-      ...prev,
-      [typeKey]: file,
-    }));
+    setFileUploads(prev => ({ ...prev, [typeKey]: file }));
     setUploadingFileType(null);
   };
 
@@ -185,8 +236,7 @@ export default function FormulaireCNOA() {
       setMessageType("error");
       return;
     }
-    const entry = { ...item };
-    setList([...list, entry]);
+    setList([...list, item]);
     setItem({ titre: "", etablissement: "", annee: "" });
     setFile(null);
   };
@@ -195,31 +245,42 @@ export default function FormulaireCNOA() {
     setList(list.filter((_, i) => i !== index));
   };
 
+  const addAssociate = () => {
+    if (!newAssociate.name || !newAssociate.registrationNumber) {
+      setMessage("Veuillez remplir le nom et le numéro d'inscription de l'associé.");
+      setMessageType("error");
+      return;
+    }
+    setAssociates([...associates, newAssociate]);
+    setNewAssociate({ name: "", registrationNumber: "" });
+  };
+
+  const removeAssociate = (index) => {
+    setAssociates(associates.filter((_, i) => i !== index));
+  };
+
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value,
-    }));
+    const newValue = type === 'checkbox' ? checked : value;
+
+    // Clear invalid state for this field immediately
+    setInvalidFields(prev => ({ ...prev, [name]: false }));
+
+    setFormData(prev => ({ ...prev, [name]: newValue }));
   };
 
   const shouldShowField = (fieldName) => {
     const { sexe, professionalMode } = formData;
     if (fieldName === 'serviceNationalStatus' && sexe === 'F') return false;
 
-    const isLiberal = professionalMode === 'Libéral' || professionalMode === 'Associé' || professionalMode === '';
-    const isAssocie = professionalMode === 'Associé';
+    const isLiberal = professionalMode === 'Libéral' || professionalMode === 'Associé';
     const isSalarie = professionalMode === 'Salarié';
 
-    const liberalFields = ['installationDate', 'nif', 'adressePro', 'adresseProArabe', 'communePro', 'wilayaPro', 'benefitStateAid', 'moyensHumains'];
-    const associeFields = ['associateName', 'associateRegistrationNumber'];
+    const liberalFields = ['installationDate', 'nif', 'adressePro', 'adresseProArabe', 'communePro', 'wilayaPro', 'benefitStateAid', 'moyensHumains', 'gps'];
     const salarieFields = ['recruitmentDate', 'employerName', 'employerRegistrationNumber', 'employerAdresse', 'employerAdresseArabe', 'employerCommune', 'employerWilaya'];
 
     if (liberalFields.includes(fieldName)) return isLiberal;
-    if (associeFields.includes(fieldName)) return isAssocie;
     if (salarieFields.includes(fieldName)) return isSalarie;
-
-    if (fieldName.startsWith('session') || fieldName.startsWith('annee') || fieldName.startsWith('universite')) return false;
 
     return true;
   };
@@ -241,9 +302,12 @@ export default function FormulaireCNOA() {
     const isDate = type === "date";
     const isPassword = type === "password";
     const isTextarea = type === "textarea";
+    const isInvalid = invalidFields[name];
+
+    const baseInputClass = `w-full px-4 py-2.5 bg-[#111827] text-[#F8FAFC] border rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all duration-200 ${isInvalid ? 'border-rose-500 ring-2 ring-rose-500/50' : 'border-[rgba(255,255,255,0.06)] focus:border-emerald-500 hover:border-[rgba(255,255,255,0.12)]'}`;
 
     return (
-      <div key={name} className="space-y-1.5">
+      <div key={name} className="space-y-1.5" data-field-name={name}>
         <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">
           {icon && <span className="inline-block mr-1.5">{icon}</span>}
           {label} {required && <span className="text-rose-400 ml-1">*</span>}
@@ -254,9 +318,7 @@ export default function FormulaireCNOA() {
             value={formData[name] || ""}
             onChange={handleChange}
             required={required}
-            className="w-full px-4 py-2.5 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl 
-              focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 
-              transition-all duration-200 hover:border-[rgba(255,255,255,0.12)]"
+            className={baseInputClass}
           >
             <option value="">Sélectionnez</option>
             {options.map((opt) => (
@@ -270,9 +332,7 @@ export default function FormulaireCNOA() {
             value={formData[name] || ""}
             onChange={handleChange}
             rows="3"
-            className="w-full px-4 py-2.5 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl 
-              focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 
-              transition-all duration-200 hover:border-[rgba(255,255,255,0.12)] resize-y"
+            className={`${baseInputClass} resize-y`}
           />
         ) : isDate ? (
           <input
@@ -283,9 +343,7 @@ export default function FormulaireCNOA() {
             value={formData[name] || ""}
             onChange={handleChange}
             required={required}
-            className="w-full px-4 py-2.5 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl 
-              focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 
-              transition-all duration-200 hover:border-[rgba(255,255,255,0.12)]"
+            className={baseInputClass}
           />
         ) : isPassword ? (
           <input
@@ -295,9 +353,7 @@ export default function FormulaireCNOA() {
             value={formData[name] || ""}
             onChange={handleChange}
             required={required}
-            className="w-full px-4 py-2.5 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl 
-              focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 
-              transition-all duration-200 hover:border-[rgba(255,255,255,0.12)]"
+            className={baseInputClass}
           />
         ) : (
           <input
@@ -307,10 +363,7 @@ export default function FormulaireCNOA() {
             value={formData[name] || ""}
             onChange={handleChange}
             required={required}
-            className={`w-full px-4 py-2.5 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl 
-              focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 
-              transition-all duration-200 hover:border-[rgba(255,255,255,0.12)]
-              ${isArabicField ? 'text-right font-arabic' : ''}`}
+            className={`${baseInputClass} ${isArabicField ? 'text-right font-arabic' : ''}`}
             dir={isArabicField ? 'rtl' : 'ltr'}
           />
         )}
@@ -318,29 +371,73 @@ export default function FormulaireCNOA() {
     );
   };
 
-  // ─── SUBMIT HANDLER ──────────────────────────────────────────────────────
+  // Validate all fields and scroll to first invalid
+  const validateAndScroll = () => {
+    const invalid = {};
+
+    // Required fields validation
+    const requiredFields = [
+      'name', 'lastname', 'email', 'registrationNumber', 'password', 'secondPassword'
+    ];
+
+    for (const field of requiredFields) {
+      if (!formData[field]) {
+        invalid[field] = true;
+      }
+    }
+
+    // Email regex
+    if (formData.email && !EMAIL_REGEX.test(formData.email)) {
+      invalid.email = true;
+    }
+
+    // Registration number regex
+    if (formData.registrationNumber && !REGISTRATION_NUMBER_REGEX.test(formData.registrationNumber)) {
+      invalid.registrationNumber = true;
+    }
+
+    // Password match
+    if (formData.password !== formData.secondPassword) {
+      invalid.secondPassword = true;
+    }
+
+    // Set invalid fields state
+    setInvalidFields(invalid);
+
+    // Scroll to first invalid field
+    const firstInvalid = Object.keys(invalid)[0];
+    if (firstInvalid) {
+      const element = document.querySelector(`[data-field-name="${firstInvalid}"]`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      return false;
+    }
+
+    return true;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Run validation
+    const isValid = validateAndScroll();
+    if (!isValid) {
+      setMessage("Veuillez corriger les champs en rouge.");
+      setMessageType("error");
+      return;
+    }
+
     if (!formData.loi) {
       setMessage("Vous devez accepter la déclaration légale pour continuer.");
       setMessageType("error");
       return;
     }
-    if (formData.password !== formData.secondPassword) {
-      setMessage("Les mots de passe ne correspondent pas.");
-      setMessageType("error");
-      return;
-    }
-    if (formData.password.length < 8) {
-      setMessage("Le mot de passe doit contenir au moins 8 caractères.");
-      setMessageType("error");
-      return;
-    }
 
-    // ─── NEW: Validate required files ──────────────────────────
+    // Validate required files
     const visibleFileTypes = getVisibleFileTypes();
     const missingFiles = visibleFileTypes.filter(
-      (ft) => !fileUploads[ft.key] || !(fileUploads[ft.key] instanceof File)
+      (ft) => ft.required && (!fileUploads[ft.key] || !(fileUploads[ft.key] instanceof File))
     );
     if (missingFiles.length > 0) {
       const missingLabels = missingFiles.map(ft => ft.label).join(', ');
@@ -348,28 +445,23 @@ export default function FormulaireCNOA() {
       setMessageType('error');
       return;
     }
-    // ─────────────────────────────────────────────────────────────
 
     setIsLoading(true);
     setMessage("");
 
     try {
       const form = new FormData();
-
       const { secondPassword, ...dataToSend } = formData;
       Object.keys(dataToSend).forEach(key => {
         const value = dataToSend[key];
         if (value !== undefined && value !== null && value !== '') {
-          if (typeof value === 'boolean') {
-            form.append(key, String(value));
-          } else {
-            form.append(key, String(value));
-          }
+          form.append(key, typeof value === 'boolean' ? String(value) : String(value));
         }
       });
 
       form.append('otherDiplomas', JSON.stringify(otherDiplomas));
       form.append('formations', JSON.stringify(formations));
+      form.append('associates', JSON.stringify(associates));
 
       Object.keys(fileUploads).forEach(key => {
         const file = fileUploads[key];
@@ -385,17 +477,15 @@ export default function FormulaireCNOA() {
 
       const data = await response.json();
       if (response.ok) {
-        const token = data?.data?.token || data.token;
         const user = data?.data?.user || data.user;
-        if (!token || !user) {
+        if (!user) {
           setMessage('Réponse serveur incorrecte');
           setMessageType('error');
           return;
         }
-        setAuthData({ user, token });
         setMessage('Inscription réussie ! Vérification en cours...');
         setMessageType('success');
-        setTimeout(() => navigate('/auth/verify-pending'), 2000);
+        setTimeout(() => navigate('/verify-pending'), 2000);
       } else {
         setMessage(data.message || "Erreur lors de l'inscription");
         setMessageType('error');
@@ -409,7 +499,6 @@ export default function FormulaireCNOA() {
     }
   };
 
-  // ─── Determine which file types to show ────────────────────────────────
   const getVisibleFileTypes = () => {
     const mode = formData.professionalMode;
     let allowed = [...ALLOWED_FILE_TYPES.common];
@@ -423,30 +512,21 @@ export default function FormulaireCNOA() {
     return BASE_FILE_TYPES.filter(ft => allowed.includes(ft.key));
   };
 
-  // ─── RENDER ──────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-[#0A0F1C] py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-6xl mx-auto">
-        {/* ─── Header with logo and title ─────────────────────────────────── */}
+        {/* Header */}
         <div className="flex flex-col items-center mb-8">
-          <img
-            src={cnoaLogo}
-            alt="CNOA Logo"
-            className="w-24 h-24 object-contain mb-2"
-          />
-          <h1 className="text-3xl font-bold text-[#F8FAFC] tracking-tight text-center">
-            Ordre National des Architectes
-          </h1>
-          <h3 className="text-3xl font-bold text-[#F8FAFC] tracking-tight text-center">
-            Déclaration 2027
-          </h3>
+          <img src={cnoaLogo} alt="CNOA Logo" className="w-24 h-24 object-contain mb-2" />
+          <h1 className="text-3xl font-bold text-[#F8FAFC] tracking-tight text-center">Ordre National des Architectes</h1>
+          <h3 className="text-3xl font-bold text-[#F8FAFC] tracking-tight text-center">Déclaration 2027</h3>
         </div>
 
         <div className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] shadow-2xl shadow-black/50 overflow-hidden">
           <div className="p-6 sm:p-8 lg:p-10">
             <form ref={formRef} className="space-y-10" onSubmit={handleSubmit}>
 
-              {/* ─── 0. CLOA d'exercice ─── */}
+              {/* 0. CLOA d'exercice */}
               <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)]">
                 <div className="flex items-center gap-3 mb-6">
                   <MapPin className="w-5 h-5 text-emerald-400" />
@@ -457,7 +537,7 @@ export default function FormulaireCNOA() {
                 </div>
               </div>
 
-              {/* ─── 1. Informations Personnelles ─── */}
+              {/* 1. Informations Personnelles */}
               <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)]">
                 <div className="flex items-center gap-3 mb-6">
                   <User className="w-5 h-5 text-emerald-400" />
@@ -480,7 +560,7 @@ export default function FormulaireCNOA() {
                 </div>
               </div>
 
-              {/* ─── 2. Informations Familiales ─── */}
+              {/* 2. Informations Familiales */}
               <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)]">
                 <div className="flex items-center gap-3 mb-6">
                   <Home className="w-5 h-5 text-emerald-400" />
@@ -501,7 +581,7 @@ export default function FormulaireCNOA() {
                 </div>
               </div>
 
-              {/* ─── 3. Contact ─── */}
+              {/* 3. Contact */}
               <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)]">
                 <div className="flex items-center gap-3 mb-6">
                   <Phone className="w-5 h-5 text-emerald-400" />
@@ -510,11 +590,11 @@ export default function FormulaireCNOA() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   {renderField("Téléphone fixe", "fixe", "text", null, false, "023 45 67 89", <Phone className="w-4 h-4 text-emerald-400" />)}
                   {renderField("Téléphone mobile", "phone", "text", null, false, "0555 55 55 55", <Phone className="w-4 h-4 text-emerald-400" />)}
-                  {renderField("Email", "email", "email", null, true, "example@yahoo.com", <Mail className="w-4 h-4 text-emerald-400" />)}
+                  {renderField("Email", "email", "email", null, true, "exemple@elmi3mari.dz", <Mail className="w-4 h-4 text-emerald-400" />)}
                 </div>
               </div>
 
-              {/* ─── 4. Diplômes universitaires ─── */}
+              {/* 4. Diplômes universitaires */}
               <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)]">
                 <div className="flex items-center gap-3 mb-6">
                   <GraduationCap className="w-5 h-5 text-emerald-400" />
@@ -541,12 +621,7 @@ export default function FormulaireCNOA() {
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                       <div className="space-y-1.5">
                         <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Session Classique</label>
-                        <select
-                          name="sessionClassique"
-                          value={formData.sessionClassique || ""}
-                          onChange={handleChange}
-                          className="w-full px-4 py-2.5 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
-                        >
+                        <select name="sessionClassique" value={formData.sessionClassique || ""} onChange={handleChange} className="w-full px-4 py-2.5 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all">
                           <option value="">Sélectionnez</option>
                           <option value="Juin">Juin</option>
                           <option value="Juillet">Juillet</option>
@@ -555,25 +630,11 @@ export default function FormulaireCNOA() {
                       </div>
                       <div className="space-y-1.5">
                         <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Année Classique</label>
-                        <input
-                          type="text"
-                          name="anneeClassique"
-                          value={formData.anneeClassique || ""}
-                          onChange={handleChange}
-                          placeholder="Année"
-                          className="w-full px-4 py-2.5 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
-                        />
+                        <input type="text" name="anneeClassique" value={formData.anneeClassique || ""} onChange={handleChange} placeholder="Année" className="w-full px-4 py-2.5 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all" />
                       </div>
                       <div className="space-y-1.5">
                         <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Université Classique</label>
-                        <input
-                          type="text"
-                          name="universiteClassique"
-                          value={formData.universiteClassique || ""}
-                          onChange={handleChange}
-                          placeholder="Université"
-                          className="w-full px-4 py-2.5 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
-                        />
+                        <input type="text" name="universiteClassique" value={formData.universiteClassique || ""} onChange={handleChange} placeholder="Université" className="w-full px-4 py-2.5 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all" />
                       </div>
                     </div>
                   )}
@@ -585,12 +646,7 @@ export default function FormulaireCNOA() {
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                           <div className="space-y-1.5">
                             <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Session LMD (Licence)</label>
-                            <select
-                              name="sessionLMDL"
-                              value={formData.sessionLMDL || ""}
-                              onChange={handleChange}
-                              className="w-full px-4 py-2.5 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
-                            >
+                            <select name="sessionLMDL" value={formData.sessionLMDL || ""} onChange={handleChange} className="w-full px-4 py-2.5 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all">
                               <option value="">Sélectionnez</option>
                               <option value="Juin">Juin</option>
                               <option value="Septembre">Septembre</option>
@@ -599,25 +655,11 @@ export default function FormulaireCNOA() {
                           </div>
                           <div className="space-y-1.5">
                             <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Année LMD (Licence)</label>
-                            <input
-                              type="text"
-                              name="anneeLMDL"
-                              value={formData.anneeLMDL || ""}
-                              onChange={handleChange}
-                              placeholder="Année"
-                              className="w-full px-4 py-2.5 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
-                            />
+                            <input type="text" name="anneeLMDL" value={formData.anneeLMDL || ""} onChange={handleChange} placeholder="Année" className="w-full px-4 py-2.5 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all" />
                           </div>
                           <div className="space-y-1.5">
                             <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Université LMD (Licence)</label>
-                            <input
-                              type="text"
-                              name="universiteLMDL"
-                              value={formData.universiteLMDL || ""}
-                              onChange={handleChange}
-                              placeholder="Université"
-                              className="w-full px-4 py-2.5 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
-                            />
+                            <input type="text" name="universiteLMDL" value={formData.universiteLMDL || ""} onChange={handleChange} placeholder="Université" className="w-full px-4 py-2.5 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all" />
                           </div>
                         </div>
                       </div>
@@ -626,12 +668,7 @@ export default function FormulaireCNOA() {
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                           <div className="space-y-1.5">
                             <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Session LMD (Master)</label>
-                            <select
-                              name="sessionLMDM"
-                              value={formData.sessionLMDM || ""}
-                              onChange={handleChange}
-                              className="w-full px-4 py-2.5 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
-                            >
+                            <select name="sessionLMDM" value={formData.sessionLMDM || ""} onChange={handleChange} className="w-full px-4 py-2.5 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all">
                               <option value="">Sélectionnez</option>
                               <option value="Juin">Juin</option>
                               <option value="Septembre">Septembre</option>
@@ -640,25 +677,11 @@ export default function FormulaireCNOA() {
                           </div>
                           <div className="space-y-1.5">
                             <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Année LMD (Master)</label>
-                            <input
-                              type="text"
-                              name="anneeLMDM"
-                              value={formData.anneeLMDM || ""}
-                              onChange={handleChange}
-                              placeholder="Année"
-                              className="w-full px-4 py-2.5 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
-                            />
+                            <input type="text" name="anneeLMDM" value={formData.anneeLMDM || ""} onChange={handleChange} placeholder="Année" className="w-full px-4 py-2.5 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all" />
                           </div>
                           <div className="space-y-1.5">
                             <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Université LMD (Master)</label>
-                            <input
-                              type="text"
-                              name="universiteLMDM"
-                              value={formData.universiteLMDM || ""}
-                              onChange={handleChange}
-                              placeholder="Université"
-                              className="w-full px-4 py-2.5 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
-                            />
+                            <input type="text" name="universiteLMDM" value={formData.universiteLMDM || ""} onChange={handleChange} placeholder="Université" className="w-full px-4 py-2.5 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all" />
                           </div>
                         </div>
                       </div>
@@ -667,7 +690,7 @@ export default function FormulaireCNOA() {
                 </div>
               </div>
 
-              {/* ─── 5. Autres diplômes ─── */}
+              {/* 5. Autres diplômes */}
               <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)]">
                 <div className="flex items-center gap-3 mb-6">
                   <FileText className="w-5 h-5 text-emerald-400" />
@@ -676,36 +699,17 @@ export default function FormulaireCNOA() {
                 <div className="flex flex-wrap gap-3 items-end mb-4">
                   <div className="flex-1 min-w-[120px]">
                     <label className="block text-xs text-[#64748B]">Titre</label>
-                    <input
-                      type="text"
-                      value={newDiploma.titre}
-                      onChange={(e) => setNewDiploma({ ...newDiploma, titre: e.target.value })}
-                      className="w-full px-3 py-2 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-lg focus:ring-2 focus:ring-emerald-500/50"
-                    />
+                    <input type="text" value={newDiploma.titre} onChange={(e) => setNewDiploma({ ...newDiploma, titre: e.target.value })} className="w-full px-3 py-2 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-lg focus:ring-2 focus:ring-emerald-500/50" />
                   </div>
                   <div className="flex-1 min-w-[120px]">
                     <label className="block text-xs text-[#64748B]">Établissement</label>
-                    <input
-                      type="text"
-                      value={newDiploma.etablissement}
-                      onChange={(e) => setNewDiploma({ ...newDiploma, etablissement: e.target.value })}
-                      className="w-full px-3 py-2 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-lg focus:ring-2 focus:ring-emerald-500/50"
-                    />
+                    <input type="text" value={newDiploma.etablissement} onChange={(e) => setNewDiploma({ ...newDiploma, etablissement: e.target.value })} className="w-full px-3 py-2 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-lg focus:ring-2 focus:ring-emerald-500/50" />
                   </div>
                   <div className="flex-1 min-w-[80px]">
                     <label className="block text-xs text-[#64748B]">Année</label>
-                    <input
-                      type="text"
-                      value={newDiploma.annee}
-                      onChange={(e) => setNewDiploma({ ...newDiploma, annee: e.target.value })}
-                      className="w-full px-3 py-2 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-lg focus:ring-2 focus:ring-emerald-500/50"
-                    />
+                    <input type="text" value={newDiploma.annee} onChange={(e) => setNewDiploma({ ...newDiploma, annee: e.target.value })} className="w-full px-3 py-2 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-lg focus:ring-2 focus:ring-emerald-500/50" />
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => addItem(otherDiplomas, setOtherDiplomas, newDiploma, setNewDiploma, diplomaFile, setDiplomaFile)}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg flex items-center gap-1"
-                  >
+                  <button type="button" onClick={() => addItem(otherDiplomas, setOtherDiplomas, newDiploma, setNewDiploma, diplomaFile, setDiplomaFile)} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg flex items-center gap-1">
                     <Plus className="w-4 h-4" /> Ajouter
                   </button>
                 </div>
@@ -717,11 +721,7 @@ export default function FormulaireCNOA() {
                           <span className="text-[#F8FAFC] font-medium">{dip.titre}</span>
                           <span className="text-[#94A3B8] text-sm ml-2">({dip.etablissement}, {dip.annee})</span>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => removeItem(otherDiplomas, setOtherDiplomas, idx)}
-                          className="text-rose-400 hover:text-rose-300 p-1"
-                        >
+                        <button type="button" onClick={() => removeItem(otherDiplomas, setOtherDiplomas, idx)} className="text-rose-400 hover:text-rose-300 p-1">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
@@ -730,7 +730,7 @@ export default function FormulaireCNOA() {
                 )}
               </div>
 
-              {/* ─── 6. Formations ─── */}
+              {/* 6. Formations */}
               <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)]">
                 <div className="flex items-center gap-3 mb-6">
                   <FileText className="w-5 h-5 text-emerald-400" />
@@ -739,36 +739,17 @@ export default function FormulaireCNOA() {
                 <div className="flex flex-wrap gap-3 items-end mb-4">
                   <div className="flex-1 min-w-[120px]">
                     <label className="block text-xs text-[#64748B]">Titre</label>
-                    <input
-                      type="text"
-                      value={newFormation.titre}
-                      onChange={(e) => setNewFormation({ ...newFormation, titre: e.target.value })}
-                      className="w-full px-3 py-2 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-lg focus:ring-2 focus:ring-emerald-500/50"
-                    />
+                    <input type="text" value={newFormation.titre} onChange={(e) => setNewFormation({ ...newFormation, titre: e.target.value })} className="w-full px-3 py-2 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-lg focus:ring-2 focus:ring-emerald-500/50" />
                   </div>
                   <div className="flex-1 min-w-[120px]">
                     <label className="block text-xs text-[#64748B]">Établissement</label>
-                    <input
-                      type="text"
-                      value={newFormation.etablissement}
-                      onChange={(e) => setNewFormation({ ...newFormation, etablissement: e.target.value })}
-                      className="w-full px-3 py-2 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-lg focus:ring-2 focus:ring-emerald-500/50"
-                    />
+                    <input type="text" value={newFormation.etablissement} onChange={(e) => setNewFormation({ ...newFormation, etablissement: e.target.value })} className="w-full px-3 py-2 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-lg focus:ring-2 focus:ring-emerald-500/50" />
                   </div>
                   <div className="flex-1 min-w-[80px]">
                     <label className="block text-xs text-[#64748B]">Année</label>
-                    <input
-                      type="text"
-                      value={newFormation.annee}
-                      onChange={(e) => setNewFormation({ ...newFormation, annee: e.target.value })}
-                      className="w-full px-3 py-2 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-lg focus:ring-2 focus:ring-emerald-500/50"
-                    />
+                    <input type="text" value={newFormation.annee} onChange={(e) => setNewFormation({ ...newFormation, annee: e.target.value })} className="w-full px-3 py-2 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-lg focus:ring-2 focus:ring-emerald-500/50" />
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => addItem(formations, setFormations, newFormation, setNewFormation, formationFile, setFormationFile)}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg flex items-center gap-1"
-                  >
+                  <button type="button" onClick={() => addItem(formations, setFormations, newFormation, setNewFormation, formationFile, setFormationFile)} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg flex items-center gap-1">
                     <Plus className="w-4 h-4" /> Ajouter
                   </button>
                 </div>
@@ -780,11 +761,7 @@ export default function FormulaireCNOA() {
                           <span className="text-[#F8FAFC] font-medium">{f.titre}</span>
                           <span className="text-[#94A3B8] text-sm ml-2">({f.etablissement}, {f.annee})</span>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => removeItem(formations, setFormations, idx)}
-                          className="text-rose-400 hover:text-rose-300 p-1"
-                        >
+                        <button type="button" onClick={() => removeItem(formations, setFormations, idx)} className="text-rose-400 hover:text-rose-300 p-1">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
@@ -793,14 +770,14 @@ export default function FormulaireCNOA() {
                 )}
               </div>
 
-              {/* ─── 7. Informations professionnelles ─── */}
+              {/* 7. Informations professionnelles */}
               <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)]">
                 <div className="flex items-center gap-3 mb-6">
                   <Briefcase className="w-5 h-5 text-emerald-400" />
                   <h3 className="text-lg font-semibold text-[#F8FAFC]">Informations professionnelles</h3>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {renderField("N° d'inscription", "registrationNumber", "text", null, true, "N° d'inscription", <BookOpen className="w-4 h-4 text-emerald-400" />)}
+                  {renderField("N° d'inscription", "registrationNumber", "text", null, true, "NNNNN/NN/NNL", <BookOpen className="w-4 h-4 text-emerald-400" />)}
                   {renderField("Date de serment", "oathDate", "date", null, false, "", <Calendar className="w-4 h-4 text-emerald-400" />)}
                   {renderField("Lieu du serment", "oathLocation", "text", null, false, "Lieu du serment", <MapPin className="w-4 h-4 text-emerald-400" />)}
                   {renderField("Mode d'exercice", "professionalMode", "select", [
@@ -836,13 +813,60 @@ export default function FormulaireCNOA() {
                             { value: "Non", label: "Non" }
                           ], false)}
                           {renderField("Moyens humains", "moyensHumains", "text", null, false, "Moyens humains", <Users className="w-4 h-4 text-emerald-400" />)}
+                          <div className="sm:col-span-2 lg:col-span-3">
+                            <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider mb-1">
+                              GPS (Localisation)
+                            </label>
+                            <LocationPicker
+                              value={formData.gps}
+                              onChange={(coords) => setFormData((prev) => ({ ...prev, gps: coords }))}
+                            />
+                          </div>
                         </>
                       )}
                       {formData.professionalMode === 'Associé' && (
-                        <>
-                          {renderField("Nom et prénom de l'associé", "associateName", "text", null, false, "Nom de l'associé", <User className="w-4 h-4 text-emerald-400" />)}
-                          {renderField("N° d'inscription de l'associé", "associateRegistrationNumber", "text", null, false, "N° inscription", <BookOpen className="w-4 h-4 text-emerald-400" />)}
-                        </>
+                        <div className="sm:col-span-2 lg:col-span-3">
+                          <div className="space-y-2 mb-4">
+                            {associates.map((assoc, idx) => (
+                              <div key={idx} className="flex items-center justify-between bg-[#111827] p-3 rounded-lg border border-[rgba(255,255,255,0.06)]">
+                                <div>
+                                  <span className="text-[#F8FAFC] font-medium">{assoc.name}</span>
+                                  <span className="text-[#94A3B8] text-sm ml-2">({assoc.registrationNumber})</span>
+                                </div>
+                                <button type="button" onClick={() => removeAssociate(idx)} className="text-rose-400 hover:text-rose-300">
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="flex flex-wrap gap-3 items-end">
+                            <div className="flex-1 min-w-[120px]">
+                              <label className="block text-xs text-[#64748B]">Nom et prénom de l'associé</label>
+                              <input
+                                type="text"
+                                value={newAssociate.name}
+                                onChange={(e) => setNewAssociate({ ...newAssociate, name: e.target.value })}
+                                className="w-full px-3 py-2 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-lg focus:ring-2 focus:ring-emerald-500/50"
+                              />
+                            </div>
+                            <div className="flex-1 min-w-[120px]">
+                              <label className="block text-xs text-[#64748B]">N° d'inscription</label>
+                              <input
+                                type="text"
+                                value={newAssociate.registrationNumber}
+                                onChange={(e) => setNewAssociate({ ...newAssociate, registrationNumber: e.target.value })}
+                                className="w-full px-3 py-2 bg-[#111827] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-lg focus:ring-2 focus:ring-emerald-500/50"
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={addAssociate}
+                              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg flex items-center gap-1"
+                            >
+                              <Plus className="w-4 h-4" /> Ajouter
+                            </button>
+                          </div>
+                        </div>
                       )}
                       {formData.professionalMode === 'Salarié' && (
                         <>
@@ -864,7 +888,7 @@ export default function FormulaireCNOA() {
                 )}
               </div>
 
-              {/* ─── 8. Documents obligatoires (conditional) ─── */}
+              {/* 8. Documents obligatoires */}
               <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)]">
                 <div className="flex items-center gap-3 mb-6">
                   <Paperclip className="w-5 h-5 text-emerald-400" />
@@ -874,17 +898,13 @@ export default function FormulaireCNOA() {
                   {getVisibleFileTypes().map((ft) => (
                     <div key={ft.key} className="bg-[#111827] p-3 rounded-xl border border-[rgba(255,255,255,0.06)]">
                       <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider mb-1">
-                        {ft.label} <span className="text-rose-400 ml-1">*</span>
+                        {ft.label} {ft.required && <span className="text-rose-400 ml-1">*</span>}
                       </label>
                       <div className="flex items-center gap-2">
                         {fileUploads[ft.key] ? (
                           <>
                             <span className="text-sm text-[#F8FAFC] truncate flex-1">{fileUploads[ft.key].name}</span>
-                            <button
-                              type="button"
-                              onClick={() => removeFileForType(ft.key)}
-                              className="text-rose-400 hover:text-rose-300"
-                            >
+                            <button type="button" onClick={() => removeFileForType(ft.key)} className="text-rose-400 hover:text-rose-300">
                               <X className="w-4 h-4" />
                             </button>
                           </>
@@ -919,7 +939,7 @@ export default function FormulaireCNOA() {
                 </div>
               </div>
 
-              {/* ─── 9. Sécurité ─── */}
+              {/* 9. Sécurité */}
               <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)]">
                 <div className="flex items-center gap-3 mb-6">
                   <Shield className="w-5 h-5 text-emerald-400" />
@@ -931,7 +951,7 @@ export default function FormulaireCNOA() {
                 </div>
               </div>
 
-              {/* ─── 10. Déclaration légale ─── */}
+              {/* 10. Déclaration légale */}
               <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)]">
                 <div className="flex items-start gap-3 mb-4">
                   <Shield className="w-5 h-5 text-emerald-400 mt-1" />
@@ -992,7 +1012,7 @@ export default function FormulaireCNOA() {
                 {message}
               </div>
             )}
-          </div>
+          </div>!
         </div>
 
         <div className="mt-8 text-center text-[#64748B] max-w-2xl mx-auto">

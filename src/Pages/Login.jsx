@@ -1,5 +1,5 @@
 import { React, useState, useEffect, useContext } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { UserContext } from "../Context/dataCont";
 import { Mail, Lock, LogIn, Shield, AlertCircle } from "lucide-react";
 import CNOALOGO from '../assets/LOGOCLOA.png';
@@ -9,7 +9,12 @@ const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 const LoginForm = () => {
   const { authData, setAuthData } = useContext(UserContext);
   const navigate = useNavigate();
-  const [message, setMessage] = useState("");
+  const [searchParams] = useSearchParams();
+  const isVerified = searchParams.get("verified") === "true";
+
+  const [message, setMessage] = useState(
+    isVerified ? "✅ Votre email a été vérifié avec succès ! Veuillez vous connecter à votre compte." : ""
+  );
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -68,11 +73,11 @@ const LoginForm = () => {
 
       const respData = await response.json();
       console.log(respData);
-      
+
       if (response.ok && respData.success) {
         const { user, accessToken } = respData.data;
         setAuthData({ user, token: accessToken });
-        
+
         if (user.role === 'admin' || user.role === 'super_admin') {
           navigate('/dash');
         } else if (user.role === 'user') {
@@ -174,9 +179,6 @@ const LoginForm = () => {
             </button>
           </form>
 
-          {/* 👇 ADD FORGOT PASSWORD LINK HERE */}
-
-
           {message && (
             <div className={`mt-5 p-3 rounded-xl text-sm font-medium flex items-center gap-2 ${
               message.includes('Trop de tentatives') || message.includes('Erreur')
@@ -197,7 +199,7 @@ const LoginForm = () => {
             </Link>
           </p>
 
-            <div className="mt-4 text-center">
+          <div className="mt-4 text-center">
             <Link
               to="/forgot-password"
               className="text-sm text-emerald-400 hover:underline font-medium"

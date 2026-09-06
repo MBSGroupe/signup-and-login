@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useContext } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
+import { UserContext } from "../Context/dataCont";
 import { Loader2, CheckCircle, XCircle } from "lucide-react";
 
 export default function VerifyPage() {
@@ -7,51 +8,55 @@ export default function VerifyPage() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token");
   const mode = searchParams.get("mode");
-  const [message, setMessage] = useState("Verifying your email...");
+  const [message, setMessage] = useState("Vérification de votre email...");
   const [status, setStatus] = useState("loading"); // loading, success, error
   const navigate = useNavigate();
+  const { setAuthData } = useContext(UserContext);
 
   useEffect(() => {
     if (!token) {
-      setMessage("Missing token.");
+      setMessage("Jeton manquant.");
       setStatus("error");
       return;
     }
 
     const verifyUser = async () => {
       try {
-        // ✅ Send token as query parameter to match backend @Query('token')
         const response = await fetch(`${NEST_API_URL}/auth/verify-email?token=${encodeURIComponent(token)}`, {
           method: "GET",
           headers: {
             "Content-Type": "application/json",
           },
-          // No body needed – token is in the URL
         });
 
         const data = await response.json();
 
         if (response.ok) {
-          const msg = data?.data?.message || data.message || "Email verified successfully!";
+          const msg = data?.data?.message || data.message || "Email vérifié avec succès !";
           setMessage(msg);
           setStatus("success");
+
           if (mode !== "email-change") {
-            setTimeout(() => navigate("/auth/profile"), 1500);
+            // Effacer toute donnée d'authentification stockée – la vérification n'est pas une connexion
+            localStorage.removeItem("authData");
+            setAuthData({ user: null, token: null });
+            // 👇 Rediriger vers la page de connexion avec paramètre
+            setTimeout(() => navigate("/?verified=true"), 2000);
           }
         } else {
-          const errMsg = data?.data?.message || data.message || "Verification failed. Please try again.";
+          const errMsg = data?.data?.message || data.message || "La vérification a échoué. Veuillez réessayer.";
           setMessage(errMsg);
           setStatus("error");
         }
       } catch (error) {
-        console.error("Verification error:", error);
-        setMessage("Verification failed. The link may be invalid or expired.");
+        console.error("Erreur de vérification:", error);
+        setMessage("La vérification a échoué. Le lien est peut-être invalide ou expiré.");
         setStatus("error");
       }
     };
 
     verifyUser();
-  }, [token, mode, navigate]);
+  }, [token, mode, navigate, setAuthData]);
 
   const getIcon = () => {
     switch (status) {
@@ -88,28 +93,28 @@ export default function VerifyPage() {
             className={`text-2xl font-bold tracking-tight ${getTitleColor()} transition-colors duration-300`}
           >
             {status === "loading"
-              ? "Verifying"
+              ? "Vérification en cours"
               : status === "success"
-              ? "Verified!"
-              : "Verification Failed"}
+              ? "Email vérifié !"
+              : "Échec de la vérification"}
           </h1>
           <p className="mt-3 text-[#94A3B8] text-sm leading-relaxed">{message}</p>
           {status === "error" && (
             <button
-              onClick={() => navigate("/auth/login")}
+              onClick={() => navigate("/")}
               className="mt-6 px-6 py-2.5 text-sm font-medium text-white bg-emerald-500 hover:bg-emerald-600 rounded-xl transition-all duration-200 shadow-lg shadow-emerald-500/20"
             >
-              Return to Login
+              Retour à la connexion
             </button>
           )}
           {status === "success" && mode === "email-change" && (
             <p className="mt-4 text-xs text-[#64748B]">
-              You can now close this window and continue.
+              Vous pouvez maintenant fermer cette fenêtre et continuer.
             </p>
           )}
           {status === "success" && mode !== "email-change" && (
             <p className="mt-4 text-xs text-[#64748B] animate-pulse">
-              Redirecting to onboarding...
+              Redirection vers la page de connexion...
             </p>
           )}
         </div>
