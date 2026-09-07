@@ -1329,65 +1329,67 @@ export default function ProfilePage({ user }) {
               </div>
 
               {/* ─── Permission‑driven actions ─────────────────────────── */}
-              <div className="flex flex-wrap items-center gap-2" ref={menuRef}>
-                {canUpdateUser && (
-                  <>
-                    <button
-                      onClick={() => setMenuOpen(!menuOpen)}
-                      className="p-2.5 bg-[#1F2937] hover:bg-[#2A3A4A] text-[#94A3B8] hover:text-white rounded-lg transition-colors border border-white/5"
-                      title="Plus d'actions"
-                    >
-                      <MoreVertical className="w-5 h-5" />
-                    </button>
-                    {menuOpen && (
-                      <div className="absolute right-0 mt-2 w-48 bg-[#182233] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-20 py-1 divide-y divide-white/5">
-                        <div className="py-1">
-                          <button
-                            onClick={() => { setMenuOpen(false); setTransactionType('deposit'); setShowTransactionModal(true); }}
-                            className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
-                          >
-                            <Plus className="w-4 h-4 text-emerald-400" /> Versement
-                          </button>
-                          <button
-                            onClick={() => { setMenuOpen(false); setTransactionType('withdraw'); setShowTransactionModal(true); }}
-                            className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
-                          >
-                            <Minus className="w-4 h-4 text-rose-400" /> Retrait
-                          </button>
-                          <button
-                            onClick={() => { setMenuOpen(false); handlePrintSituation(); }}
-                            className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
-                          >
-                            <FileText className="w-4 h-4 text-sky-400" /> Situation
-                          </button>
-                          <button
-                            onClick={() => { setMenuOpen(false); handlePrintDegree(); }}
-                            className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
-                          >
-                            <Award className="w-4 h-4 text-amber-400" /> Agrément
-                          </button>
-                        </div>
-                        <div className="py-1">
-                          <button
-                            onClick={() => { setMenuOpen(false); handleEditUser(); }}
-                            className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
-                          >
-                            <Edit className="w-4 h-4 text-slate-400" /> Modifier
-                          </button>
-                          {!displayUser?.isAdminVerified && isAdmin && (
-                            <button
-                              onClick={() => { setMenuOpen(false); handleValidateUser(); }}
-                              className="w-full px-4 py-2 text-left text-sm text-emerald-400 hover:bg-white/5 flex items-center gap-2.5 transition-colors"
-                            >
-                              <CheckCircle className="w-4 h-4" /> Valider
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
+{/* ─── Permission‑driven actions ─────────────────────────── */}
+<div className="flex flex-wrap items-center gap-2" ref={menuRef}>
+  {/* Only show the menu to admins and super admins */}
+  {(isAdmin || authData.user?.role === 'super_admin') && (
+    <>
+      <button
+        onClick={() => setMenuOpen(!menuOpen)}
+        className="p-2.5 bg-[#1F2937] hover:bg-[#2A3A4A] text-[#94A3B8] hover:text-white rounded-lg transition-colors border border-white/5"
+        title="Plus d'actions"
+      >
+        <MoreVertical className="w-5 h-5" />
+      </button>
+      {menuOpen && (
+        <div className="absolute right-0 mt-2 w-48 bg-[#182233] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-20 py-1 divide-y divide-white/5">
+          <div className="py-1">
+            <button
+              onClick={() => { setMenuOpen(false); setTransactionType('deposit'); setShowTransactionModal(true); }}
+              className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
+            >
+              <Plus className="w-4 h-4 text-emerald-400" /> Versement
+            </button>
+            <button
+              onClick={() => { setMenuOpen(false); setTransactionType('withdraw'); setShowTransactionModal(true); }}
+              className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
+            >
+              <Minus className="w-4 h-4 text-rose-400" /> Retrait
+            </button>
+            <button
+              onClick={() => { setMenuOpen(false); handlePrintSituation(); }}
+              className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
+            >
+              <FileText className="w-4 h-4 text-sky-400" /> Situation
+            </button>
+            <button
+              onClick={() => { setMenuOpen(false); handlePrintDegree(); }}
+              className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
+            >
+              <Award className="w-4 h-4 text-amber-400" /> Agrément
+            </button>
+          </div>
+          <div className="py-1">
+            <button
+              onClick={() => { setMenuOpen(false); handleEditUser(); }}
+              className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
+            >
+              <Edit className="w-4 h-4 text-slate-400" /> Modifier
+            </button>
+            {!displayUser?.isAdminVerified && isAdmin && (
+              <button
+                onClick={() => { setMenuOpen(false); handleValidateUser(); }}
+                className="w-full px-4 py-2 text-left text-sm text-emerald-400 hover:bg-white/5 flex items-center gap-2.5 transition-colors"
+              >
+                <CheckCircle className="w-4 h-4" /> Valider
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  )}
+</div>
             </div>
           </div>
         </header>

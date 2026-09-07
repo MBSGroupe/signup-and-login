@@ -3,7 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { UserContext } from "../../Context/dataCont";
 import { logoutContext } from "../../Context/logoutContext";
 import NotificationBell from "../NotificationBell/NotificationBell";
-import sabAvatar from '../../assets/SabrinaAvatar.jpg';
+import AVATAR from '../../assets/ChatGPT Image Jul 13, 2026, 03_44_20 PM.png';
 import Title from '../Title';
 
 export default function Navbar() {
@@ -16,7 +16,7 @@ export default function Navbar() {
   const user = authData.user;
   const id = user?._id || user?.id;
   const role = user?.role;
-  const PROFILE_URL = user?.profilePicture || sabAvatar;
+  const PROFILE_URL = user?.profilePicture || AVATAR;
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -36,7 +36,7 @@ export default function Navbar() {
           {/* Logo / Brand */}
           <div className="flex-shrink-0">
             <Link to="#">
-              <Title title="Gest Org" />
+              <Title title="CNOA" />
             </Link>
           </div>
           
@@ -75,19 +75,19 @@ export default function Navbar() {
                     onClick={() => { navigate(`/auth/update/${id}`); setDropdownOpen(false); }}
                     className="block w-full text-left px-4 py-2.5 text-sm text-[#F8FAFC] hover:bg-[#22C55E]/10 hover:text-[#22C55E] transition-colors"
                   >
-                    Edit Profile
+                    Modifier Le profile
                   </button>
                   <button
                     onClick={() => { navigate("/auth/change-password"); setDropdownOpen(false); }}
                     className="block w-full text-left px-4 py-2.5 text-sm text-[#F8FAFC] hover:bg-[#22C55E]/10 hover:text-[#22C55E] transition-colors"
                   >
-                    Change Password
+                    Changer le mot de passe
                   </button>
                   <button
                     onClick={() => { navigate("/auth/preferences"); setDropdownOpen(false); }}
                     className="block w-full text-left px-4 py-2.5 text-sm text-[#F8FAFC] hover:bg-[#22C55E]/10 hover:text-[#22C55E] transition-colors"
                   >
-                    Preferences
+                    Préférences
                   </button>
                   <div className="border-t border-white/5 my-1"></div>
                   <button

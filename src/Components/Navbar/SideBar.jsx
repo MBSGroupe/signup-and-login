@@ -23,6 +23,8 @@ import {
   Database,
   Layers
 } from "lucide-react";
+// Import the logo (you'll need to adjust the path)
+import cnoaLogo from "../../assets/LOGOCLOA.png"; // ← you'll fix this path
 
 export default function SideBar() {
   const navigate = useNavigate();
@@ -127,12 +129,19 @@ export default function SideBar() {
       ref={sidebarRef}
       className="fixed top-0 left-0 h-full w-[260px] bg-[#0A0F1C] border-r border-[rgba(255,255,255,0.06)] flex flex-col shadow-2xl z-40"
     >
-      {/* Logo / Brand */}
-      <div className="flex items-center gap-3 px-6 py-6 border-b border-[rgba(255,255,255,0.06)] flex-shrink-0">
-        <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-          <Layers className="w-5 h-5 text-emerald-400" />
+      {/* Logo / Brand - CNOA - Side by side */}
+      <div className="flex items-center gap-3 px-4 py-4 border-b border-[rgba(255,255,255,0.06)] flex-shrink-0">
+        <img
+          src={cnoaLogo}
+          alt="CNOA - Conseil National de l'Ordre des Architectes"
+          className="w-12 h-12 object-contain flex-shrink-0"
+        />
+        <div className="flex flex-col min-w-0">
+          <span className="text-lg font-bold text-[#F8FAFC] tracking-tight leading-tight">CNOA</span>
+          <span className="text-[9px] text-[#94A3B8] leading-tight">
+            Conseil National de l'Ordre<br />des Architectes
+          </span>
         </div>
-        <span className="text-xl font-bold text-[#F8FAFC] tracking-tight">GestOrg</span>
       </div>
 
       {/* Navigation Links */}
@@ -140,7 +149,7 @@ export default function SideBar() {
         <div className="flex flex-col gap-1">
           <NavItem
             icon={LayoutDashboard}
-            label="Dashboard"
+            label="Tableau de bord"
             onClick={() => handleNavigation("/dash")}
             active={isActive("/dash")}
           />
@@ -160,7 +169,6 @@ export default function SideBar() {
                     onClick={() => handleNavigation("/dash/allUsers")}
                     active={isActive("/dash/allUsers")}
                   />
-
                 </div>
               )}
             </div>
@@ -176,7 +184,7 @@ export default function SideBar() {
           <div>
             <DropdownToggle
               icon={CreditCard}
-              label="Cotisation"
+              label="Cotisations"
               isOpen={cotisationsOpen}
               onClick={() => toggleDropdown(setCotisationsOpen, [setUsersOpen, setStatsOpen, setValidationOpen, setConfigOpen])}
             />
@@ -189,7 +197,7 @@ export default function SideBar() {
                 />
                 {isSuperAdmin && (
                   <SubItem
-                    label="Ajouter nouveau"
+                    label="Ajouter une cotisation"
                     onClick={() => handleNavigation("/dash/ajouterCotisation")}
                     active={isActive("/dash/ajouterCotisation")}
                   />
@@ -201,7 +209,7 @@ export default function SideBar() {
           <div>
             <DropdownToggle
               icon={CheckSquare}
-              label="Validation"
+              label="Validations"
               isOpen={validationOpen}
               onClick={() => toggleDropdown(setValidationOpen, [setUsersOpen, setCotisationsOpen, setStatsOpen, setConfigOpen])}
             />
@@ -285,7 +293,7 @@ export default function SideBar() {
         </div>
       </div>
 
-      {/* Footer / user info (optional) */}
+      {/* Footer / user info */}
       <div className="px-4 py-4 border-t border-[rgba(255,255,255,0.06)] flex-shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-xs font-bold text-white">
@@ -296,7 +304,9 @@ export default function SideBar() {
               {authData?.user?.name || 'Utilisateur'}
             </p>
             <p className="text-xs text-[#64748B] truncate capitalize">
-              {authData?.user?.role || 'user'}
+              {authData?.user?.role === 'admin' ? 'Administrateur' :
+               authData?.user?.role === 'super_admin' ? 'Super administrateur' :
+               authData?.user?.role || 'Utilisateur'}
             </p>
           </div>
         </div>

@@ -88,7 +88,7 @@ const ALLOWED_FILE_TYPES = {
 
 // ─── Validation regexes ────────────────────────────────────────────
 const REGISTRATION_NUMBER_REGEX = /^\d{5}\/\d{2}\/\d{2}[ALS]$/;
-const EMAIL_REGEX = /^[^\s@]+@elmi3mari\.dz$/;
+// ─── EMAIL_REGEX REMOVED ───────────────────────────────────────────
 
 function LocationPicker({ value, onChange }) {
   const [position, setPosition] = useState(
@@ -386,10 +386,7 @@ export default function FormulaireCNOA() {
       }
     }
 
-    // Email regex
-    if (formData.email && !EMAIL_REGEX.test(formData.email)) {
-      invalid.email = true;
-    }
+    // ─── EMAIL REGEX VALIDATION REMOVED ────────────────────────────
 
     // Registration number regex
     if (formData.registrationNumber && !REGISTRATION_NUMBER_REGEX.test(formData.registrationNumber)) {
