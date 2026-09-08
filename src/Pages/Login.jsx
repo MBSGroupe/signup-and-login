@@ -72,7 +72,6 @@ const LoginForm = () => {
       });
 
       const respData = await response.json();
-      console.log(respData);
 
       if (response.ok && respData.success) {
         const { user, accessToken } = respData.data;
@@ -91,6 +90,32 @@ const LoginForm = () => {
         localStorage.setItem(LOCK_STORAGE_KEY, lockUntil);
         setLockTime(remaining);
         setMessage(respData.message || respData.data?.message || "Trop de tentatives. Veuillez patienter.");
+      } else if (response.status === 401) {
+        const backendMessage = respData.message || respData.data?.message || "";
+        let lockMatch = backendMessage.match(/locked for (\d+)\s*(s|second|seconds|minute|minutes)/i);
+        let remaining = 0;
+
+        if (lockMatch) {
+          const value = parseInt(lockMatch[1], 10);
+          const unit = lockMatch[2].toLowerCase();
+          remaining = unit.includes('minute') ? value * 60 : value;
+        } else {
+          lockMatch = backendMessage.match(/(\d+)\s*(seconde|secondes|minute|minutes)/i);
+          if (lockMatch) {
+            const value = parseInt(lockMatch[1], 10);
+            const unit = lockMatch[2].toLowerCase();
+            remaining = unit.includes('minute') ? value * 60 : value;
+          }
+        }
+
+        if (remaining > 0) {
+          const lockUntil = Date.now() + remaining * 1000;
+          localStorage.setItem(LOCK_STORAGE_KEY, lockUntil);
+          setLockTime(remaining);
+          setMessage(backendMessage || "Compte bloqué temporairement. Veuillez patienter.");
+        } else {
+          setMessage(backendMessage || "Erreur de connexion.");
+        }
       } else {
         setMessage(respData.message || respData.data?.message || "Erreur de connexion.");
       }
@@ -191,6 +216,15 @@ const LoginForm = () => {
           )}
         </div>
 
+        <div className="mt-4 text-center">
+          <Link
+            to="/forgot-password"
+            className="text-sm text-emerald-400 hover:underline font-medium"
+          >
+            Mot de Passe Oublié ?
+          </Link>
+        </div>
+
         <div className="mt-8 text-center text-[#64748B] text-m">
           <p>
             Vous n'êtes pas inscrit ? Créez un compte{" "}
@@ -198,15 +232,6 @@ const LoginForm = () => {
               S'inscrire
             </Link>
           </p>
-
-          <div className="mt-4 text-center">
-            <Link
-              to="/forgot-password"
-              className="text-sm text-emerald-400 hover:underline font-medium"
-            >
-              Mot de Passe Oublié ?
-            </Link>
-          </div>
         </div>
       </div>
     </div>

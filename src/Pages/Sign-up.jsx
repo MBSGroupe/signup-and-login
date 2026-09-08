@@ -88,7 +88,7 @@ const ALLOWED_FILE_TYPES = {
 
 // ─── Validation regexes ────────────────────────────────────────────
 const REGISTRATION_NUMBER_REGEX = /^\d{5}\/\d{2}\/\d{2}[ALS]$/;
-// ─── EMAIL_REGEX REMOVED ───────────────────────────────────────────
+const EMAIL_REGEX = /^[^\s@]+@elmi3mari\.dz$/;
 
 function LocationPicker({ value, onChange }) {
   const [position, setPosition] = useState(
@@ -161,8 +161,7 @@ export default function FormulaireCNOA() {
     enfants: "2",
     fixe: "023 45 67 89",
     phone: "0555 12 34 56",
-    email: "ali.benamar@example.com",
-    emailPro: "ali.benamar.pro@example.com",
+    email: "",
     diplomaType: "Classique",
     sessionClassique: "Juin",
     anneeClassique: "2010",
@@ -193,11 +192,11 @@ export default function FormulaireCNOA() {
     employerAdresseArabe: "",
     employerCommune: "",
     employerWilaya: "",
-    password: "Test1234!",
-    secondPassword: "Test1234!",
+    password: "",
+    secondPassword: "",
     role: "user",
     status: "pending",
-    loi: true,
+    loi: false,
   });
 
   const [otherDiplomas, setOtherDiplomas] = useState([]);
@@ -216,7 +215,6 @@ export default function FormulaireCNOA() {
   );
   const [uploadingFileType, setUploadingFileType] = useState(null);
 
-  // Track invalid fields for red borders
   const [invalidFields, setInvalidFields] = useState({});
 
   const handleFileUploadForType = (typeKey, file) => {
@@ -262,26 +260,19 @@ export default function FormulaireCNOA() {
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     const newValue = type === 'checkbox' ? checked : value;
-
-    // Clear invalid state for this field immediately
     setInvalidFields(prev => ({ ...prev, [name]: false }));
-
     setFormData(prev => ({ ...prev, [name]: newValue }));
   };
 
   const shouldShowField = (fieldName) => {
     const { sexe, professionalMode } = formData;
     if (fieldName === 'serviceNationalStatus' && sexe === 'F') return false;
-
     const isLiberal = professionalMode === 'Libéral' || professionalMode === 'Associé';
     const isSalarie = professionalMode === 'Salarié';
-
     const liberalFields = ['installationDate', 'nif', 'adressePro', 'adresseProArabe', 'communePro', 'wilayaPro', 'benefitStateAid', 'moyensHumains', 'gps'];
     const salarieFields = ['recruitmentDate', 'employerName', 'employerRegistrationNumber', 'employerAdresse', 'employerAdresseArabe', 'employerCommune', 'employerWilaya'];
-
     if (liberalFields.includes(fieldName)) return isLiberal;
     if (salarieFields.includes(fieldName)) return isSalarie;
-
     return true;
   };
 
@@ -371,11 +362,9 @@ export default function FormulaireCNOA() {
     );
   };
 
-  // Validate all fields and scroll to first invalid
   const validateAndScroll = () => {
     const invalid = {};
 
-    // Required fields validation
     const requiredFields = [
       'name', 'lastname', 'email', 'registrationNumber', 'password', 'secondPassword'
     ];
@@ -386,22 +375,20 @@ export default function FormulaireCNOA() {
       }
     }
 
-    // ─── EMAIL REGEX VALIDATION REMOVED ────────────────────────────
+    if (formData.email && !EMAIL_REGEX.test(formData.email)) {
+      invalid.email = true;
+    }
 
-    // Registration number regex
     if (formData.registrationNumber && !REGISTRATION_NUMBER_REGEX.test(formData.registrationNumber)) {
       invalid.registrationNumber = true;
     }
 
-    // Password match
     if (formData.password !== formData.secondPassword) {
       invalid.secondPassword = true;
     }
 
-    // Set invalid fields state
     setInvalidFields(invalid);
 
-    // Scroll to first invalid field
     const firstInvalid = Object.keys(invalid)[0];
     if (firstInvalid) {
       const element = document.querySelector(`[data-field-name="${firstInvalid}"]`);
@@ -417,7 +404,6 @@ export default function FormulaireCNOA() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Run validation
     const isValid = validateAndScroll();
     if (!isValid) {
       setMessage("Veuillez corriger les champs en rouge.");
@@ -431,7 +417,6 @@ export default function FormulaireCNOA() {
       return;
     }
 
-    // Validate required files
     const visibleFileTypes = getVisibleFileTypes();
     const missingFiles = visibleFileTypes.filter(
       (ft) => ft.required && (!fileUploads[ft.key] || !(fileUploads[ft.key] instanceof File))
@@ -587,7 +572,7 @@ export default function FormulaireCNOA() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   {renderField("Téléphone fixe", "fixe", "text", null, false, "023 45 67 89", <Phone className="w-4 h-4 text-emerald-400" />)}
                   {renderField("Téléphone mobile", "phone", "text", null, false, "0555 55 55 55", <Phone className="w-4 h-4 text-emerald-400" />)}
-                  {renderField("Email", "email", "email", null, true, "exemple@elmi3mari.dz", <Mail className="w-4 h-4 text-emerald-400" />)}
+                  {renderField("Email Pro", "email", "email", null, true, "exemple@elmi3mari.dz", <Mail className="w-4 h-4 text-emerald-400" />)}
                 </div>
               </div>
 
@@ -1009,7 +994,7 @@ export default function FormulaireCNOA() {
                 {message}
               </div>
             )}
-          </div>!
+          </div>
         </div>
 
         <div className="mt-8 text-center text-[#64748B] max-w-2xl mx-auto">
