@@ -88,7 +88,7 @@ const ALLOWED_FILE_TYPES = {
 
 // ─── Validation regexes ────────────────────────────────────────────
 const REGISTRATION_NUMBER_REGEX = /^\d{5}\/\d{2}\/\d{2}[ALS]$/;
-// ─── EMAIL_REGEX REMOVED ───────────────────────────────────────────
+const EMAIL_REGEX = /^[^\s@]+@elmi3mari\.dz$/;
 
 function LocationPicker({ value, onChange }) {
   const [position, setPosition] = useState(
@@ -138,53 +138,54 @@ export default function FormulaireCNOA() {
   const dd = String(today.getDate()).padStart(2, "0");
   const maxDate = `${yyyy}-${mm}-${dd}`;
 
+  // ─── EMPTY FORM DATA ──────────────────────────────────────────────
   const [formData, setFormData] = useState({
-    region: "16 - Alger",
-    nin: "123456789012345678",
-    sexe: "M",
-    serviceNationalStatus: "Ayant effectué",
-    name: "Ali",
-    lastname: "Benamar",
-    nomArabe: "بن عمار",
-    prenomArabe: "علي",
-    dateOfBirth: "1985-06-15",
-    lieuNaissance: "Alger",
-    numeroActeNaissance: "123456789",
-    adressePersonnelle: "12 Rue des Oliviers, Hydra",
-    commune: "Hydra",
-    wilaya: "16 - Alger",
-    prenomPere: "Mohamed",
-    prenomPereArabe: "محمد",
-    nomPrenomMere: "Fatima Zohra",
-    nomPrenomMereArabe: "فاطمة الزهراء",
-    maritalStatus: "Marié(e)",
-    enfants: "2",
-    fixe: "023 45 67 89",
-    phone: "0555 12 34 56",
+    region: "",
+    nin: "",
+    sexe: "",
+    serviceNationalStatus: "",
+    name: "",
+    lastname: "",
+    nomArabe: "",
+    prenomArabe: "",
+    dateOfBirth: "",
+    lieuNaissance: "",
+    numeroActeNaissance: "",
+    adressePersonnelle: "",
+    commune: "",
+    wilaya: "",
+    prenomPere: "",
+    prenomPereArabe: "",
+    nomPrenomMere: "",
+    nomPrenomMereArabe: "",
+    maritalStatus: "",
+    enfants: "",
+    fixe: "",
+    phone: "",
     email: "",
-    diplomaType: "Classique",
-    sessionClassique: "Juin",
-    anneeClassique: "2010",
-    universiteClassique: "Université d'Alger",
+    diplomaType: "",
+    sessionClassique: "",
+    anneeClassique: "",
+    universiteClassique: "",
     sessionLMDL: "",
     anneeLMDL: "",
     universiteLMDL: "",
     sessionLMDM: "",
     anneeLMDM: "",
     universiteLMDM: "",
-    registrationNumber: "13148/25/12L",
-    oathDate: "2012-09-01",
-    oathLocation: "16 - Alger",
-    professionalMode: "Libéral",
-    installationDate: "2012-10-15",
-    nif: "1234567890123",
-    adressePro: "5 Rue Didouche Mourad, Alger",
-    adresseProArabe: "شارع ديدوش مراد، الجزائر",
-    communePro: "Alger",
-    wilayaPro: "16 - Alger",
-    benefitStateAid: "ANSEJ/NESDA",
-    moyensHumains: "5",
-    gps: "36.7538,3.0588",
+    registrationNumber: "",
+    oathDate: "",
+    oathLocation: "",
+    professionalMode: "",
+    installationDate: "",
+    nif: "",
+    adressePro: "",
+    adresseProArabe: "",
+    communePro: "",
+    wilayaPro: "",
+    benefitStateAid: "",
+    moyensHumains: "",
+    gps: "",
     recruitmentDate: "",
     employerName: "",
     employerRegistrationNumber: "",
@@ -375,7 +376,10 @@ export default function FormulaireCNOA() {
       }
     }
 
-    // ─── EMAIL REGEX VALIDATION REMOVED ────────────────────────────
+    // ─── EMAIL REGEX VALIDATION RE-ENABLED ─────────────────────────
+    if (formData.email && !EMAIL_REGEX.test(formData.email)) {
+      invalid.email = true;
+    }
 
     if (formData.registrationNumber && !REGISTRATION_NUMBER_REGEX.test(formData.registrationNumber)) {
       invalid.registrationNumber = true;
@@ -868,11 +872,12 @@ export default function FormulaireCNOA() {
                 )}
               </div>
 
-              {/* 8. Documents obligatoires */}
+              {/* 8. Documents obligatoires (PDF ONLY) */}
               <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)]">
                 <div className="flex items-center gap-3 mb-6">
                   <Paperclip className="w-5 h-5 text-emerald-400" />
                   <h3 className="text-lg font-semibold text-[#F8FAFC]">Documents obligatoires</h3>
+                  <span className="text-xs text-[#94A3B8] ml-auto">Format accepté : PDF uniquement</span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {getVisibleFileTypes().map((ft) => (
@@ -893,9 +898,19 @@ export default function FormulaireCNOA() {
                             <input
                               type="file"
                               id={`file-${ft.key}`}
+                              accept=".pdf,application/pdf"
                               onChange={(e) => {
                                 const file = e.target.files[0];
-                                if (file) handleFileUploadForType(ft.key, file);
+                                if (file) {
+                                  // Validate file type is PDF
+                                  if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+                                    setMessage(`Le fichier "${file.name}" n'est pas un PDF. Veuillez sélectionner un fichier PDF.`);
+                                    setMessageType('error');
+                                    e.target.value = null;
+                                    return;
+                                  }
+                                  handleFileUploadForType(ft.key, file);
+                                }
                                 e.target.value = null;
                               }}
                               className="hidden"
@@ -909,7 +924,7 @@ export default function FormulaireCNOA() {
                               ) : (
                                 <Upload className="w-5 h-5 mx-auto text-[#64748B] hover:text-emerald-400 transition-colors" />
                               )}
-                              <span className="text-xs text-[#64748B] mt-1 block">Ajouter</span>
+                              <span className="text-xs text-[#64748B] mt-1 block">PDF uniquement</span>
                             </label>
                           </>
                         )}
