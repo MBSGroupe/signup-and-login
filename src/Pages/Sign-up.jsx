@@ -88,6 +88,8 @@ const ALLOWED_FILE_TYPES = {
 
 // ─── Validation regexes ────────────────────────────────────────────
 const REGISTRATION_NUMBER_REGEX = /^\d{5}\/\d{2}\/\d{2}[ALS]$/;
+// [MODIF] Validation du NIN : exactement 18 chiffres
+const NIN_REGEX = /^\d{18}$/;
 // ─── EMAIL_REGEX DISABLED ──────────────────────────────────────────
 
 function LocationPicker({ value, onChange }) {
@@ -260,14 +262,45 @@ export default function FormulaireCNOA() {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    const newValue = type === 'checkbox' ? checked : value;
+    let newValue = type === 'checkbox' ? checked : value;
+
+    // [MODIF] NIN, NIF, Téléphone Fixe, Fax : chiffres uniquement
+    if (name === 'nin' || name === 'nif' || name === 'fixe' || name === 'fax') {
+      newValue = newValue.replace(/\D/g, '');
+    }
+
+    // [MODIF] Téléphone mobile : chiffres et '+' au début uniquement
+    if (name === 'phone') {
+      const startsWithPlus = typeof newValue === 'string' && newValue.startsWith('+');
+      const digitsOnly = typeof newValue === 'string' ? newValue.replace(/\D/g, '') : '';
+      newValue = startsWithPlus ? `+${digitsOnly}` : digitsOnly;
+    }
+
+    // [MODIF] Nombre d'enfants : chiffres uniquement, minimum 0, maximum 20 (pas de '-')
+    if (name === 'enfants') {
+      newValue = typeof newValue === 'string' ? newValue.replace(/\D/g, '') : newValue;
+      if (newValue !== '' && newValue !== undefined && newValue !== null) {
+        const num = Math.max(0, Math.min(20, parseInt(newValue, 10)));
+        newValue = isNaN(num) ? '' : String(num);
+      }
+    }
+
     setInvalidFields(prev => ({ ...prev, [name]: false }));
-    setFormData(prev => ({ ...prev, [name]: newValue }));
+    setFormData(prev => {
+      const updated = { ...prev, [name]: newValue };
+      // [MODIF] Réinitialiser le nombre d'enfants si 'Célibataire' est choisi
+      if (name === 'maritalStatus' && newValue === 'Célibataire') {
+        updated.enfants = "";
+      }
+      return updated;
+    });
   };
 
   const shouldShowField = (fieldName) => {
-    const { sexe, professionalMode } = formData;
+    const { sexe, professionalMode, maritalStatus } = formData;
     if (fieldName === 'serviceNationalStatus' && sexe === 'F') return false;
+    // [MODIF] Masquer le champ 'enfants' si la situation familiale est 'Célibataire'
+    if (fieldName === 'enfants' && maritalStatus === 'Célibataire') return false;
     const isLiberal = professionalMode === 'Libéral' || professionalMode === 'Associé';
     const isSalarie = professionalMode === 'Salarié';
     const liberalFields = ['installationDate', 'nif', 'adressePro', 'adresseProArabe', 'communePro', 'wilayaPro', 'benefitStateAid', 'moyensHumains', 'gps'];
@@ -348,16 +381,40 @@ export default function FormulaireCNOA() {
             className={baseInputClass}
           />
         ) : (
-          <input
-            type={type}
-            name={name}
-            placeholder={placeholder}
-            value={formData[name] || ""}
-            onChange={handleChange}
-            required={required}
-            className={`${baseInputClass} ${isArabicField ? 'text-right font-arabic' : ''}`}
-            dir={isArabicField ? 'rtl' : 'ltr'}
-          />
+          <div className="relative">
+            <input
+              type={type}
+              name={name}
+              min={name === 'enfants' || type === 'number' ? "0" : undefined}
+              max={name === 'enfants' ? "20" : undefined}
+              placeholder={placeholder}
+              value={formData[name] || ""}
+              onChange={handleChange}
+              onKeyDown={name === 'enfants' ? (e) => {
+                if (e.key === '-' || e.key === '+' || e.key === 'e' || e.key === 'E' || e.key === '.') {
+                  e.preventDefault();
+                }
+              } : undefined}
+              required={required}
+              maxLength={name === 'nin' ? 18 : undefined}
+              className={`${baseInputClass} ${name === 'nin' ? 'pr-20' : ''} ${isArabicField ? 'text-right font-arabic' : ''}`}
+              dir={isArabicField ? 'rtl' : 'ltr'}
+            />
+            {/* [MODIF] Compteur dynamique affiché directement à l'intérieur de l'input NIN */}
+            {name === 'nin' && (
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none flex items-center">
+                <span className={`text-[11px] font-mono px-2 py-0.5 rounded-md font-semibold transition-all duration-200 ${
+                  (formData.nin?.length || 0) === 18
+                    ? 'text-emerald-400 bg-emerald-500/20 border border-emerald-500/40 shadow-sm'
+                    : (formData.nin?.length || 0) > 0
+                      ? 'text-amber-400 bg-amber-500/20 border border-amber-500/30'
+                      : 'text-[#64748B] bg-[#1E293B] border border-[rgba(255,255,255,0.06)]'
+                }`}>
+                  {formData.nin?.length || 0}/18
+                </span>
+              </div>
+            )}
+          </div>
         )}
       </div>
     );
@@ -366,9 +423,24 @@ export default function FormulaireCNOA() {
   const validateAndScroll = () => {
     const invalid = {};
 
+    // [MODIF] Champs obligatoires de base
     const requiredFields = [
-      'name', 'lastname', 'email', 'registrationNumber', 'password', 'secondPassword'
+      'region', 'nin', 'sexe', 'name', 'lastname', 'nomArabe', 'prenomArabe', 'dateOfBirth', 'prenomPere', 'prenomPereArabe',
+      'email', 'registrationNumber', 'oathDate', 'oathLocation', 'professionalMode', 'password', 'secondPassword'
     ];
+
+    // [MODIF] Champs obligatoires spécifiques au Mode d'exercice sélectionné
+    if (formData.professionalMode === 'Libéral' || formData.professionalMode === 'Associé') {
+      requiredFields.push(
+        'installationDate', 'nif', 'adressePro', 'adresseProArabe',
+        'communePro', 'wilayaPro', 'benefitStateAid', 'moyensHumains'
+      );
+    } else if (formData.professionalMode === 'Salarié') {
+      requiredFields.push(
+        'recruitmentDate', 'employerName', 'employerRegistrationNumber',
+        'employerAdresse', 'employerAdresseArabe', 'employerCommune', 'employerWilaya'
+      );
+    }
 
     for (const field of requiredFields) {
       if (!formData[field]) {
@@ -382,14 +454,28 @@ export default function FormulaireCNOA() {
       invalid.registrationNumber = true;
     }
 
+    // [MODIF] Validation format NIN (exactement 18 chiffres)
+    if (formData.nin && !NIN_REGEX.test(formData.nin)) {
+      invalid.nin = true;
+    }
+
     if (formData.password !== formData.secondPassword) {
       invalid.secondPassword = true;
+    }
+
+    // [MODIF] Validation mode Associé : au moins un associé requis dans la liste
+    if (formData.professionalMode === 'Associé' && associates.length === 0) {
+      invalid['associatesList'] = true;
     }
 
     setInvalidFields(invalid);
 
     const firstInvalid = Object.keys(invalid)[0];
     if (firstInvalid) {
+      if (firstInvalid === 'associatesList') {
+        setMessage("Veuillez ajouter au moins un associé dans la liste pour le mode Associé.");
+        setMessageType("error");
+      }
       const element = document.querySelector(`[data-field-name="${firstInvalid}"]`);
       if (element) {
         element.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -405,7 +491,16 @@ export default function FormulaireCNOA() {
 
     const isValid = validateAndScroll();
     if (!isValid) {
-      setMessage("Veuillez corriger les champs en rouge.");
+      // [MODIF] Messages d'erreur explicites pour guider l'utilisateur
+      if (formData.nin && !NIN_REGEX.test(formData.nin)) {
+        setMessage("Le NIN doit comporter exactement 18 chiffres.");
+      } else if (formData.registrationNumber && !REGISTRATION_NUMBER_REGEX.test(formData.registrationNumber)) {
+        setMessage("Format du numéro d'inscription invalide (ex: 12345/16/24L).");
+      } else if (formData.password !== formData.secondPassword) {
+        setMessage("Les mots de passe ne correspondent pas.");
+      } else {
+        setMessage("Veuillez corriger les champs en rouge.");
+      }
       setMessageType("error");
       return;
     }
@@ -530,8 +625,9 @@ export default function FormulaireCNOA() {
                   {renderField("Service national", "serviceNationalStatus", "select", getServiceNationalOptions(), false, "", <Shield className="w-4 h-4 text-emerald-400" />)}
                   {renderField("Nom", "name", "text", null, true, "Votre nom", <User className="w-4 h-4 text-emerald-400" />)}
                   {renderField("Prénom", "lastname", "text", null, true, "Votre prénom", <User className="w-4 h-4 text-emerald-400" />)}
-                  {renderField("Nom (Arabe)", "nomArabe", "text", null, false, "الاسم", <User className="w-4 h-4 text-emerald-400" />)}
-                  {renderField("Prénom (Arabe)", "prenomArabe", "text", null, false, "اللقب", <User className="w-4 h-4 text-emerald-400" />)}
+                  {/* [MODIF] Nom et Prénom en arabe obligatoires */}
+                  {renderField("Nom (Arabe)", "nomArabe", "text", null, true, "الاسم", <User className="w-4 h-4 text-emerald-400" />)}
+                  {renderField("Prénom (Arabe)", "prenomArabe", "text", null, true, "اللقب", <User className="w-4 h-4 text-emerald-400" />)}
                   {renderField("Date de naissance", "dateOfBirth", "date", null, true, "", <Calendar className="w-4 h-4 text-emerald-400" />)}
                   {renderField("Lieu de naissance", "lieuNaissance", "text", null, false, "Ville de naissance", <MapPin className="w-4 h-4 text-emerald-400" />)}
                   {renderField("N° acte de naissance", "numeroActeNaissance", "text", null, false, "Numéro d'acte", <FileText className="w-4 h-4 text-emerald-400" />)}
@@ -571,7 +667,7 @@ export default function FormulaireCNOA() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   {renderField("Téléphone fixe", "fixe", "text", null, false, "023 45 67 89", <Phone className="w-4 h-4 text-emerald-400" />)}
                   {renderField("Téléphone mobile", "phone", "text", null, false, "0555 55 55 55", <Phone className="w-4 h-4 text-emerald-400" />)}
-                  {renderField("Email Pro", "email", "email", null, true, "exemple@elmi3mari.dz", <Mail className="w-4 h-4 text-emerald-400" />)}
+                  {renderField("Email", "email", "email", null, true, "exemple@elmi3mari.dz", <Mail className="w-4 h-4 text-emerald-400" />)}
                 </div>
               </div>
 
@@ -759,13 +855,15 @@ export default function FormulaireCNOA() {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   {renderField("N° d'inscription", "registrationNumber", "text", null, true, "NNNNN/NN/NNL", <BookOpen className="w-4 h-4 text-emerald-400" />)}
-                  {renderField("Date de serment", "oathDate", "date", null, false, "", <Calendar className="w-4 h-4 text-emerald-400" />)}
-                  {renderField("Lieu du serment", "oathLocation", "text", null, false, "Lieu du serment", <MapPin className="w-4 h-4 text-emerald-400" />)}
+                  {/* [MODIF] Date et lieu du serment obligatoires */}
+                  {renderField("Date de serment", "oathDate", "date", null, true, "", <Calendar className="w-4 h-4 text-emerald-400" />)}
+                  {renderField("Lieu du serment", "oathLocation", "text", null, true, "Lieu du serment", <MapPin className="w-4 h-4 text-emerald-400" />)}
+                  {/* [MODIF] Mode d'exercice obligatoire */}
                   {renderField("Mode d'exercice", "professionalMode", "select", [
                     { value: "Libéral", label: "Libéral" },
                     { value: "Associé", label: "Associé" },
                     { value: "Salarié", label: "Salarié" }
-                  ], false, "", <Briefcase className="w-4 h-4 text-emerald-400" />)}
+                  ], true, "", <Briefcase className="w-4 h-4 text-emerald-400" />)}
                 </div>
 
                 {formData.professionalMode && (
@@ -778,22 +876,23 @@ export default function FormulaireCNOA() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                       {(formData.professionalMode === 'Libéral' || formData.professionalMode === 'Associé') && (
                         <>
-                          {renderField("Date d'installation", "installationDate", "date", null, false, "", <Calendar className="w-4 h-4 text-emerald-400" />)}
-                          {renderField("NIF", "nif", "text", null, false, "Numéro d'identification fiscale", <FileText className="w-4 h-4 text-emerald-400" />)}
+                          {/* [MODIF] Champs Libéral / Associé obligatoires */}
+                          {renderField("Date d'installation", "installationDate", "date", null, true, "", <Calendar className="w-4 h-4 text-emerald-400" />)}
+                          {renderField("NIF", "nif", "text", null, true, "Numéro d'identification fiscale", <FileText className="w-4 h-4 text-emerald-400" />)}
                           <div className="sm:col-span-2 lg:col-span-3">
-                            {renderField("Adresse professionnelle", "adressePro", "text", null, false, "Adresse pro.", <MapPin className="w-4 h-4 text-emerald-400" />)}
+                            {renderField("Adresse professionnelle", "adressePro", "text", null, true, "Adresse pro.", <MapPin className="w-4 h-4 text-emerald-400" />)}
                           </div>
                           <div className="sm:col-span-2 lg:col-span-3">
-                            {renderField("Adresse professionnelle (Arabe)", "adresseProArabe", "text", null, false, "العنوان المهني", <MapPin className="w-4 h-4 text-emerald-400" />)}
+                            {renderField("Adresse professionnelle (Arabe)", "adresseProArabe", "text", null, true, "العنوان المهني", <MapPin className="w-4 h-4 text-emerald-400" />)}
                           </div>
-                          {renderField("Commune", "communePro", "text", null, false, "Commune", <MapPin className="w-4 h-4 text-emerald-400" />)}
-                          {renderField("Wilaya", "wilayaPro", "select", WILAYAS.map(w => ({ value: w, label: w })), false, "", <MapPin className="w-4 h-4 text-emerald-400" />)}
+                          {renderField("Commune", "communePro", "text", null, true, "Commune", <MapPin className="w-4 h-4 text-emerald-400" />)}
+                          {renderField("Wilaya", "wilayaPro", "select", WILAYAS.map(w => ({ value: w, label: w })), true, "", <MapPin className="w-4 h-4 text-emerald-400" />)}
                           {renderField("Aide d'État", "benefitStateAid", "select", [
                             { value: "ANSEJ/NESDA", label: "ANSEJ/NESDA" },
                             { value: "ANDI/AAPI", label: "ANDI / AAPI" },
                             { value: "Non", label: "Non" }
-                          ], false)}
-                          {renderField("Moyens humains", "moyensHumains", "text", null, false, "Moyens humains", <Users className="w-4 h-4 text-emerald-400" />)}
+                          ], true)}
+                          {renderField("Moyens humains", "moyensHumains", "text", null, true, "Moyens humains", <Users className="w-4 h-4 text-emerald-400" />)}
                           <div className="sm:col-span-2 lg:col-span-3">
                             <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider mb-1">
                               GPS (Localisation)
@@ -806,7 +905,10 @@ export default function FormulaireCNOA() {
                         </>
                       )}
                       {formData.professionalMode === 'Associé' && (
-                        <div className="sm:col-span-2 lg:col-span-3">
+                        <div className="sm:col-span-2 lg:col-span-3" data-field-name="associatesList">
+                          <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider mb-2">
+                            Liste des associés <span className="text-rose-400 ml-1">*</span>
+                          </label>
                           <div className="space-y-2 mb-4">
                             {associates.map((assoc, idx) => (
                               <div key={idx} className="flex items-center justify-between bg-[#111827] p-3 rounded-lg border border-[rgba(255,255,255,0.06)]">
@@ -851,17 +953,18 @@ export default function FormulaireCNOA() {
                       )}
                       {formData.professionalMode === 'Salarié' && (
                         <>
-                          {renderField("Date de recrutement", "recruitmentDate", "date", null, false, "", <Calendar className="w-4 h-4 text-emerald-400" />)}
-                          {renderField("Nom et prénom de l'employeur", "employerName", "text", null, false, "Employeur", <User className="w-4 h-4 text-emerald-400" />)}
-                          {renderField("N° d'inscription de l'employeur", "employerRegistrationNumber", "text", null, false, "N° inscription", <BookOpen className="w-4 h-4 text-emerald-400" />)}
+                          {/* [MODIF] Champs Salarié obligatoires */}
+                          {renderField("Date de recrutement", "recruitmentDate", "date", null, true, "", <Calendar className="w-4 h-4 text-emerald-400" />)}
+                          {renderField("Nom et prénom de l'employeur", "employerName", "text", null, true, "Employeur", <User className="w-4 h-4 text-emerald-400" />)}
+                          {renderField("N° d'inscription de l'employeur", "employerRegistrationNumber", "text", null, true, "N° inscription", <BookOpen className="w-4 h-4 text-emerald-400" />)}
                           <div className="sm:col-span-2 lg:col-span-3">
-                            {renderField("Adresse professionnelle", "employerAdresse", "text", null, false, "Adresse", <MapPin className="w-4 h-4 text-emerald-400" />)}
+                            {renderField("Adresse professionnelle", "employerAdresse", "text", null, true, "Adresse", <MapPin className="w-4 h-4 text-emerald-400" />)}
                           </div>
                           <div className="sm:col-span-2 lg:col-span-3">
-                            {renderField("Adresse professionnelle (Arabe)", "employerAdresseArabe", "text", null, false, "العنوان المهني", <MapPin className="w-4 h-4 text-emerald-400" />)}
+                            {renderField("Adresse professionnelle (Arabe)", "employerAdresseArabe", "text", null, true, "العنوان المهني", <MapPin className="w-4 h-4 text-emerald-400" />)}
                           </div>
-                          {renderField("Commune", "employerCommune", "text", null, false, "Commune", <MapPin className="w-4 h-4 text-emerald-400" />)}
-                          {renderField("Wilaya", "employerWilaya", "select", WILAYAS.map(w => ({ value: w, label: w })), false, "", <MapPin className="w-4 h-4 text-emerald-400" />)}
+                          {renderField("Commune", "employerCommune", "text", null, true, "Commune", <MapPin className="w-4 h-4 text-emerald-400" />)}
+                          {renderField("Wilaya", "employerWilaya", "select", WILAYAS.map(w => ({ value: w, label: w })), true, "", <MapPin className="w-4 h-4 text-emerald-400" />)}
                         </>
                       )}
                     </div>
@@ -995,11 +1098,10 @@ export default function FormulaireCNOA() {
             </form>
 
             {message && (
-              <div className={`mt-6 p-4 rounded-xl text-center font-medium flex items-center justify-center gap-2 ${
-                messageType === 'error' 
-                  ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' 
+              <div className={`mt-6 p-4 rounded-xl text-center font-medium flex items-center justify-center gap-2 ${messageType === 'error'
+                  ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
                   : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-              }`}>
+                }`}>
                 {messageType === 'error' ? <AlertCircle className="w-5 h-5" /> : <CheckCircle className="w-5 h-5" />}
                 {message}
               </div>

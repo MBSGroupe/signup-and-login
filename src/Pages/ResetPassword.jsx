@@ -43,6 +43,7 @@ export default function ResetPassword() {
         body: JSON.stringify({
           token,
           newPassword: formData.newPassword,
+          confirmPassword: formData.confirmNewPassword,
         }),
       });
 
@@ -51,7 +52,8 @@ export default function ResetPassword() {
         setSuccess(true);
         setTimeout(() => navigate("/"), 2000);
       } else {
-        setMessage(data.message || "Échec de la réinitialisation du mot de passe.");
+        const m = data.message
+        setMessage(Array.isArray(m) ? m.join(' • ') : (m || "Échec de la réinitialisation du mot de passe."));
       }
     } catch (err) {
       setMessage("Erreur réseau. Veuillez réessayer.");

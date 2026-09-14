@@ -48,6 +48,7 @@ export default function ChangePassword() {
           body: JSON.stringify({
             currentPassword: formData.currentPassword,
             newPassword: formData.newPassword,
+            confirmPassword: formData.confirmNewPassword,
           }),
         },
         authData.token,
