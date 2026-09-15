@@ -22,13 +22,18 @@ const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 export default function DeclarationModal({
   isOpen,
   onClose,
+  onGoToValidations = null,
   targetUserId,
   authToken,
   onSuccess,
   schema = null,
-  existingRequestId = null
+  existingRequestId = null,
+  // 🟢 [MODIFICATION] Récupération du NIN initial pour pré-remplir le formulaire
+  initialNin = '',
+  user = null,
+  validationRequests = []
 }) {
-  const { showError, showSuccess } = useError();
+  const { showSuccess } = useError();
 
   // State
   const [nin, setNin] = useState('');
@@ -44,12 +49,25 @@ export default function DeclarationModal({
   const [errorMessage, setErrorMessage] = useState(null);
   const [alreadyExists, setAlreadyExists] = useState(false);
   const [successRef, setSuccessRef] = useState(null);
+  // 🟢 [MODIFICATION] Données de la demande créée pour transmission lors de la fermeture
+  const [successData, setSuccessData] = useState(null);
 
   const fileInputRefs = {
     cnrc: useRef(null),
     paiement: useRef(null),
     cnas: useRef(null)
   };
+
+  // 🟢 [MODIFICATION] Pré-remplissage automatique du NIN à l'ouverture du modal si disponible
+  useEffect(() => {
+    if (isOpen) {
+      if (initialNin) {
+        setNin(String(initialNin).replace(/[^0-9]/g, '').slice(0, 18));
+      } else if (user?.nin) {
+        setNin(String(user.nin).replace(/[^0-9]/g, '').slice(0, 18));
+      }
+    }
+  }, [isOpen, initialNin, user?.nin]);
 
   if (!isOpen) return null;
 
@@ -63,11 +81,35 @@ export default function DeclarationModal({
     setErrorMessage(null);
     setAlreadyExists(false);
     setSuccessRef(null);
+    setSuccessData(null);
   };
 
   const handleClose = () => {
     resetForm();
     onClose();
+  };
+
+  // 🟢 [MODIFICATION] Fermeture après succès et transmission du callback parent
+  const handleSuccessClose = () => {
+    const dataToPass = successData;
+    handleClose();
+    if (onSuccess && dataToPass) {
+      onSuccess(dataToPass);
+    }
+  };
+
+  // 🟢 [MODIFICATION] Bascule vers les validations après affichage du message de succès
+  const handleSuccessGoToValidations = () => {
+    const dataToPass = successData;
+    resetForm();
+    if (onGoToValidations) {
+      onGoToValidations();
+    } else {
+      onClose();
+    }
+    if (onSuccess && dataToPass) {
+      onSuccess(dataToPass);
+    }
   };
 
   // File handlers
@@ -131,6 +173,32 @@ export default function DeclarationModal({
     };
   };
 
+  // 🟢 [FONCTION DE VÉRIFICATION] : Détecte si une demande de déclaration est déjà active
+  const isDeclarationRequestActive = (req) => {
+    if (!req) return false;
+    const name = (
+      req.schemaName ||
+      req.schema?.name ||
+      req.schema?.title ||
+      req.schemaVersion?.name ||
+      req.schemaVersion?.schema?.name ||
+      req.validationSchema?.name ||
+      req.title ||
+      req.name ||
+      req.type ||
+      ''
+    ).toLowerCase();
+
+    const isDecl =
+      name.includes('déclaration') ||
+      name.includes('declaration');
+
+    const status = String(req.status || '').toLowerCase();
+    const isInactive = ['rejected', 'cancelled', 'rejete', 'rejetee', 'annule', 'annulee', 'refused'].includes(status);
+
+    return isDecl && !isInactive;
+  };
+
   // Pre-submit validation (shows confirmation modal)
   const handlePreSubmit = (e) => {
     if (e) e.preventDefault();
@@ -167,15 +235,104 @@ export default function DeclarationModal({
     setIsLoading(true);
 
     try {
-      // 1. Upload the 3 files
-      setUploadMessage('Téléversement des 3 documents justificatifs...');
-      const [cnrcUploaded, paiementUploaded, cnasUploaded] = await Promise.all([
-        uploadSingleFile(documents.cnrc, 'CNRC'),
-        uploadSingleFile(documents.paiement, 'PAIEMENT'),
-        uploadSingleFile(documents.cnas, 'CNAS')
-      ]);
+      const schemaName = schema?.name || schema?.title || 'Déclaration';
 
-      // 2. Update user's NIN
+      // ─────────────────────────────────────────────────────────────────────────
+      // 🟢 ÉTAPE 1 : VÉRIFICATION PRÉALABLE D'UNE DEMANDE DÉJÀ EXISTANTE
+      // On s'assure qu'AUCUN fichier n'est téléversé et que le NIN n'est JAMAIS modifié
+      // si une demande existe déjà dans l'état local ou distant.
+      // ─────────────────────────────────────────────────────────────────────────
+
+      // 1.1. Vérification via existingRequestId
+      if (existingRequestId) {
+        setAlreadyExists(true);
+        setIsLoading(false);
+        setUploadMessage('');
+        return;
+      }
+
+      // 1.2. Vérification via la liste validationRequests transmise en props
+      if (Array.isArray(validationRequests) && validationRequests.some(isDeclarationRequestActive)) {
+        setAlreadyExists(true);
+        setIsLoading(false);
+        setUploadMessage('');
+        return;
+      }
+
+      // 1.3. Vérification directe en temps réel auprès de l'API utilisateur
+      setUploadMessage('Vérification de votre dossier...');
+      try {
+        const checkRes = await fetch(`${NEST_API_URL}/validation/requests/user/${targetUserId}`, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${authToken}`
+          }
+        });
+
+        if (checkRes.ok) {
+          const userRequestsData = await checkRes.json();
+          const userRequestsList = Array.isArray(userRequestsData)
+            ? userRequestsData
+            : (userRequestsData?.data || userRequestsData?.requests || []);
+
+          if (Array.isArray(userRequestsList) && userRequestsList.some(isDeclarationRequestActive)) {
+            // 🛑 [DEMANDE DÉJÀ EXISTANTE DANS LA BDD]
+            setAlreadyExists(true);
+            setIsLoading(false);
+            setUploadMessage('');
+            return;
+          }
+        }
+      } catch (errCheck) {
+        console.warn('[DeclarationModal] Contrôle préventif silencieux:', errCheck);
+      }
+
+      // ─────────────────────────────────────────────────────────────────────────
+      // 🟢 ÉTAPE 2 : ENREGISTREMENT DE LA NOUVELLE DEMANDE AUPRÈS DU BACKEND
+      // On envoie le payload standard (targetId, targetType, schemaName).
+      // Si le backend refuse ou signale un doublon, on affiche l'écran dédié.
+      // ─────────────────────────────────────────────────────────────────────────
+      setUploadMessage('Enregistrement de la nouvelle demande...');
+      const requestPayload = {
+        targetId: targetUserId,
+        targetType: schema?.targetType || 'User',
+        schemaName: schemaName,
+      };
+
+      const res = await fetch(`${NEST_API_URL}/validation/requests`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`
+        },
+        body: JSON.stringify(requestPayload)
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        // 🛑 [REFUS DU BACKEND / DEMANDE DÉJÀ EXISTANTE]
+        // On affiche immédiatement l'écran "Demande déjà existante !"
+        // SANS afficher de bandeau d'erreur rouge et SANS toucher au NIN ni aux fichiers !
+        setAlreadyExists(true);
+        setIsLoading(false);
+        setUploadMessage('');
+        return;
+      }
+
+      const createdReqId = data?.data?.id || data?.id || data?.data?._id || data?._id;
+      const generatedRef =
+        data?.data?.reference ||
+        data?.reference ||
+        `DEC-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+
+      // ─────────────────────────────────────────────────────────────────────────
+      // 🟢 ÉTAPE 3 : LA NOUVELLE DEMANDE EST CONFIRMÉE ET ACCEPTÉE
+      // Maintenant et UNIQUEMENT maintenant que la demande est créée avec succès :
+      // 3.1. On met à jour le NIN
+      // 3.2. On téléverse les 3 fichiers justificatifs
+      // ─────────────────────────────────────────────────────────────────────────
+      // 3.1. Mise à jour du NIN de l'utilisateur
       setUploadMessage('Mise à jour du NIN...');
       const cleanNin = nin.replace(/[^0-9]/g, '');
       const updateUserRes = await fetch(`${NEST_API_URL}/users/${targetUserId}`, {
@@ -188,96 +345,39 @@ export default function DeclarationModal({
       });
 
       if (!updateUserRes.ok) {
-        const errorData = await updateUserRes.json();
+        const errorData = await updateUserRes.json().catch(() => ({}));
         throw new Error(errorData.message || 'Échec de la mise à jour du NIN');
       }
 
-      // 3. Notifier le backend de la demande ou de la resoumission
-      setUploadMessage('Enregistrement de la demande de Déclaration...');
-      const schemaName = schema?.name || 'Declaration';
+      // 3.2. Téléversement des 3 documents justificatifs
+      setUploadMessage('Téléversement des 3 documents justificatifs...');
+      await Promise.all([
+        uploadSingleFile(documents.cnrc, 'CNRC'),
+        uploadSingleFile(documents.paiement, 'PAIEMENT'),
+        uploadSingleFile(documents.cnas, 'CNAS')
+      ]);
 
-      let reqId = existingRequestId;
-      let generatedRef = `DEC-2026-${Math.floor(1000 + Math.random() * 9000)}`;
-
-      if (reqId) {
-        // 🟢 S'il s'agit d'une demande existante à corriger : appeler l'API de resoumission
-        try {
-          const resubmitRes = await fetch(`${NEST_API_URL}/validation/requests/${reqId}/resubmit`, {
-            method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${authToken}`
-            },
-            body: JSON.stringify({ comments: 'Corrections apportées par l\'utilisateur' })
-          });
-          const resubmitData = await resubmitRes.json();
-          if (resubmitData?.data?.reference || resubmitData?.reference) {
-            generatedRef = resubmitData?.data?.reference || resubmitData?.reference;
-          }
-        } catch (resubErr) {
-          console.warn('[DeclarationModal] Note resubmission API:', resubErr);
-        }
-      } else {
-        // 🟢 Sinon : créer la demande de validation
-        const requestPayload = {
-          targetId: targetUserId,
-          targetType: schema?.targetType || 'User',
-          schemaName: schemaName,
-        };
-
-        const res = await fetch(`${NEST_API_URL}/validation/requests`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${authToken}`
-          },
-          body: JSON.stringify(requestPayload)
-        });
-
-        const data = await res.json();
-
-        if (res.ok && (data.success || data.id || data.data)) {
-          generatedRef =
-            data?.data?.reference ||
-            data?.reference ||
-            generatedRef;
-          reqId = data?.data?.id || data?.id;
-        } else {
-          const errMsg = (data.message || data.error || '').toLowerCase();
-          const targetFoundId = data?.data?.id || data?.id;
-          if (targetFoundId || errMsg.includes('already') || errMsg.includes('exist') || errMsg.includes('déjà') || res.status === 409) {
-            // Si la demande existe déjà, déclencher le resubmit pour passer le statut en 'pending' en base de données
-            if (targetFoundId) {
-              try {
-                await fetch(`${NEST_API_URL}/validation/requests/${targetFoundId}/resubmit`, {
-                  method: 'PATCH',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${authToken}`
-                  },
-                  body: JSON.stringify({ comments: 'Corrections apportées par l\'utilisateur' })
-                });
-              } catch (_) {}
-            }
-          }
-        }
-      }
-
+      // 3.3. Confirmation de succès
       setSuccessRef(generatedRef);
-      showSuccess('Vos documents et informations ont été transmis avec succès pour vérification !');
-      if (onSuccess) {
-        await onSuccess({
-          id: reqId || `doc-${Date.now()}`,
-          title: schemaName,
-          reference: generatedRef,
-          status: 'En cours',
-          type: 'Déclaration',
-          schemaName: schemaName,
-        });
-      }
+      setSuccessData({
+        id: createdReqId || existingRequestId || `doc-${Date.now()}`,
+        title: schemaName,
+        reference: generatedRef,
+        nin: cleanNin,
+        status: 'En cours',
+        type: 'Déclaration',
+        schemaName: schemaName,
+      });
+      showSuccess('Votre demande de déclaration a été transmise avec succès !');
     } catch (err) {
-      console.error('[DeclarationModal] Erreur soumission déclaration:', err);
-      setErrorMessage(err.message || 'Erreur réseau lors de la soumission de la demande.');
+      console.warn('[DeclarationModal] Erreur soumission déclaration:', err);
+      // 🛑 En cas d'erreur de duplication, afficher l'écran dédié, sinon afficher le message d'erreur
+      const msg = (err?.message || '').toLowerCase();
+      if (msg.includes('already') || msg.includes('exist') || msg.includes('déjà') || msg.includes('en cours')) {
+        setAlreadyExists(true);
+      } else {
+        setErrorMessage(err?.message || "Une erreur est survenue lors de l'enregistrement de votre dossier.");
+      }
     } finally {
       setIsLoading(false);
       setUploadMessage('');
@@ -306,7 +406,7 @@ export default function DeclarationModal({
           </div>
           <button
             type="button"
-            onClick={handleClose}
+            onClick={successRef ? handleSuccessClose : handleClose}
             disabled={isLoading}
             className="p-2 rounded-lg text-[#94A3B8] hover:text-white hover:bg-white/10 transition-colors disabled:opacity-50"
           >
@@ -317,33 +417,33 @@ export default function DeclarationModal({
         {/* Body */}
         <div className="p-6 overflow-y-auto space-y-6 flex-1">
           {successRef ? (
-            /* Success screen */
-            <div className="py-8 flex flex-col items-center text-center">
-              <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 mb-4 animate-in zoom-in">
+            /* 🟢 [MODIFICATION] Écran dédié : Demande bien transmise avec succès */
+            <div className="py-8 flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
+              <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 mb-4 shadow-lg shadow-emerald-500/10">
                 <CheckCircle className="w-10 h-10" />
               </div>
               <h3 className="text-2xl font-bold text-white tracking-tight">
-                Déclaration Transmise !
+                Demande bien transmise !
               </h3>
-              <p className="text-sm text-[#94A3B8] mt-2 max-w-md">
-                Votre dossier de déclaration a été enregistré avec succès.
+              <p className="text-sm text-[#94A3B8] mt-2 max-w-md leading-relaxed">
+                Votre dossier de déclaration a été transmis avec succès pour vérification.
               </p>
 
-              <p className="text-xs text-[#64748B] max-w-md">
-                Vous pouvez suivre le traitement et les étapes de validation dans l'onglet "Validation".
+              <p className="text-xs text-[#64748B] mt-4 max-w-md">
+                Vous pouvez suivre son état d'avancement et sa validation directement dans l'onglet "Validations".
               </p>
             </div>
           ) : alreadyExists ? (
-            /* Already exists screen */
+            /* 🟢 [MODIFICATION] Écran dédié : Demande déjà existante */
             <div className="py-8 flex flex-col items-center text-center">
               <div className="w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 mb-4 animate-in zoom-in">
                 <AlertCircle className="w-10 h-10" />
               </div>
               <h3 className="text-2xl font-bold text-white tracking-tight">
-                Déclaration déjà existante !
+                Demande déjà existante !
               </h3>
-              <p className="text-sm text-amber-200/90 mt-2 max-w-md leading-relaxed">
-                Une déclaration de ce type est déjà en cours de traitement pour votre compte. Retrouvez tous ses détails dans l'onglet "Validation".
+              <p className="text-sm text-[#94A3B8] mt-2 max-w-md leading-relaxed">
+                Vous pouvez suivre son état d'avancement et sa validation directement dans l'onglet Validations.
               </p>
             </div>
           ) : (
@@ -451,18 +551,37 @@ export default function DeclarationModal({
         {/* Footer */}
         <div className="p-6 border-t border-white/10 bg-[#182233]/40 flex items-center justify-end gap-3">
           {successRef ? (
-            <button
-              onClick={handleClose}
-              className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-emerald-500 hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 transition-all cursor-pointer"
-            >
-              Fermer
-            </button>
+            /* 🟢 [MODIFICATION] Boutons de confirmation sur l'écran de succès */
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleSuccessClose}
+                className="px-5 py-2.5 rounded-xl text-sm font-medium text-[#94A3B8] hover:text-white bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
+              >
+                Fermer
+              </button>
+              <button
+                type="button"
+                onClick={handleSuccessGoToValidations}
+                className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-emerald-500 hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-2 cursor-pointer"
+              >
+                Suivre dans Validations
+              </button>
+            </div>
           ) : alreadyExists ? (
+            /* 🟢 [MODIFICATION] Bouton permettant de basculer immédiatement vers l'onglet Validations */
             <button
-              onClick={handleClose}
-              className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-amber-500 hover:bg-amber-600 shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
+              type="button"
+              onClick={() => {
+                if (onGoToValidations) {
+                  onGoToValidations();
+                } else {
+                  handleClose();
+                }
+              }}
+              className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-emerald-500 hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-2 cursor-pointer"
             >
-              Fermer
+              Suivre dans Validations 
             </button>
           ) : (
             <>

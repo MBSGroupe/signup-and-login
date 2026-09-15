@@ -38,33 +38,7 @@ export default function AdminUserView() {
     if (authData?.token) getUser();
   }, [id, authData?.token, setAuthData]);
 
-  // Validate user
-  const handleValidate = async () => {
-    setValidating(true);
-    try {
-      const res = await fetchWithRefresh(
-        `${NEST_API_URL}/user/validate/${id}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-        },
-        authData.token,
-        setAuthData
-      );
-      const ValidationData = await res.json();
-      setMessage(ValidationData.data.message || "User validated");
-      setUser((prev) => ({ ...prev, isAdminVerified: true }));
-      setShowPopup(true);
-      setTimeout(() => setShowPopup(false), 3000);
-    } catch (err) {
-      console.error(err);
-      setMessage("Validation failed");
-      setShowPopup(true);
-      setTimeout(() => setShowPopup(false), 3000);
-    } finally {
-      setValidating(false);
-    }
-  };
+
 
   const handleEdit = () => navigate(`/auth/update/${id}`);
 

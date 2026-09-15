@@ -1,5 +1,5 @@
 import Title from '../Components/Title';
-import { useContext, useEffect, useState, useRef, useCallback } from "react";
+import { useContext, useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { UserContext } from "../Context/dataCont";
 import { useParams, useNavigate } from "react-router-dom";
 import PDFPreviewModal from '../Components/Modals/pdfPreviexModal';
@@ -67,6 +67,250 @@ import {
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
+// ─── Signup-aligned section definition ─────────────────────────────
+// Order and grouping follow the signup form, not the permission schema.
+// The schema is used only for which fields to show and their labels.
+const PROFILE_SECTIONS = [
+  { key: 'cloa',           label: "CLOA d'exercice",               fields: ['region'] },
+  { key: 'personal',       label: 'Informations Personnelles',     fields: [
+      'nin', 'sexe', 'serviceNationalStatus',
+      'name', 'lastname', 'nomArabe', 'prenomArabe',
+      'dateOfBirth', 'lieuNaissance', 'numeroActeNaissance',
+      'adressePersonnelle', 'adressePersonnelleArabe', 'commune', 'wilaya', 'maritalStatus', 'enfants',
+  ] },
+  { key: 'family',         label: 'Informations Familiales',       fields: [
+      'prenomPere', 'prenomPereArabe',
+      'nomPrenomMere', 'nomPrenomMereArabe',
+       'nationality', 
+  ] },
+  { key: 'contact',        label: 'Contact',                       fields: ['fixe', 'phone', 'email', 'emailPro'] },
+  { key: 'diplomas',       label: 'Diplômes universitaires',       fields: [
+      'diplomaType',
+      'sessionClassique', 'anneeClassique', 'universiteClassique',
+      'sessionLMDL', 'anneeLMDL', 'universiteLMDL',
+      'sessionLMDM', 'anneeLMDM', 'universiteLMDM',
+  ] },
+  { key: 'other_diplomas', label: 'Autres diplômes',               fields: ['otherDiplomas'] },
+  { key: 'formations',     label: 'Formations',                    fields: ['otherTrainings'] },
+  { key: 'professional',   label: 'Informations professionnelles', fields: [
+      'registrationNumber', 'oathDate', 'oathLocation', 'professionalMode',
+      'installationDate', 'nif',
+      'adressePro', 'adresseProArabe',
+      'benefitStateAid', 'moyensHumains', 'gps',
+      'recruitmentDate', 'employerName', 'employerRegistrationNumber',
+      'employerAdresse', 'employerAdresseArabe', 'employerCommune', 'employerWilaya',
+  ] },
+];
+
+// Fields whose value is Arabic text and should render right-to-left.
+const RTL_FIELDS = new Set([
+  'nomArabe',
+  'prenomArabe',
+  'prenomPereArabe',
+  'nomPrenomMereArabe',
+  'adressePersonnelleArabe',
+  'adresseProArabe',
+  'employerAdresseArabe',
+]);
+
+// Fallback French labels for fields the schema might not label.
+// Used only when configs[name].label is missing.
+const FALLBACK_LABELS = {
+  region: "CLOA d'exercice",
+  nin: 'NIN',
+  sexe: 'Civilité',
+  serviceNationalStatus: 'Service national',
+  name: 'Nom',
+  lastname: 'Prénom',
+  nomArabe: 'Nom (Arabe)',
+  prenomArabe: 'Prénom (Arabe)',
+  dateOfBirth: 'Date de naissance',
+  lieuNaissance: 'Lieu de naissance',
+  numeroActeNaissance: "N° acte de naissance",
+  adressePersonnelle: 'Adresse personnelle',
+  adressePersonnelleArabe: 'Adresse personnelle (Arabe)',
+  commune: 'Commune',
+  wilaya: 'Wilaya',
+  prenomPere: 'Prénom du père',
+  prenomPereArabe: 'Prénom du père (Arabe)',
+  nomPrenomMere: 'Nom et prénom de la mère',
+  nomPrenomMereArabe: 'Nom et prénom de la mère (Arabe)',
+  maritalStatus: 'Situation familiale',
+  nationality: 'Nationalité',
+  enfants: "Nombre d'enfants",
+  fixe: 'Téléphone fixe',
+  phone: 'Téléphone mobile',
+  email: 'Email',
+  emailPro: 'Email professionnel',
+  diplomaType: 'Type de diplôme',
+  sessionClassique: 'Session Classique',
+  anneeClassique: 'Année Classique',
+  universiteClassique: 'Université Classique',
+  sessionLMDL: 'Session LMD (Licence)',
+  anneeLMDL: 'Année LMD (Licence)',
+  universiteLMDL: 'Université LMD (Licence)',
+  sessionLMDM: 'Session LMD (Master)',
+  anneeLMDM: 'Année LMD (Master)',
+  universiteLMDM: 'Université LMD (Master)',
+  otherDiplomas: 'Autres diplômes',
+  otherTrainings: 'Formations',
+  registrationNumber: "N° d'inscription",
+  oathDate: 'Date de serment',
+  oathLocation: 'Lieu du serment',
+  professionalMode: "Mode d'exercice",
+  installationDate: "Date d'installation",
+  nif: 'NIF',
+  adressePro: 'Adresse professionnelle',
+  adresseProArabe: 'Adresse professionnelle (Arabe)',
+  benefitStateAid: "Aide d'État",
+  moyensHumains: 'Moyens humains',
+  gps: 'GPS (Localisation)',
+  recruitmentDate: 'Date de recrutement',
+  employerName: "Nom et prénom de l'employeur",
+  employerRegistrationNumber: "N° d'inscription de l'employeur",
+  employerAdresse: 'Adresse professionnelle',
+  employerAdresseArabe: 'Adresse professionnelle (Arabe)',
+  employerCommune: 'Commune',
+  employerWilaya: 'Wilaya',
+};
+
+function getFieldLabel(name, configs) {
+  return configs?.[name]?.label || FALLBACK_LABELS[name] || name;
+}
+
+function formatScalar(value) {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value === 'boolean') return value ? 'Oui' : 'Non';
+  if (typeof value === 'number') return String(value);
+  if (typeof value === 'string') {
+    if (value === 'M') return 'Homme';
+    if (value === 'F') return 'Femme';
+    if (/^\d{4}-\d{2}-\d{2}/.test(value)) {
+      const d = new Date(value);
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleDateString('fr-FR', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+        });
+      }
+    }
+    return value;
+  }
+  return String(value);
+}
+
+// JSON-array fields (otherDiplomas / otherTrainings) → readable list.
+// Each item is expected to have titre/etablissement/annee or name/institution/year.
+function JsonListValue({ items }) {
+  if (!Array.isArray(items) || items.length === 0) return null;
+  return (
+    <ul className="space-y-1.5 mt-1">
+      {items.map((item, idx) => {
+        const titre = item?.titre || item?.name || item?.title || `Élément ${idx + 1}`;
+        const etab = item?.etablissement || item?.institution || item?.school;
+        const annee = item?.annee || item?.year;
+        const meta = [etab, annee].filter(Boolean).join(' · ');
+        return (
+          <li key={idx} className="flex items-start gap-2 text-sm text-[#F8FAFC]">
+            <span className="text-emerald-400 mt-0.5">•</span>
+            <span>
+              <span className="font-medium">{titre}</span>
+              {meta && <span className="text-[#94A3B8]"> — {meta}</span>}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function InfoTabContent({ displayUser, permissions }) {
+  const { fields = [], configs = {} } = permissions || {};
+  const visibleSet = new Set(fields);
+
+  const sections = PROFILE_SECTIONS.map((section) => {
+    const visibleFields = section.fields
+      .filter((name) => visibleSet.has(name))
+      .map((name) => {
+        const raw = displayUser?.[name];
+        const isEmpty =
+          raw === undefined ||
+          raw === null ||
+          raw === '' ||
+          (Array.isArray(raw) && raw.length === 0);
+        if (isEmpty) return null;
+        return { name, label: getFieldLabel(name, configs), raw };
+      })
+      .filter(Boolean);
+    return { ...section, visibleFields };
+  }).filter((s) => s.visibleFields.length > 0);
+
+  if (sections.length === 0) {
+    return (
+      <div className="flex flex-col items-center gap-2 py-8 text-[#64748B]">
+        <User className="w-8 h-8" />
+        <p className="text-sm">Aucune information disponible</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+      {sections.map((section) => (
+        <div key={section.key}>
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-emerald-400 mb-3 pb-2 border-b border-white/5">
+            {section.label}
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {section.visibleFields.map((field) => {
+              const isRtl = RTL_FIELDS.has(field.name);
+              const isJsonArray =
+                field.name === 'otherDiplomas' || field.name === 'otherTrainings';
+
+              if (isJsonArray) {
+                return (
+                  <div
+                    key={field.name}
+                    className="border-b border-white/5 pb-2 last:border-0 col-span-full"
+                  >
+                    <p className="text-xs text-[#64748B] uppercase tracking-wider">
+                      {field.label}
+                    </p>
+                    <JsonListValue items={field.raw} />
+                  </div>
+                );
+              }
+
+              const display = formatScalar(field.raw);
+              if (display === null) return null;
+
+              return (
+                <div
+                  key={field.name}
+                  className="border-b border-white/5 pb-2 last:border-0"
+                >
+                  <p className="text-xs text-[#64748B] uppercase tracking-wider">
+                    {field.label}
+                  </p>
+                  <p
+                    className={`text-[#F8FAFC] font-medium ${
+                      isRtl ? 'font-arabic text-right' : ''
+                    }`}
+                    dir={isRtl ? 'rtl' : 'ltr'}
+                  >
+                    {display}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function ProfilePage({ user }) {
   const { authData, setAuthData } = useContext(UserContext);
   const { showError, showWarning, showSuccess } = useError();
@@ -75,7 +319,7 @@ export default function ProfilePage({ user }) {
   const navigate = useNavigate();
 
   const [displayUser, setDisplayUser] = useState(user || authData.user);
-  const [permissions, setPermissions] = useState({ fields: [] });
+  const [permissions, setPermissions] = useState({ fields: [], configs: {} });
   const [perform, setPerform] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
@@ -1002,8 +1246,10 @@ export default function ProfilePage({ user }) {
           setAuthData
         );
         const permData = await permRes.json();
-        const fields = permData.data?.fields || permData.fields || [];
-        setPermissions({ fields });
+        const payload = permData.data || permData;
+        const fields = payload.fields || [];
+        const configs = payload.configs || {};
+        setPermissions({ fields, configs });
 
         // --- 2. Operations on User ---
         const checkOp = async (operation, model) => {
@@ -1110,95 +1356,6 @@ export default function ProfilePage({ user }) {
 
   const visibleFields = permissions?.fields || [];
   const isVisible = (fieldName) => visibleFields.includes(fieldName);
-
-  const essentialFields = [
-    // Identity
-    { key: 'nomArabe', label: 'الاسم', isArabic: true, icon: <User className="w-4 h-4" /> },
-    { key: 'prenomArabe', label: 'اللقب', isArabic: true, icon: <User className="w-4 h-4" /> },
-    { key: 'name', label: 'Nom', isArabic: false, icon: <User className="w-4 h-4" /> },
-    { key: 'lastname', label: 'Prénom', isArabic: false, icon: <User className="w-4 h-4" /> },
-    { key: 'email', label: 'Email', isArabic: false, icon: <Mail className="w-4 h-4" /> },
-    { key: 'emailPro', label: 'Email Pro', isArabic: false, icon: <Mail className="w-4 h-4" /> },
-    { key: 'phone', label: 'Téléphone', isArabic: false, icon: <Phone className="w-4 h-4" /> },
-    { key: 'fixe', label: 'Fixe', isArabic: false, icon: <Phone className="w-4 h-4" /> },
-    { key: 'fax', label: 'Fax', isArabic: false, icon: <Phone className="w-4 h-4" /> },
-    { key: 'sexe', label: 'Sexe', isArabic: false, icon: <Users className="w-4 h-4" /> },
-    { key: 'dateOfBirth', label: 'Date de naissance', isArabic: false, icon: <Calendar className="w-4 h-4" /> },
-    { key: 'lieuNaissance', label: 'Lieu de naissance', isArabic: false, icon: <MapPin className="w-4 h-4" /> },
-    { key: 'enfants', label: 'Enfants', isArabic: false, icon: <Users className="w-4 h-4" /> },
-
-    // Family
-    { key: 'prenomPere', label: 'Prénom du père', isArabic: false, icon: <Users className="w-4 h-4" /> },
-    { key: 'prenomPereArabe', label: 'Prénom du père (arabe)', isArabic: true, icon: <Users className="w-4 h-4" /> },
-    { key: 'nomPrenomMere', label: 'Nom et prénom de la mère', isArabic: false, icon: <Users className="w-4 h-4" /> },
-    { key: 'nomPrenomMereArabe', label: 'Nom et prénom de la mère (arabe)', isArabic: true, icon: <Users className="w-4 h-4" /> },
-    { key: 'maritalStatus', label: 'Situation familiale', isArabic: false, icon: <Users className="w-4 h-4" /> },
-    { key: 'nationality', label: 'Nationalité', isArabic: false, icon: <Globe className="w-4 h-4" /> },
-    { key: 'serviceNationalStatus', label: 'Service national', isArabic: false, icon: <Shield className="w-4 h-4" /> },
-
-    // Professional
-    { key: 'profession', label: 'Profession', isArabic: false, icon: <Briefcase className="w-4 h-4" /> },
-    { key: 'specialty', label: 'Spécialité', isArabic: false, icon: <Award className="w-4 h-4" /> },
-    { key: 'registrationNumber', label: "N° d'inscription", isArabic: false, icon: <BookOpen className="w-4 h-4" /> },
-    { key: 'nif', label: 'NIF', isArabic: false, icon: <FileText className="w-4 h-4" /> },
-    { key: 'cachet', label: 'Cachet', isArabic: false, icon: <FileText className="w-4 h-4" /> },
-    { key: 'gps', label: 'Coordonnées GPS', isArabic: false, icon: <MapPin className="w-4 h-4" /> },
-    { key: 'professionalMode', label: "Mode d'exercice", isArabic: false, icon: <Briefcase className="w-4 h-4" /> },
-    { key: 'activityStartDate', label: 'Date de début d\'activité', isArabic: false, icon: <Calendar className="w-4 h-4" /> },
-    { key: 'startDate', label: 'Date de début de cotisation', isArabic: false, icon: <Calendar className="w-4 h-4" /> },
-    { key: 'installationDate', label: 'Date d\'installation', isArabic: false, icon: <Calendar className="w-4 h-4" /> },
-    { key: 'recruitmentDate', label: 'Date de recrutement', isArabic: false, icon: <Calendar className="w-4 h-4" /> },
-    { key: 'numeroActeNaissance', label: 'N° acte de naissance', isArabic: false, icon: <FileText className="w-4 h-4" /> },
-    { key: 'nin', label: 'NIN (Identité nationale)', isArabic: false, icon: <FileText className="w-4 h-4" /> },
-
-    // Address
-    { key: 'wilaya', label: 'CLOA / Wilaya', isArabic: false, icon: <MapPin className="w-4 h-4" /> },
-    { key: 'commune', label: 'Commune', isArabic: false, icon: <Home className="w-4 h-4" /> },
-    { key: 'region', label: 'Région', isArabic: false, icon: <MapPin className="w-4 h-4" /> },
-    { key: 'adressePersonnelle', label: 'Adresse personnelle', isArabic: false, icon: <Home className="w-4 h-4" /> },
-    { key: 'adressePersonnelleArabe', label: 'Adresse pers. (arabe)', isArabic: true, icon: <Home className="w-4 h-4" /> },
-    { key: 'adressePro', label: 'Adresse professionnelle', isArabic: false, icon: <Building className="w-4 h-4" /> },
-    { key: 'adresseProArabe', label: 'Adresse pro. (arabe)', isArabic: true, icon: <Building className="w-4 h-4" /> },
-
-    // CNOA
-    { key: 'oathLocation', label: 'Lieu du serment', isArabic: false, icon: <MapPin className="w-4 h-4" /> },
-    { key: 'oathDate', label: 'Date du serment', isArabic: false, icon: <Calendar className="w-4 h-4" /> },
-    { key: 'diplomaType', label: 'Type de diplôme', isArabic: false, icon: <Award className="w-4 h-4" /> },
-    { key: 'sessionClassique', label: 'Session classique', isArabic: false, icon: <Award className="w-4 h-4" /> },
-    { key: 'anneeClassique', label: 'Année classique', isArabic: false, icon: <Award className="w-4 h-4" /> },
-    { key: 'universiteClassique', label: 'Université classique', isArabic: false, icon: <Award className="w-4 h-4" /> },
-    { key: 'sessionLMDL', label: 'Session LMD (Licence)', isArabic: false, icon: <Award className="w-4 h-4" /> },
-    { key: 'anneeLMDL', label: 'Année LMD (Licence)', isArabic: false, icon: <Award className="w-4 h-4" /> },
-    { key: 'universiteLMDL', label: 'Université LMD (Licence)', isArabic: false, icon: <Award className="w-4 h-4" /> },
-    { key: 'sessionLMDM', label: 'Session LMD (Master)', isArabic: false, icon: <Award className="w-4 h-4" /> },
-    { key: 'anneeLMDM', label: 'Année LMD (Master)', isArabic: false, icon: <Award className="w-4 h-4" /> },
-    { key: 'universiteLMDM', label: 'Université LMD (Master)', isArabic: false, icon: <Award className="w-4 h-4" /> },
-    { key: 'otherDiplomas', label: 'Autres diplômes', isArabic: false, icon: <FileText className="w-4 h-4" /> },
-    { key: 'otherTrainings', label: 'Autres formations', isArabic: false, icon: <FileText className="w-4 h-4" /> },
-    { key: 'moyensHumains', label: 'Moyens humains', isArabic: false, icon: <Users className="w-4 h-4" /> },
-    { key: 'benefitStateAid', label: 'Aide d\'État', isArabic: false, icon: <CheckCircle className="w-4 h-4" /> },
-    { key: 'isAccredited', label: 'Architecte agréé', isArabic: false, icon: <CheckCircle className="w-4 h-4" /> },
-    { key: 'lastAgreementDate', label: 'Date dernier agrément', isArabic: false, icon: <Calendar className="w-4 h-4" /> },
-    { key: 'lastAgreementFileId', label: 'ID fichier agrément', isArabic: false, icon: <FileText className="w-4 h-4" /> },
-    { key: 'paymentReceipts', label: 'Reçus de paiement', isArabic: false, icon: <FileText className="w-4 h-4" /> },
-    { key: 'isLateForYear', label: 'Année de retard', isArabic: false, icon: <Calendar className="w-4 h-4" /> },
-    { key: 'latePenalties', label: 'Pénalités de retard', isArabic: false, icon: <FileText className="w-4 h-4" /> },
-    { key: 'registrationStatus', label: "Statut d'inscription", isArabic: false, icon: <CheckCircle className="w-4 h-4" /> },
-    { key: 'registrationDate', label: "Date d'inscription", isArabic: false, icon: <Calendar className="w-4 h-4" /> },
-
-    // Security (only visible to admins/super_admin)
-    { key: 'role', label: 'Rôle', isArabic: false, icon: <Crown className="w-4 h-4" /> },
-    { key: 'status', label: 'Statut', isArabic: false, icon: <BadgeCheck className="w-4 h-4" /> },
-    { key: 'credit', label: 'Crédit (DA)', isArabic: false, icon: <Wallet className="w-4 h-4" /> },
-    { key: 'isVerified', label: 'Vérifié', isArabic: false, icon: <CheckCircle className="w-4 h-4" /> },
-    { key: 'isAdminVerified', label: 'Validé par admin', isArabic: false, icon: <CheckCircle className="w-4 h-4" /> },
-    { key: 'isActive', label: 'Actif', isArabic: false, icon: <CheckCircle className="w-4 h-4" /> },
-    { key: 'loginAttempts', label: 'Tentatives de connexion', isArabic: false, icon: <AlertCircle className="w-4 h-4" /> },
-    { key: 'lastLogin', label: 'Dernière connexion', isArabic: false, icon: <Calendar className="w-4 h-4" /> },
-    { key: 'lastActivity', label: 'Dernière activité', isArabic: false, icon: <Calendar className="w-4 h-4" /> },
-    { key: 'createdAt', label: 'Créé le', isArabic: false, icon: <Calendar className="w-4 h-4" /> },
-    { key: 'updatedAt', label: 'Mis à jour le', isArabic: false, icon: <Calendar className="w-4 h-4" /> },
-  ];
 
   const formatValue = (value) => {
     if (value === null || value === undefined) return '-';
@@ -1342,7 +1499,7 @@ export default function ProfilePage({ user }) {
         <MoreVertical className="w-5 h-5" />
       </button>
       {menuOpen && (
-        <div className="absolute right-0 mt-2 w-48 bg-[#182233] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-20 py-1 divide-y divide-white/5">
+        <div className="absolute right-0 mt-48 w-48 bg-[#182233] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-20 py-1 divide-y divide-white/5">
           <div className="py-1">
             <button
               onClick={() => { setMenuOpen(false); setTransactionType('deposit'); setShowTransactionModal(true); }}
@@ -1368,22 +1525,6 @@ export default function ProfilePage({ user }) {
             >
               <Award className="w-4 h-4 text-amber-400" /> Agrément
             </button>
-          </div>
-          <div className="py-1">
-            <button
-              onClick={() => { setMenuOpen(false); handleEditUser(); }}
-              className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
-            >
-              <Edit className="w-4 h-4 text-slate-400" /> Modifier
-            </button>
-            {!displayUser?.isAdminVerified && isAdmin && (
-              <button
-                onClick={() => { setMenuOpen(false); handleValidateUser(); }}
-                className="w-full px-4 py-2 text-left text-sm text-emerald-400 hover:bg-white/5 flex items-center gap-2.5 transition-colors"
-              >
-                <CheckCircle className="w-4 h-4" /> Valider
-              </button>
-            )}
           </div>
         </div>
       )}
@@ -1421,30 +1562,7 @@ export default function ProfilePage({ user }) {
                   <h2 className="text-lg font-semibold text-white mb-6 flex items-center gap-3">
                     <User className="w-5 h-5 text-emerald-400" /> Informations personnelles
                   </h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {essentialFields.map((field) => {
-                      if (!isVisible(field.key)) return null;
-                      const value = displayUser?.[field.key];
-                      if (value === undefined || value === null || value === '') return null;
-                      let displayValue = field.key === 'sexe' ? getSexeLabel(value) : formatValue(value);
-                      return (
-                        <div key={field.key} className="border-b border-white/5 pb-2 last:border-0">
-                          <p className="text-xs text-[#64748B] uppercase tracking-wider flex items-center gap-1.5">
-                            {field.icon} {field.label}
-                          </p>
-                          <p className={`text-[#F8FAFC] font-medium ${field.isArabic ? 'font-arabic text-right' : ''}`}>
-                            {displayValue}
-                          </p>
-                        </div>
-                      );
-                    })}
-                    {essentialFields.every(f => !isVisible(f.key) || !displayUser?.[f.key]) && (
-                      <div className="col-span-full flex flex-col items-center gap-2 py-8 text-[#64748B]">
-                        <User className="w-8 h-8" />
-                        <p className="text-sm">Aucune information disponible</p>
-                      </div>
-                    )}
-                  </div>
+                  <InfoTabContent displayUser={displayUser} permissions={permissions} />
                 </div>
               )}
 
@@ -1471,7 +1589,7 @@ export default function ProfilePage({ user }) {
                           canPreview={true}
                         />
                       ))}
-                    {canCreateFile && <AddFileCard onUpload={handleUpload} />}
+                    {/* {canCreateFile && <AddFileCard onUpload={handleUpload} />} */}
                   </div>
                   {files.filter(file => file.folder !== "profile").length === 0 && !canCreateFile && (
                     <div className="flex flex-col items-center gap-2 py-8 text-[#64748B]">
@@ -2061,6 +2179,12 @@ export default function ProfilePage({ user }) {
           setIsDeclarationModalOpen(false);
           setSelectedDeclarationRequestId(null);
         }}
+        // 🟢 [MODIFICATION] Permet de basculer directement sur l'onglet 'Validation' depuis le modal en cas de doublon
+        onGoToValidations={() => {
+          setIsDeclarationModalOpen(false);
+          setSelectedDeclarationRequestId(null);
+          setActiveTab('validation');
+        }}
         targetUserId={targetUserId}
         authToken={authData?.token}
         onSuccess={handleDeclarationSuccess}
@@ -2068,6 +2192,8 @@ export default function ProfilePage({ user }) {
         existingRequestId={selectedDeclarationRequestId}
         user={displayUser}
         initialNin={displayUser?.nin}
+        // 🟢 [MODIFICATION] Fournit la liste des demandes pour détecter les démarches déjà en cours
+        validationRequests={validationRequests}
       />
 
       {/* ─── PDF Preview Modal ────────────────────────────────────────────── */}

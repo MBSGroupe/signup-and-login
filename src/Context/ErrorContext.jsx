@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
-import MessagePopup from '../Components/Popus/ErrorPopus'
+import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
+import MessagePopup from '../Components/Popus/ErrorPopus';
+
 const ErrorContext = createContext(undefined);
 
 export const useError = () => {
@@ -9,54 +10,81 @@ export const useError = () => {
 };
 
 export const ErrorProvider = ({ children }) => {
-  const [messages, setMessages] = useState([]);
+  // Single message at a time. New calls replace the current one.
+  const [message, setMessage] = useState(null);
+  const timeoutRef = useRef(null);
 
-  const showMessage = useCallback((message, type = 'error', duration = 5000) => {
-    const id = Date.now().toString() + Math.random().toString(36);
-    setMessages(prev => [...prev, { id, message, type, duration }]);
+  const clearTimer = () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+  };
+
+  const showMessage = useCallback((text, type = 'error', duration = 5000) => {
+    clearTimer();
+
+    // Same text + same type currently showing? Do nothing. Prevents a burst
+    // of identical calls (e.g. parallel fetches failing) from flashing.
+    setMessage((prev) => {
+      if (prev && prev.message === text && prev.type === type) {
+        return prev;
+      }
+      return { id: Date.now().toString(), message: text, type, duration };
+    });
 
     if (duration > 0) {
-      setTimeout(() => {
-        setMessages(prev => prev.filter(msg => msg.id !== id));
+      timeoutRef.current = setTimeout(() => {
+        setMessage(null);
+        timeoutRef.current = null;
       }, duration);
     }
   }, []);
 
-  const showError = useCallback((message, duration = 5000) => {
-    showMessage(message, 'error', duration);
+  const showError = useCallback((text, duration = 5000) => {
+    showMessage(text, 'error', duration);
   }, [showMessage]);
 
-  const showWarning = useCallback((message, duration = 5000) => {
-    showMessage(message, 'warning', duration);
+  const showWarning = useCallback((text, duration = 5000) => {
+    showMessage(text, 'warning', duration);
   }, [showMessage]);
 
-  const showSuccess = useCallback((message, duration = 3000) => {
-    showMessage(message, 'success', duration);
+  const showSuccess = useCallback((text, duration = 3000) => {
+    showMessage(text, 'success', duration);
   }, [showMessage]);
 
-  const showInfo = useCallback((message, duration = 4000) => {
-    showMessage(message, 'info', duration);
+  const showInfo = useCallback((text, duration = 4000) => {
+    showMessage(text, 'info', duration);
   }, [showMessage]);
 
-  const removeMessage = useCallback((id) => {
-    setMessages(prev => prev.filter(msg => msg.id !== id));
+  const removeMessage = useCallback(() => {
+    clearTimer();
+    setMessage(null);
   }, []);
 
   const clearMessages = useCallback(() => {
-    setMessages([]);
+    clearTimer();
+    setMessage(null);
   }, []);
 
+  // Cleanup on unmount
+  useEffect(() => () => clearTimer(), []);
+
+  // Expose `messages` as an array (single-element or empty) so existing
+  // consumers that read `messages` still work without a rewrite.
+  const messages = message ? [message] : [];
+
   return (
-    <ErrorContext.Provider value={{ 
-      messages, 
-      showError, 
-      showWarning, 
-      showSuccess, 
+    <ErrorContext.Provider value={{
+      messages,
+      showError,
+      showWarning,
+      showSuccess,
       showInfo,
-      removeMessage, 
-      clearMessages 
+      removeMessage,
+      clearMessages,
     }}>
-    <MessagePopup /> 
+      <MessagePopup />
       {children}
     </ErrorContext.Provider>
   );

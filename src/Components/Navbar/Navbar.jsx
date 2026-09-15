@@ -5,13 +5,23 @@ import { logoutContext } from "../../Context/logoutContext";
 import NotificationBell from "../NotificationBell/NotificationBell";
 import AVATAR from '../../assets/ChatGPT Image Jul 13, 2026, 03_44_20 PM.png';
 import Title from '../Title';
+import { fetchWithRefresh } from "../api";
+
+const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
 export default function Navbar() {
-  const { authData } = useContext(UserContext);
+  const { authData, setAuthData } = useContext(UserContext);
   const { handleLogout } = useContext(logoutContext);
   const navigate = useNavigate();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef();
+
+  // Permission flags for items in the navbar.
+  // Default to true so links render until the check returns; failure
+  // just hides them for the remainder of the session.
+  const [permissions, setPermissions] = useState({
+    canUpdateUser: true,
+  });
 
   const user = authData.user;
   const id = user?._id || user?.id;
@@ -27,6 +37,35 @@ export default function Navbar() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    const checkUpdateUserPermission = async () => {
+      if (!authData?.token || !id) return;
+      try {
+        const res = await fetchWithRefresh(
+          `${NEST_API_URL}/permissions/${id}/check-operation`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ operation: 'update', model: 'User' }),
+          },
+          authData.token,
+          setAuthData
+        );
+        if (!res.ok) {
+          setPermissions({ canUpdateUser: false });
+          return;
+        }
+        const data = await res.json();
+        const canPerform = data?.data?.canPerform ?? data?.canPerform ?? false;
+        setPermissions({ canUpdateUser: !!canPerform });
+      } catch (err) {
+        console.error('Navbar permission check failed:', err);
+        // Leave defaults in place on network failure — do not hide the UI.
+      }
+    };
+    checkUpdateUserPermission();
+  }, [authData?.token, id, setAuthData]);
 
   return (
     <nav className="bg-[#111827] border-b border-white/5 shadow-sm sticky top-0 z-50">
@@ -71,24 +110,30 @@ export default function Navbar() {
 
               {dropdownOpen && (
                 <div className="absolute right-0 mt-2 w-56 bg-[#182233] border border-white/10 rounded-xl shadow-2xl py-1 z-50">
-                  <button
-                    onClick={() => { navigate(`/auth/update/${id}`); setDropdownOpen(false); }}
-                    className="block w-full text-left px-4 py-2.5 text-sm text-[#F8FAFC] hover:bg-[#22C55E]/10 hover:text-[#22C55E] transition-colors"
-                  >
-                    Modifier Le profile
-                  </button>
-                  <button
-                    onClick={() => { navigate("/auth/change-password"); setDropdownOpen(false); }}
-                    className="block w-full text-left px-4 py-2.5 text-sm text-[#F8FAFC] hover:bg-[#22C55E]/10 hover:text-[#22C55E] transition-colors"
-                  >
-                    Changer le mot de passe
-                  </button>
-                  <button
-                    onClick={() => { navigate("/auth/preferences"); setDropdownOpen(false); }}
-                    className="block w-full text-left px-4 py-2.5 text-sm text-[#F8FAFC] hover:bg-[#22C55E]/10 hover:text-[#22C55E] transition-colors"
-                  >
-                    Préférences
-                  </button>
+                  {permissions.canUpdateUser && (
+                    <button
+                      onClick={() => { navigate(`/auth/update/${id}`); setDropdownOpen(false); }}
+                      className="block w-full text-left px-4 py-2.5 text-sm text-[#F8FAFC] hover:bg-[#22C55E]/10 hover:text-[#22C55E] transition-colors"
+                    >
+                      Modifier Le profile
+                    </button>
+                  )}
+                  {permissions.canUpdateUser && (
+                    <button
+                      onClick={() => { navigate("/auth/change-password"); setDropdownOpen(false); }}
+                      className="block w-full text-left px-4 py-2.5 text-sm text-[#F8FAFC] hover:bg-[#22C55E]/10 hover:text-[#22C55E] transition-colors"
+                    >
+                      Changer le mot de passe
+                    </button>
+                  )}
+                  {permissions.canUpdateUser && (
+                    <button
+                      onClick={() => { navigate("/auth/preferences"); setDropdownOpen(false); }}
+                      className="block w-full text-left px-4 py-2.5 text-sm text-[#F8FAFC] hover:bg-[#22C55E]/10 hover:text-[#22C55E] transition-colors"
+                    >
+                      Préférences
+                    </button>
+                  )}
                   <div className="border-t border-white/5 my-1"></div>
                   <button
                     onClick={() => { handleLogout(); setDropdownOpen(false); }}
@@ -110,4 +155,4 @@ export default function Navbar() {
       </div>
     </nav>
   );
-} 
+}

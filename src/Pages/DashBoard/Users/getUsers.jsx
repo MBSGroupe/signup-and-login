@@ -38,7 +38,7 @@ const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 //  Static lists for filter dropdowns
 // ─────────────────────────────────────────────────
 const SEXE_OPTIONS = ['M', 'F'];
-const CIVILITY_OPTIONS = ['Mr', 'Mme', 'Mlle'];
+
 const MARITAL_STATUS_OPTIONS = ['Célibataire', 'Marié(e)', 'Divorcé(e)', 'Veuf(ve)'];
 const DIPLOMA_TYPE_OPTIONS = ['Classique', 'LMD'];
 const REGISTRATION_STATUS_OPTIONS = ['Inscrit', 'Radié', 'Suspendu'];
@@ -107,13 +107,15 @@ export default function GetUsers({ mode }) {
         params.append('mode', mode);
       }
       
-      if (keyWord) params.append('search', keyWord);
+      if (keyWord && keyWord.trim()) params.append('search', keyWord.trim());
+      // Civilité is an alias for sexe: Mr → M, Mme/Mlle → F
+      if (selectedCivility !== 'all') params.append('sexe', selectedCivility);
       if (selectedSexe !== 'all') params.append('sexe', selectedSexe);
       if (selectedWilaya !== 'all') params.append('wilaya', selectedWilaya);
       if (selectedProfession !== 'all') params.append('profession', selectedProfession);
+      // CLOA d'installation is stored in the `region` column
       if (selectedRegion !== 'all') params.append('region', selectedRegion);
       if (selectedStatus !== 'all') params.append('status', selectedStatus);
-      if (selectedCivility !== 'all') params.append('civility', selectedCivility);
       if (selectedMaritalStatus !== 'all') params.append('maritalStatus', selectedMaritalStatus);
       if (selectedDiplomaType !== 'all') params.append('diplomaType', selectedDiplomaType);
       if (selectedRegistrationStatus !== 'all') params.append('registrationStatus', selectedRegistrationStatus);
@@ -127,7 +129,16 @@ export default function GetUsers({ mode }) {
         setAuthData
       );
       
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      if (!response.ok) {
+        let errBody = {};
+        try { errBody = await response.json(); } catch {}
+        showError(errBody.message || `Échec du chargement (${response.status})`);
+        setDisplayedUsers([]);
+        setTotalUsers(0);
+        setTotalPages(0);
+        setIsLoading(false);
+        return;
+      }
       
       const results = await response.json();
       
@@ -482,18 +493,18 @@ export default function GetUsers({ mode }) {
                 </div>
               )}
 
-              {/* Wilaya (CLOA) */}
+              {/* CLOA d'installation – stored in the `region` column */}
               {wilayasData.length > 0 && (
                 <div>
-                  <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">CLOA</label>
+                  <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">CLOA d'installation</label>
                   <select
-                    value={selectedWilaya}
-                    onChange={(e) => { setSelectedWilaya(e.target.value); setCurrentPage(1); }}
+                    value={selectedRegion}
+                    onChange={(e) => { setSelectedRegion(e.target.value); setCurrentPage(1); }}
                     className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500"
                   >
                     <option value="all">Toutes les CLOA</option>
                     {wilayasData.map(w => (
-                      <option key={w.code} value={w.code}>
+                      <option key={w.code} value={`${w.code} - ${w.name}`}>
                         {w.code} - {w.name}
                       </option>
                     ))}
@@ -505,22 +516,6 @@ export default function GetUsers({ mode }) {
               {/* Keeping dynamic for profession (unchanged) */}
               {/* ... same for region ... */}
 
-              {/* Civility */}
-              {CIVILITY_OPTIONS.length > 0 && (
-                <div>
-                  <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Civilité</label>
-                  <select
-                    value={selectedCivility}
-                    onChange={(e) => { setSelectedCivility(e.target.value); setCurrentPage(1); }}
-                    className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                  >
-                    <option value="all">Toutes les civilités</option>
-                    {CIVILITY_OPTIONS.map(c => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
 
               {/* Marital Status */}
               {MARITAL_STATUS_OPTIONS.length > 0 && (
