@@ -104,7 +104,7 @@ export default function ResetPassword() {
 
       if (response.ok && (data?.success ?? true)) {
         setSuccess(true);
-        setTimeout(() => navigate("/"), 2000);
+        setTimeout(() => navigate("/?reason=password-reset"), 2000);
         return;
       }
 

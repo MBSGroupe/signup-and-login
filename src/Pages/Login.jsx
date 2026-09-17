@@ -12,9 +12,47 @@ const LoginForm = () => {
   const [searchParams] = useSearchParams();
   const isVerified = searchParams.get("verified") === "true";
 
-  const [message, setMessage] = useState(
-    isVerified ? "✅ Votre email a été vérifié avec succès ! Veuillez vous connecter à votre compte." : ""
-  );
+    const VERIFIED_MESSAGE = "✅ Votre email a été vérifié avec succès ! Veuillez vous connecter à votre compte.";
+
+const REASON_MESSAGES = {
+  // User actions that require re-authentication
+  'password-changed': "Votre mot de passe a été modifié. Veuillez vous reconnecter avec vos nouveaux identifiants.",
+  'password-reset': "Votre mot de passe a été réinitialisé. Veuillez vous reconnecter.",
+  'logged-out': "Vous avez été déconnecté. À bientôt !",
+
+  // Session/auth failures that land the user back on login
+  'session-expired': "Votre session a expiré. Veuillez vous reconnecter.",
+  'session-revoked': "Votre session a été révoquée. Veuillez vous reconnecter.",
+  'session-not-found': "Session introuvable. Veuillez vous reconnecter.",
+  'session-invalid': "Session invalide. Veuillez vous reconnecter.",
+
+  // Password recovery flows
+  'reset-link-sent': "Un lien de réinitialisation a été envoyé à votre adresse email.",
+  'reset-link-expired': "Le lien de réinitialisation a expiré. Veuillez en demander un nouveau.",
+  'reset-link-invalid': "Lien de réinitialisation invalide.",
+
+  // Account state
+  'account-inactive': "Votre compte n'est pas actif. Veuillez contacter un administrateur.",
+  'account-locked': "Votre compte est temporairement bloqué. Veuillez réessayer plus tard.",
+
+  // Signup / verification
+  'email-verified': VERIFIED_MESSAGE,
+  'verify-email-resent': "Un nouvel email de vérification a été envoyé.",
+};
+
+const [message, setMessage] = useState(() => {
+  // Prefer explicit `reason`, fall back to legacy `?verified=true`
+  const reason = searchParams.get("reason");
+  if (reason && REASON_MESSAGES[reason]) {
+    return REASON_MESSAGES[reason];
+  }
+  if (searchParams.get("verified") === "true") {
+    return VERIFIED_MESSAGE;
+  }
+  return "";
+});
+
+
   const [formData, setFormData] = useState({
     email: "",
     password: "",

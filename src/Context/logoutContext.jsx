@@ -26,7 +26,7 @@ export default function LogoutProvider({ children }) {
       } finally {
         // Always clear local session and redirect
         logout();
-        navigate("/");
+        navigate("/?reason=logged-out");
       }
     };
 

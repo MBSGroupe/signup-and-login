@@ -1,4 +1,5 @@
 import { useContext, useEffect, useState, useRef } from "react";
+import { createPortal } from "react-dom";
 import { UserDataContext } from '../../../Context/userDataCont';
 import { UserContext } from '../../../Context/dataCont';
 import { useError } from '../../../Context/ErrorContext';
@@ -29,7 +30,7 @@ import { fetchWithRefresh } from '../../../Components/api';
 import UserDetailsModal from '../../../Components/Modals/userDetailsModal';
 import PDFPreviewModal from '../../../Components/Modals/pdfPreviexModal';
 import { useNavigate } from 'react-router-dom';
-import wilayasData from '../../../assets/data/wilayas.json';   // static Wilaya list
+import wilayasData from '../../../assets/data/wilayas.json';
 
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
@@ -45,6 +46,8 @@ const REGISTRATION_STATUS_OPTIONS = ['Inscrit', 'Radié', 'Suspendu'];
 const PROFESSIONAL_MODE_OPTIONS = ['Libéral', 'Associé', 'Salarié'];
 const SERVICE_NATIONAL_OPTIONS = ['Ayant effectué', 'Exempté', 'En cours', 'Non concerné'];
 const STATUS_OPTIONS = ['pending', 'active', 'suspended', 'archived'];
+
+const MENU_WIDTH = 224; // w-56 = 14rem = 224px
 
 export default function GetUsers({ mode }) {
   const { data, setData } = useContext(UserDataContext);
@@ -79,7 +82,9 @@ export default function GetUsers({ mode }) {
   const [showFilters, setShowFilters] = useState(false);
   const [displayedUsers, setDisplayedUsers] = useState([]);
   const [openMenuId, setOpenMenuId] = useState(null);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
   const menuRefs = useRef({});
+  const menuButtonRefs = useRef({});
 
   // PDF Preview state
   const [pdfPreview, setPdfPreview] = useState({
@@ -174,13 +179,31 @@ export default function GetUsers({ mode }) {
     const handleClickOutside = (event) => {
       if (openMenuId !== null) {
         const menuElement = menuRefs.current[openMenuId];
-        if (menuElement && !menuElement.contains(event.target)) {
+        const buttonElement = menuButtonRefs.current[openMenuId];
+        const clickedInsideMenu = menuElement && menuElement.contains(event.target);
+        const clickedInsideButton = buttonElement && buttonElement.contains(event.target);
+        if (!clickedInsideMenu && !clickedInsideButton) {
           setOpenMenuId(null);
         }
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [openMenuId]);
+
+  // Close menu on scroll / resize / escape so a fixed-position menu never drifts
+  useEffect(() => {
+    if (openMenuId === null) return;
+    const close = () => setOpenMenuId(null);
+    const onKey = (e) => { if (e.key === 'Escape') setOpenMenuId(null); };
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+      document.removeEventListener('keydown', onKey);
+    };
   }, [openMenuId]);
 
   // Fetch on dependency changes
@@ -209,6 +232,33 @@ export default function GetUsers({ mode }) {
     mode
   ]);
 
+
+  // Returns true if the current viewer can perform `operation` on the target user.
+  // Falls back to permissive on network / server errors: the click will still be
+  // rejected by the backend if the caller truly lacks the permission.
+  const checkOperation = async (targetUserId, operation, model = 'User') => {
+    try {
+      const res = await fetchWithRefresh(
+        `${NEST_API_URL}/permissions/${targetUserId}/check-operation`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ operation, model }),
+        },
+        authData.token,
+        setAuthData,
+      );
+
+      if (!res.ok) return true;
+      const body = await res.json();
+      const canPerform = body?.data?.canPerform ?? body?.canPerform;
+      return canPerform !== false;
+    } catch (err) {
+      console.error('Permission check failed:', err);
+      return true;
+    }
+  };
+
   const handleUserClick = (user) => {
     setSelectedUser(user);
     setIsModalOpen(true);
@@ -221,22 +271,68 @@ export default function GetUsers({ mode }) {
 
   const toggleMenu = (userId, event) => {
     event.stopPropagation();
-    setOpenMenuId(openMenuId === userId ? null : userId);
+    if (openMenuId === userId) {
+      setOpenMenuId(null);
+      return;
+    }
+
+    const rect = event.currentTarget.getBoundingClientRect();
+
+    // Prefer aligning menu's right edge with button's right edge.
+    // If that would push the menu off the right of the viewport, clamp.
+    let left = rect.right - MENU_WIDTH;
+    if (left < 8) left = 8;
+    if (left + MENU_WIDTH > window.innerWidth - 8) {
+      left = window.innerWidth - MENU_WIDTH - 8;
+    }
+
+    setMenuPosition({ top: rect.bottom + 4, left });
+    setOpenMenuId(userId);
   };
 
-  const handleEditUser = (user) => {
+  const requirePermission = async (user, operation, deniedMessage) => {
+    const allowed = await checkOperation(user.id, operation);
+    if (allowed) return true;
+
+    await alert({
+      title: "Action non autorisée",
+      message: deniedMessage,
+    });
+    return false;
+  };
+
+  const handleEditUser = async (user) => {
     setOpenMenuId(null);
+    const ok = await requirePermission(
+      user,
+      'update',
+      "Vous n'avez pas la permission de modifier cet utilisateur.",
+    );
+    if (!ok) return;
     navigate(`/auth/update/${user.id}`);
   };
 
-  const handleViewDetails = (user) => {
+  const handleViewDetails = async (user) => {
     setOpenMenuId(null);
+    const ok = await requirePermission(
+      user,
+      'read',
+      "Vous n'avez pas la permission de consulter les détails de cet utilisateur.",
+    );
+    if (!ok) return;
     handleUserClick(user);
   };
 
   const handlePrintSituation = async (user) => {
     setOpenMenuId(null);
-    
+
+    const ok = await requirePermission(
+      user,
+      'read',
+      "Vous n'avez pas la permission de générer la situation de cet utilisateur.",
+    );
+    if (!ok) return;
+
     try {
       const response = await fetchWithRefresh(
         `${NEST_API_URL}/pdf/preview/situation`,
@@ -278,42 +374,59 @@ export default function GetUsers({ mode }) {
     }
   };
 
-
   const handleDeleteUser = async (user) => {
     setOpenMenuId(null);
-    
+
+    const ok = await requirePermission(
+      user,
+      'delete',
+      "Vous n'avez pas la permission de supprimer cet utilisateur.",
+    );
+    if (!ok) return;
+
     const confirmed = await confirm({
       title: 'Delete User',
-      message: `Are you sure you want to delete ${user.name} ${user.lastname}? This action cannot be undone.`
+      message: `Are you sure you want to delete ${user.name} ${user.lastname}? This action cannot be undone.`,
     });
 
-    if (confirmed) {
-      try {
-        const response = await fetchWithRefresh(
-          `${NEST_API_URL}/users/${user.id}`,
-          { method: 'DELETE' },
-          authData.token,
-          setAuthData
-        );
-        
-        const data = await response.json();
+    if (!confirmed) return;
 
-        if (!response.ok) {
-          showError(data.message || 'Failed to delete user');
-          return;
-        }
+    try {
+      const response = await fetchWithRefresh(
+        `${NEST_API_URL}/users/${user.id}`,
+        { method: 'DELETE' },
+        authData.token,
+        setAuthData
+      );
 
-        if (data.success) {
-          showSuccess('User deleted successfully!');
-          fetchUsers();
-        } else {
-          showWarning(data.message || 'Failed to delete user');
-        }
-      } catch (error) {
-        console.error('Error deleting user:', error);
-        showError('Network error. Please check your connection.');
+      const data = await response.json();
+
+      if (!response.ok) {
+        showError(data.message || 'Failed to delete user');
+        return;
       }
+
+      if (data.success) {
+        showSuccess('User deleted successfully!');
+        fetchUsers();
+      } else {
+        showWarning(data.message || 'Failed to delete user');
+      }
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      showError('Network error. Please check your connection.');
     }
+  };
+
+  const handleViewFullProfile = async (user) => {
+    setOpenMenuId(null);
+    const ok = await requirePermission(
+      user,
+      'read',
+      "Vous n'avez pas la permission d'accéder à ce profil.",
+    );
+    if (!ok) return;
+    navigate(`/dash/adminUser/${user.id}`);
   };
 
   const titleText = mode === "membres" ? "Gestion des Membres" : "Gestion des Utilisateurs (Admin)";
@@ -381,6 +494,65 @@ export default function GetUsers({ mode }) {
     showSuccess('Export feature coming soon');
   };
 
+  // ─── The dropdown menu (rendered via portal to escape table overflow) ────
+  const renderRowMenu = (user) => {
+    if (openMenuId !== user.id) return null;
+
+    return createPortal(
+      <div
+        ref={(el) => { menuRefs.current[user.id] = el; }}
+        style={{
+          position: 'fixed',
+          top: menuPosition.top,
+          left: menuPosition.left,
+          width: MENU_WIDTH,
+          zIndex: 9999,
+        }}
+        className="bg-[#182233] border border-[rgba(255,255,255,0.06)] rounded-xl shadow-2xl py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-100"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={() => handleViewDetails(user)}
+          className="w-full px-4 py-2.5 text-left text-[#F8FAFC] hover:bg-[#1F2937] transition-colors flex items-center gap-3 text-sm"
+        >
+          <Eye className="w-4 h-4 text-[#64748B]" />
+          Détails
+        </button>
+        <button
+          onClick={() => handleEditUser(user)}
+          className="w-full px-4 py-2.5 text-left text-[#F8FAFC] hover:bg-[#1F2937] transition-colors flex items-center gap-3 text-sm"
+        >
+          <Edit className="w-4 h-4 text-[#64748B]" />
+          Modifier
+        </button>
+        <div className="border-t border-[rgba(255,255,255,0.06)] my-1"></div>
+        {/* <button
+          onClick={() => handlePrintSituation(user)}
+          className="w-full px-4 py-2.5 text-left text-[#F8FAFC] hover:bg-[#1F2937] transition-colors flex items-center gap-3 text-sm"
+        >
+          <FileText className="w-4 h-4 text-[#64748B]" />
+          Situation du membre
+        </button> */}
+        <div className="border-t border-[rgba(255,255,255,0.06)] my-1"></div>
+        <button
+          onClick={() => handleViewFullProfile(user)}
+          className="w-full px-4 py-2.5 text-left text-[#F8FAFC] hover:bg-[#1F2937] transition-colors flex items-center gap-3 text-sm"
+        >
+          <BarChart3 className="w-4 h-4 text-[#64748B]" />
+          Profil complet
+        </button>
+        <button
+          onClick={() => handleDeleteUser(user)}
+          className="w-full px-4 py-2.5 text-left text-rose-400 hover:bg-rose-500/10 transition-colors flex items-center gap-3 text-sm border-t border-[rgba(255,255,255,0.06)] mt-1 pt-1"
+        >
+          <Trash2 className="w-4 h-4" />
+          Supprimer
+        </button>
+      </div>,
+      document.body
+    );
+  };
+
   return (
     <div className="min-h-screen ml-[30px] mt-16 bg-[#0A0F1C] text-[#F8FAFC] font-sans antialiased p-6 md:p-8">
       <div className="max-w-7xl mx-auto">
@@ -403,7 +575,7 @@ export default function GetUsers({ mode }) {
 
                   <span className="text-sm text-[#94A3B8] flex items-center gap-1">
                     <Calendar className="w-3.5 h-3.5" />
-                    Member since {new Date(authData?.user?.createdAt).getFullYear() || '2024'}
+                    Member Depuis {new Date(authData?.user?.createdAt).getFullYear() || '2024'}
                   </span>
                 </div>
               </div>
@@ -413,13 +585,13 @@ export default function GetUsers({ mode }) {
 
         {/* ===== QUICK ACTIONS ===== */}
         <div className="mt-6 flex flex-wrap gap-3">
-          <button 
+          {/* <button 
             onClick={handleAddMember}
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-medium transition-all duration-200 shadow-lg shadow-emerald-500/20"
           >
             <Plus className="w-4 h-4" />
             Add Member
-          </button>
+          </button> */}
           <button 
             onClick={() => setShowFilters(!showFilters)}
             className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all duration-200 ${
@@ -511,11 +683,6 @@ export default function GetUsers({ mode }) {
                   </select>
                 </div>
               )}
-
-              {/* Profession – keep dynamic for now, or replace with static if desired */}
-              {/* Keeping dynamic for profession (unchanged) */}
-              {/* ... same for region ... */}
-
 
               {/* Marital Status */}
               {MARITAL_STATUS_OPTIONS.length > 0 && (
@@ -682,59 +849,14 @@ export default function GetUsers({ mode }) {
                               </span>
                             </td>
                             <td className="py-3 px-6 text-right">
-                              <div className="relative" ref={el => menuRefs.current[user.id] = el}>
-                                <button
-                                  onClick={(e) => toggleMenu(user.id, e)}
-                                  className="p-1.5 rounded-lg hover:bg-[#1F2937] transition-colors"
-                                >
-                                  <MoreVertical className="w-5 h-5 text-[#64748B] group-hover:text-[#F8FAFC]" />
-                                </button>
-                                
-                                {openMenuId === user.id && (
-                                  <div className="absolute right-0 mt-2 w-56 bg-[#182233] border border-[rgba(255,255,255,0.06)] rounded-xl shadow-2xl z-50 py-1 overflow-hidden">
-                                    <button
-                                      onClick={() => handleViewDetails(user)}
-                                      className="w-full px-4 py-2.5 text-left text-[#F8FAFC] hover:bg-[#1F2937] transition-colors flex items-center gap-3 text-sm"
-                                    >
-                                      <Eye className="w-4 h-4 text-[#64748B]" />
-                                      Détails
-                                    </button>
-                                    <button
-                                      onClick={() => handleEditUser(user)}
-                                      className="w-full px-4 py-2.5 text-left text-[#F8FAFC] hover:bg-[#1F2937] transition-colors flex items-center gap-3 text-sm"
-                                    >
-                                      <Edit className="w-4 h-4 text-[#64748B]" />
-                                      Modifier
-                                    </button>
-                                    <div className="border-t border-[rgba(255,255,255,0.06)] my-1"></div>
-                                    <button
-                                      onClick={() => handlePrintSituation(user)}
-                                      className="w-full px-4 py-2.5 text-left text-[#F8FAFC] hover:bg-[#1F2937] transition-colors flex items-center gap-3 text-sm"
-                                    >
-                                      <FileText className="w-4 h-4 text-[#64748B]" />
-                                      Situation du membre
-                                    </button>
-                                    <div className="border-t border-[rgba(255,255,255,0.06)] my-1"></div>
-                                    <button
-                                      onClick={() => {
-                                        setOpenMenuId(null);
-                                        navigate(`/dash/adminUser/${user.id}`);
-                                      }}
-                                      className="w-full px-4 py-2.5 text-left text-[#F8FAFC] hover:bg-[#1F2937] transition-colors flex items-center gap-3 text-sm"
-                                    >
-                                      <BarChart3 className="w-4 h-4 text-[#64748B]" />
-                                      Profil complet
-                                    </button>
-                                    <button
-                                      onClick={() => handleDeleteUser(user)}
-                                      className="w-full px-4 py-2.5 text-left text-rose-400 hover:bg-rose-500/10 transition-colors flex items-center gap-3 text-sm border-t border-[rgba(255,255,255,0.06)] mt-1 pt-1"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                      Supprimer
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
+                              <button
+                                ref={(el) => { menuButtonRefs.current[user.id] = el; }}
+                                onClick={(e) => toggleMenu(user.id, e)}
+                                className="p-1.5 rounded-lg hover:bg-[#1F2937] transition-colors"
+                              >
+                                <MoreVertical className="w-5 h-5 text-[#64748B] group-hover:text-[#F8FAFC]" />
+                              </button>
+                              {renderRowMenu(user)}
                             </td>
                           </tr>
                         ))

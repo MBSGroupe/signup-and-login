@@ -24,7 +24,7 @@ const pickCount = (arr, key) => {
   return row?.count ?? 0;
 };
 
-const pct = (n, d) => (d > 0 ? Math.round((n / d) * 100) : 0);
+const pct = (n, d) => (d > 0 ? Math.round((n / d) * 100000) / 1000 : 0);
 
 export default function AdminDashboard() {
   const { authData, setAuthData } = useContext(UserContext);
@@ -99,7 +99,7 @@ export default function AdminDashboard() {
   const activeRatio = pct(activeUsers, totalUsers);
   const verifiedRatio = pct(verifiedUsers, totalUsers);
 
-  const isSuperAdmin = authData?.user?.grade === 'super_admin';
+  const isSuperAdmin = authData?.user?.role === 'super_admin';
   const adminCount = admins + superAdmins;
 
   return (
@@ -137,7 +137,7 @@ export default function AdminDashboard() {
                   <div className="flex flex-wrap items-center gap-2 mt-2">
                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/5 text-[#94A3B8] border border-[rgba(255,255,255,0.08)]">
                       <Shield className="w-3 h-3 mr-1" />
-                      {authData?.user?.roleLabel || authData?.user?.grade || 'Administrateur'}
+                      {authData?.user?.roleLabel || authData?.user?.role || 'Administrateur'}
                     </span>
                     <span className="text-xs text-[#64748B] flex items-center gap-1">
                       <LayoutDashboard className="w-3.5 h-3.5" />
@@ -160,7 +160,7 @@ export default function AdminDashboard() {
           {/* Right: validation attention panel */}
           <button
             type="button"
-            onClick={() => navigate("/dash/validation/requests")}
+            onClick={() => navigate("/dash/validation/all-requests")}
             className="
               group relative text-left
               bg-[#111827] rounded-2xl p-6
@@ -237,7 +237,7 @@ export default function AdminDashboard() {
               icon={<Shield className="w-4 h-4" />}
             />
             <SummaryColumn
-              label="Nouveaux (30 jours)"
+              label="Nouveaux (7 jours)"
               value={newRegistrations}
               hint="Inscriptions récentes"
               icon={<Activity className="w-4 h-4" />}

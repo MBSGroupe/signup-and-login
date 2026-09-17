@@ -85,7 +85,7 @@ export const fetchWithRefresh = async (
         }
       } else {
         setAuthData?.(null);
-        window.location.href = '/';
+        window.location.href = '/?reason=session-expired';
         const err = new Error('Session expired');
         err.status = 401;
         err.code = 'AUTH_SESSION_EXPIRED';
@@ -94,7 +94,7 @@ export const fetchWithRefresh = async (
     } catch (error) {
       if (error?.code === 'AUTH_SESSION_EXPIRED') throw error;
       setAuthData?.(null);
-      window.location.href = '/';
+      window.location.href = '/?reason=session-expired';
       const err = new Error('Session expired');
       err.status = 401;
       err.code = 'AUTH_SESSION_EXPIRED';

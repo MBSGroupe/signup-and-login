@@ -118,14 +118,14 @@ export default function Navbar() {
                       Modifier Le profile
                     </button>
                   )}
-                  {permissions.canUpdateUser && (
+                  
                     <button
                       onClick={() => { navigate("/auth/change-password"); setDropdownOpen(false); }}
                       className="block w-full text-left px-4 py-2.5 text-sm text-[#F8FAFC] hover:bg-[#22C55E]/10 hover:text-[#22C55E] transition-colors"
                     >
                       Changer le mot de passe
                     </button>
-                  )}
+                  
                   {permissions.canUpdateUser && (
                     <button
                       onClick={() => { navigate("/auth/preferences"); setDropdownOpen(false); }}

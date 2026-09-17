@@ -4,6 +4,7 @@ import { UserContext } from "../Context/dataCont";
 import { useParams, useNavigate } from "react-router-dom";
 import PDFPreviewModal from '../Components/Modals/pdfPreviexModal';
 import DeclarationModal from '../Components/Modals/DeclarationModal';
+import AddressChangeModal from '../Components/Modals/AdressChangeModal';
 import { useError } from '../Context/ErrorContext';
 import { useModal } from '../Context/ModalContext';
 
@@ -34,6 +35,7 @@ import {
   Clock,
   Shield,
   Award,
+  MapPinned,
   BookOpen,
   Home,
   Building,
@@ -76,7 +78,7 @@ const PROFILE_SECTIONS = [
       'nin', 'sexe', 'serviceNationalStatus',
       'name', 'lastname', 'nomArabe', 'prenomArabe',
       'dateOfBirth', 'lieuNaissance', 'numeroActeNaissance',
-      'adressePersonnelle', 'adressePersonnelleArabe', 'commune', 'wilaya', 'maritalStatus', 'enfants',
+      'adressePersonnelle', 'adressePersonnelleArabe', 'commune', 'wilaya', 'maritalStatus', 'enfants'
   ] },
   { key: 'family',         label: 'Informations Familiales',       fields: [
       'prenomPere', 'prenomPereArabe',
@@ -353,6 +355,9 @@ export default function ProfilePage({ user }) {
   const [isDeclarationModalOpen, setIsDeclarationModalOpen] = useState(false);
   const [selectedDeclarationSchema, setSelectedDeclarationSchema] = useState(null);
   const [selectedDeclarationRequestId, setSelectedDeclarationRequestId] = useState(null);
+  const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+  const [selectedAddressSchema, setSelectedAddressSchema] = useState(null);
+  const [selectedAddressRequestId, setSelectedAddressRequestId] = useState(null);
   const resubmissionMapRef = useRef({});
   const [resubmissionMap, setResubmissionMap] = useState({});
 
@@ -1124,6 +1129,60 @@ export default function ProfilePage({ user }) {
     }
   };
 
+    const handleAddressSuccess = async (result) => {
+    setIsAddressModalOpen(false);
+    setSelectedAddressRequestId(null);
+    const now = Date.now();
+    const newMap = { ...resubmissionMapRef.current };
+
+    if (targetUserId) newMap[String(targetUserId)] = now;
+    if (result?.id) newMap[String(result.id)] = now;
+    if (result?.reference) newMap[String(result.reference)] = now;
+    if (selectedAddressSchema?.id) newMap[String(selectedAddressSchema.id)] = now;
+    if (selectedAddressSchema?.name) newMap[String(selectedAddressSchema.name).trim().toLowerCase()] = now;
+
+    validationRequests.forEach(req => {
+      const name = (req.schemaName || req.schema?.name || req.title || '').toLowerCase();
+      if (name.includes('adresse') || name.includes('address')) {
+        if (req.id) newMap[String(req.id)] = now;
+      }
+    });
+
+    resubmissionMapRef.current = newMap;
+    setResubmissionMap(newMap);
+    try {
+      localStorage.setItem('resubmitted_validation_map', JSON.stringify(newMap));
+    } catch (_) { }
+
+    setValidationRequests(prev =>
+      prev.map(req => {
+        const name = (req.schemaName || req.schema?.name || req.title || '').toLowerCase();
+        if (
+          name.includes('adresse') || name.includes('address') ||
+          req.id === result?.id ||
+          req.id === selectedAddressRequestId
+        ) {
+          return {
+            ...req,
+            status: 'pending',
+            steps: (req.steps || []).map((st, idx) =>
+              (idx === 0 || st.status === 'changes_requested')
+                ? { ...st, status: 'pending', statusLabel: 'En attente' }
+                : st
+            )
+          };
+        }
+        return req;
+      })
+    );
+
+    try {
+      await fetchValidationRequests();
+    } catch (err) {
+      console.log('Error refreshing requests after address change:', err);
+    }
+  };
+
   const fetchSchemas = async () => {
     try {
       const res = await fetchWithRefresh(
@@ -1248,6 +1307,7 @@ export default function ProfilePage({ user }) {
         const permData = await permRes.json();
         const payload = permData.data || permData;
         const fields = payload.fields || [];
+        
         const configs = payload.configs || {};
         setPermissions({ fields, configs });
 
@@ -1513,7 +1573,7 @@ export default function ProfilePage({ user }) {
             >
               <Minus className="w-4 h-4 text-rose-400" /> Retrait
             </button>
-            <button
+            {/* <button
               onClick={() => { setMenuOpen(false); handlePrintSituation(); }}
               className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
             >
@@ -1524,7 +1584,7 @@ export default function ProfilePage({ user }) {
               className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
             >
               <Award className="w-4 h-4 text-amber-400" /> Agrément
-            </button>
+            </button> */}
           </div>
         </div>
       )}
@@ -2038,6 +2098,91 @@ export default function ProfilePage({ user }) {
                       );
                     })()}
 
+                                        {/* 🟢 NEW: Carte Changement d'adresse */}
+                    {/* {(() => {
+                      const addrSchema = availableSchemas.find(s =>
+                        (s.name || s.title || '').toLowerCase().includes('adresse') ||
+                        (s.name || s.title || '').toLowerCase().includes('address')
+                      );
+                      return (
+                        <div className="bg-[#0A0F1C] rounded-2xl border border-sky-500/30 p-6 flex flex-col justify-between relative overflow-hidden shadow-lg shadow-sky-950/20 group hover:border-sky-500/50 transition-all duration-300">
+                          <div className="absolute top-0 right-0 w-32 h-32 bg-sky-500/5 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none" />
+
+                          <div>
+                            <div className="flex items-start justify-between gap-3 mb-4">
+                              <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-500/20 text-sky-400 group-hover:scale-110 transition-transform">
+                                <MapPinned className="w-6 h-6" />
+                              </div>
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/20">
+                                Optionnel
+                              </span>
+                            </div>
+
+                            <h3 className="text-base font-bold text-white tracking-tight">
+                              {addrSchema?.name || "Changement d'adresse"}
+                            </h3>
+                            <p className="text-xs text-[#94A3B8] mt-1.5 leading-relaxed">
+                              {addrSchema?.description || "Déclarez votre changement d'adresse en renseignant votre adresse professionnelle et personnelle."}
+                            </p>
+
+                            <div className="mt-4 pt-4 border-t border-white/5 space-y-2">
+                              <p className="text-[11px] font-semibold uppercase tracking-wider text-[#64748B]">
+                                Éléments obligatoires :
+                              </p>
+                              <div className="flex flex-wrap gap-1.5 text-xs text-[#94A3B8]">
+                                <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[#CBD5E1]">
+                                  • Adresse professionnelle
+                                </span>
+                                <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[#CBD5E1]">
+                                  • Adresse personnelle
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="mt-6 pt-4 border-t border-white/5">
+                            {(() => {
+                              const existingAddr = validationRequests.find(r =>
+                                ((r.schemaName || r.schema?.name || '').toLowerCase().includes('adresse') ||
+                                  (r.schemaName || r.schema?.name || '').toLowerCase().includes('address')) &&
+                                !['rejected', 'cancelled'].includes(r.status?.toLowerCase())
+                              );
+
+                              const isNeedsCorrection = existingAddr && mapApiStatusToDisplay(existingAddr) === 'Modifications requises';
+
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedAddressRequestId(existingAddr?.id || null);
+                                    setSelectedAddressSchema(addrSchema || null);
+                                    setIsAddressModalOpen(true);
+                                  }}
+                                  className={`w-full py-2.5 px-4 text-white text-xs font-semibold rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                                    isNeedsCorrection
+                                      ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20'
+                                      : 'bg-sky-500 hover:bg-sky-600 shadow-sky-500/20'
+                                  }`}
+                                >
+                                  {isNeedsCorrection ? (
+                                    <>
+                                      <Edit className="w-4 h-4" />
+                                      Corriger / Compléter mon dossier
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Plus className="w-4 h-4" />
+                                      Faire la demande
+                                    </>
+                                  )}
+                                </button>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      );
+                    })()} */}
+
                     {/* Autres schémas dynamiques */}
                     {availableSchemas
                       .filter(s => {
@@ -2196,6 +2341,27 @@ export default function ProfilePage({ user }) {
         validationRequests={validationRequests}
       />
 
+            {/* ─── Address Change Request Modal ─────────────────────────────────── */}
+      <AddressChangeModal
+        isOpen={isAddressModalOpen}
+        onClose={() => {
+          setIsAddressModalOpen(false);
+          setSelectedAddressRequestId(null);
+        }}
+        onGoToValidations={() => {
+          setIsAddressModalOpen(false);
+          setSelectedAddressRequestId(null);
+          setActiveTab('validation');
+        }}
+        targetUserId={targetUserId}
+        authToken={authData?.token}
+        onSuccess={handleAddressSuccess}
+        schema={selectedAddressSchema}
+        existingRequestId={selectedAddressRequestId}
+        user={displayUser}
+        validationRequests={validationRequests}
+      />
+
       {/* ─── PDF Preview Modal ────────────────────────────────────────────── */}
       {pdfPreview.isOpen && pdfPreview.data?.blobUrl && (
         <PDFPreviewModal
@@ -2223,3 +2389,4 @@ export default function ProfilePage({ user }) {
     </>
   );
 }
+

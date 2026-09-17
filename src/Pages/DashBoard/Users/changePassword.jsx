@@ -133,7 +133,7 @@ export default function ChangePassword() {
       setTouched({});
       setAuthData({ user: null, token: null });
       localStorage.removeItem("authData");
-      setTimeout(() => navigate("/"), 1500);
+      setTimeout(() => navigate("/?reason=password-changed"), 1500);
     } catch (err) {
       const status = err?.status;
       const code = err?.code;
