@@ -43,7 +43,7 @@ import ValidationRequestProgress from './Pages/DashBoard/Validations/ValidationR
 import BackgroundManager from './Pages/DashBoard/EtatsDeSortie/BackgroundManager'
 import ForgotPassword from './Pages/ForgotPassword';
 import ResetPassword from './Pages/ResetPassword';
-
+import SiteApplication from "./Pages/siteapplication";
 import PixelNo from './Components/NO';
 
 export default function App() {
@@ -55,9 +55,10 @@ export default function App() {
         <Route index element={<LoginForm />} />
         <Route path="signup" element={<FormulaireCNOA />} />
         
-        {/* 👇 ADD PASSWORD RESET ROUTES HERE */}
         <Route path="forgot-password" element={<ForgotPassword />} />
         <Route path="reset-password" element={<ResetPassword />} />
+        <Route path="application-mobile" element={<SiteApplication />} />
+
 
 
         <Route path="verify-pending" element={<VerifyPendingPage />} />

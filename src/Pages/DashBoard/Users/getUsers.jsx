@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState, useRef } from "react";
+import { useContext, useEffect, useLayoutEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import { UserDataContext } from '../../../Context/userDataCont';
 import { UserContext } from '../../../Context/dataCont';
@@ -47,7 +47,10 @@ const PROFESSIONAL_MODE_OPTIONS = ['Libéral', 'Associé', 'Salarié'];
 const SERVICE_NATIONAL_OPTIONS = ['Ayant effectué', 'Exempté', 'En cours', 'Non concerné'];
 const STATUS_OPTIONS = ['pending', 'active', 'suspended', 'archived'];
 
-const MENU_WIDTH = 224; // w-56 = 14rem = 224px
+// ─── Menu geometry constants ────────────────────────────────────────
+const MENU_WIDTH = 224;       // w-56 = 14rem = 224px
+const MENU_MARGIN = 8;        // min gap from viewport edges
+const MENU_GAP = 4;           // gap between button and menu
 
 export default function GetUsers({ mode }) {
   const { data, setData } = useContext(UserDataContext);
@@ -85,6 +88,8 @@ export default function GetUsers({ mode }) {
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
   const menuRefs = useRef({});
   const menuButtonRefs = useRef({});
+  // Tracks which menu we've already auto-adjusted (so we only measure once per open)
+  const menuAdjustedRef = useRef(null);
 
   // PDF Preview state
   const [pdfPreview, setPdfPreview] = useState({
@@ -99,9 +104,9 @@ export default function GetUsers({ mode }) {
   // Fetch users with pagination and filters
   const fetchUsers = async () => {
     if (!authData?.token) return;
-    
+
     setIsLoading(true);
-    
+
     try {
       const params = new URLSearchParams();
       params.append('page', currentPage);
@@ -111,14 +116,12 @@ export default function GetUsers({ mode }) {
       if (mode && mode !== 'all') {
         params.append('mode', mode);
       }
-      
+
       if (keyWord && keyWord.trim()) params.append('search', keyWord.trim());
-      // Civilité is an alias for sexe: Mr → M, Mme/Mlle → F
       if (selectedCivility !== 'all') params.append('sexe', selectedCivility);
       if (selectedSexe !== 'all') params.append('sexe', selectedSexe);
       if (selectedWilaya !== 'all') params.append('wilaya', selectedWilaya);
       if (selectedProfession !== 'all') params.append('profession', selectedProfession);
-      // CLOA d'installation is stored in the `region` column
       if (selectedRegion !== 'all') params.append('region', selectedRegion);
       if (selectedStatus !== 'all') params.append('status', selectedStatus);
       if (selectedMaritalStatus !== 'all') params.append('maritalStatus', selectedMaritalStatus);
@@ -133,7 +136,7 @@ export default function GetUsers({ mode }) {
         authData.token,
         setAuthData
       );
-      
+
       if (!response.ok) {
         let errBody = {};
         try { errBody = await response.json(); } catch {}
@@ -144,12 +147,12 @@ export default function GetUsers({ mode }) {
         setIsLoading(false);
         return;
       }
-      
+
       const results = await response.json();
-      
+
       let usersArray = [];
       let pagination = {};
-      
+
       if (results.data && results.data.data) {
         usersArray = results.data.data;
         pagination = results.data.pagination;
@@ -160,12 +163,12 @@ export default function GetUsers({ mode }) {
         usersArray = results.users;
         pagination = results.pagination || {};
       }
-      
+
       setDisplayedUsers(usersArray);
       setTotalUsers(pagination.total || usersArray.length);
       setTotalPages(pagination.totalPages || Math.ceil((pagination.total || usersArray.length) / pageSize));
       setData(usersArray);
-      
+
     } catch (error) {
       console.error("Error fetching users:", error);
       showError("Failed to load users. Please try again.");
@@ -206,15 +209,58 @@ export default function GetUsers({ mode }) {
     };
   }, [openMenuId]);
 
+  // ─── Auto-adjust menu position after it mounts ─────────────────────
+  // Runs once per open. If the menu would overflow the viewport bottom,
+  // flip it above the button (or clamp it to fit if there's no room above).
+  // Uses useLayoutEffect so the correction happens BEFORE the browser paints.
+  useLayoutEffect(() => {
+    if (openMenuId === null) {
+      menuAdjustedRef.current = null;
+      return;
+    }
+    // Already adjusted this menu → skip to avoid loops
+    if (menuAdjustedRef.current === openMenuId) return;
+
+    const menuEl = menuRefs.current[openMenuId];
+    const btnEl = menuButtonRefs.current[openMenuId];
+    if (!menuEl || !btnEl) return;
+
+    const menuRect = menuEl.getBoundingClientRect();
+    const btnRect = btnEl.getBoundingClientRect();
+    const vh = window.innerHeight;
+
+    let newTop = menuRect.top;
+
+    // If the menu's bottom edge is below the viewport, try flipping up
+    if (menuRect.bottom > vh - MENU_MARGIN) {
+      const flippedTop = btnRect.top - menuRect.height - MENU_GAP;
+
+      if (flippedTop >= MENU_MARGIN) {
+        // Enough room above the button → flip up
+        newTop = flippedTop;
+      } else {
+        // Not enough room either way → clamp so max of the menu is visible
+        newTop = Math.max(MENU_MARGIN, vh - menuRect.height - MENU_MARGIN);
+      }
+    }
+
+    if (Math.abs(newTop - menuRect.top) > 0.5) {
+      setMenuPosition(prev => ({ ...prev, top: newTop }));
+    }
+
+    // Mark as adjusted so the effect doesn't keep re-running
+    menuAdjustedRef.current = openMenuId;
+  }, [openMenuId]);
+
   // Fetch on dependency changes
   useEffect(() => {
     if (authData?.token) {
       fetchUsers();
     }
   }, [
-    authData.token, 
-    currentPage, 
-    pageSize, 
+    authData.token,
+    currentPage,
+    pageSize,
     keyWord,
     selectedSexe,
     selectedWilaya,
@@ -232,10 +278,7 @@ export default function GetUsers({ mode }) {
     mode
   ]);
 
-
   // Returns true if the current viewer can perform `operation` on the target user.
-  // Falls back to permissive on network / server errors: the click will still be
-  // rejected by the backend if the caller truly lacks the permission.
   const checkOperation = async (targetUserId, operation, model = 'User') => {
     try {
       const res = await fetchWithRefresh(
@@ -269,6 +312,7 @@ export default function GetUsers({ mode }) {
     setSelectedUser(null);
   };
 
+  // ─── Open/close the row menu, computing an initial position ─────────
   const toggleMenu = (userId, event) => {
     event.stopPropagation();
     if (openMenuId === userId) {
@@ -278,15 +322,16 @@ export default function GetUsers({ mode }) {
 
     const rect = event.currentTarget.getBoundingClientRect();
 
-    // Prefer aligning menu's right edge with button's right edge.
-    // If that would push the menu off the right of the viewport, clamp.
+    // Horizontal: align right edge with button's right edge, clamp to viewport
     let left = rect.right - MENU_WIDTH;
-    if (left < 8) left = 8;
-    if (left + MENU_WIDTH > window.innerWidth - 8) {
-      left = window.innerWidth - MENU_WIDTH - 8;
+    if (left < MENU_MARGIN) left = MENU_MARGIN;
+    if (left + MENU_WIDTH > window.innerWidth - MENU_MARGIN) {
+      left = window.innerWidth - MENU_WIDTH - MENU_MARGIN;
     }
 
-    setMenuPosition({ top: rect.bottom + 4, left });
+    // Vertical: initial guess is below the button. useLayoutEffect will
+    // correct this if the menu would overflow the viewport bottom.
+    setMenuPosition({ top: rect.bottom + MENU_GAP, left });
     setOpenMenuId(userId);
   };
 
@@ -453,7 +498,7 @@ export default function GetUsers({ mode }) {
   };
 
   const activeFilterCount = [
-    selectedSexe, selectedWilaya, selectedProfession, 
+    selectedSexe, selectedWilaya, selectedProfession,
     selectedRegion, selectedStatus, selectedCivility, selectedMaritalStatus,
     selectedDiplomaType, selectedRegistrationStatus, selectedProfessionalMode,
     selectedServiceNational
@@ -474,11 +519,11 @@ export default function GetUsers({ mode }) {
     const maxVisible = 5;
     let start = Math.max(1, currentPage - Math.floor(maxVisible / 2));
     let end = Math.min(totalPages, start + maxVisible - 1);
-    
+
     if (end - start < maxVisible - 1) {
       start = Math.max(1, end - maxVisible + 1);
     }
-    
+
     for (let i = start; i <= end; i++) {
       pages.push(i);
     }
@@ -506,9 +551,11 @@ export default function GetUsers({ mode }) {
           top: menuPosition.top,
           left: menuPosition.left,
           width: MENU_WIDTH,
+          maxHeight: `calc(100vh - ${MENU_MARGIN * 2}px)`,
+          overflowY: 'auto',
           zIndex: 9999,
         }}
-        className="bg-[#182233] border border-[rgba(255,255,255,0.06)] rounded-xl shadow-2xl py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-100"
+        className="bg-[#182233] border border-[rgba(255,255,255,0.06)] rounded-xl shadow-2xl py-1 animate-in fade-in zoom-in-95 duration-100"
         onClick={(e) => e.stopPropagation()}
       >
         <button
@@ -585,14 +632,7 @@ export default function GetUsers({ mode }) {
 
         {/* ===== QUICK ACTIONS ===== */}
         <div className="mt-6 flex flex-wrap gap-3">
-          {/* <button 
-            onClick={handleAddMember}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-medium transition-all duration-200 shadow-lg shadow-emerald-500/20"
-          >
-            <Plus className="w-4 h-4" />
-            Add Member
-          </button> */}
-          <button 
+          <button
             onClick={() => setShowFilters(!showFilters)}
             className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all duration-200 ${
               showFilters || activeFilterCount > 0
@@ -608,7 +648,7 @@ export default function GetUsers({ mode }) {
               </span>
             )}
           </button>
-          <button 
+          <button
             onClick={resetFilters}
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 transition-all duration-200"
           >
@@ -665,7 +705,7 @@ export default function GetUsers({ mode }) {
                 </div>
               )}
 
-              {/* CLOA d'installation – stored in the `region` column */}
+              {/* CLOA d'installation */}
               {wilayasData.length > 0 && (
                 <div>
                   <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">CLOA d'installation</label>
@@ -802,7 +842,7 @@ export default function GetUsers({ mode }) {
                   <table className="w-full min-w-[900px]">
                     <thead>
                       <tr className="border-b border-[rgba(255,255,255,0.06)]">
-                        <th 
+                        <th
                           className="py-4 px-6 text-left text-xs uppercase tracking-wider text-[#64748B] font-semibold cursor-pointer hover:text-[#F8FAFC] transition"
                           onClick={() => {
                             setSortBy('name');
@@ -812,7 +852,7 @@ export default function GetUsers({ mode }) {
                         >
                           Nom {sortBy === 'name' && (sortOrder === 'asc' ? '↑' : '↓')}
                         </th>
-                        <th 
+                        <th
                           className="py-4 px-6 text-left text-xs uppercase tracking-wider text-[#64748B] font-semibold cursor-pointer hover:text-[#F8FAFC] transition"
                           onClick={() => {
                             setSortBy('lastname');
@@ -831,8 +871,8 @@ export default function GetUsers({ mode }) {
                     <tbody>
                       {displayedUsers.length > 0 ? (
                         displayedUsers.map((user) => (
-                          <tr 
-                            key={user.id || user._id} 
+                          <tr
+                            key={user.id || user._id}
                             className="border-b border-[rgba(255,255,255,0.04)] hover:bg-[#1F2937]/30 transition-colors group"
                           >
                             <td className="py-3 px-6 text-[#F8FAFC] font-medium">{user.name || '-'}</td>
@@ -883,14 +923,14 @@ export default function GetUsers({ mode }) {
                       onClick={goToPreviousPage}
                       disabled={currentPage === 1}
                       className={`p-2 rounded-lg transition ${
-                        currentPage === 1 
-                          ? 'bg-[#111827] text-[#64748B] cursor-not-allowed opacity-50' 
+                        currentPage === 1
+                          ? 'bg-[#111827] text-[#64748B] cursor-not-allowed opacity-50'
                           : 'bg-[#111827] text-[#F8FAFC] hover:bg-[#1F2937] border border-[rgba(255,255,255,0.06)]'
                       }`}
                     >
                       <ChevronLeft className="w-4 h-4" />
                     </button>
-                    
+
                     {getPageNumbers().map(page => (
                       <button
                         key={page}
@@ -904,13 +944,13 @@ export default function GetUsers({ mode }) {
                         {page}
                       </button>
                     ))}
-                    
+
                     <button
                       onClick={goToNextPage}
                       disabled={currentPage === totalPages}
                       className={`p-2 rounded-lg transition ${
-                        currentPage === totalPages 
-                          ? 'bg-[#111827] text-[#64748B] cursor-not-allowed opacity-50' 
+                        currentPage === totalPages
+                          ? 'bg-[#111827] text-[#64748B] cursor-not-allowed opacity-50'
                           : 'bg-[#111827] text-[#F8FAFC] hover:bg-[#1F2937] border border-[rgba(255,255,255,0.06)]'
                       }`}
                     >
