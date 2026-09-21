@@ -1,18 +1,16 @@
 import { useContext, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { UserContext } from '../../../Context/dataCont';
-import Title from '../../../Components/Title';
 import { fetchWithRefresh } from '../../../Components/api';
-import { useApi } from '../../../Hooks/useApi';
-import { useModal } from '../../../Context/ModalContext'; 
+import { useModal } from '../../../Context/ModalContext';
 import BackButton from '../../../Components/Buttons/BackButton';
-import { 
-  Layers, 
-  CheckCircle, 
-  XCircle, 
-  Calendar, 
-  GitBranch, 
-  History, 
+import {
+  Layers,
+  CheckCircle,
+  XCircle,
+  Calendar,
+  GitBranch,
+  History,
   Edit,
   RefreshCw,
   Loader2,
@@ -21,39 +19,53 @@ import {
 
 const API_URL = import.meta.env.VITE_NEST_API_URL;
 
+// ─── Helper: unwrap the ResponseInterceptor envelope ────────────────────
+const unwrap = (body) => (body && typeof body === 'object' && 'data' in body && 'success' in body)
+  ? body.data
+  : body;
+
 export default function ValidationSchemaVersions() {
   const { schemaId } = useParams();
   const navigate = useNavigate();
   const { authData, setAuthData } = useContext(UserContext);
-  const { callApi } = useApi();
-  const { confirm } = useModal(); 
+  const { confirm } = useModal();
   const [versions, setVersions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [schemaName, setSchemaName] = useState('');
 
   const fetchVersions = async () => {
     setLoading(true);
-    const result = await callApi(async () => {
+    try {
       const res = await fetchWithRefresh(
         `${API_URL}/validation/schemas/${schemaId}/versions`,
         { method: 'GET' },
         authData.token,
         setAuthData
       );
-      return res;
-    }, { showSuccessMessage: false });
-
-    if (result) {
-      setVersions(result);
-      if (result.length) setSchemaName(result[0].name);
+      const body = await res.json();
+      const payload = unwrap(body);
+      // Tolerate: bare array, { versions: [...] }, or wrapped envelope
+      const list =
+        (Array.isArray(payload) && payload) ||
+        payload?.versions ||
+        [];
+      const safeList = Array.isArray(list) ? list : [];
+      setVersions(safeList);
+      if (safeList.length > 0) {
+        // Try to grab the schema name from any version that has it
+        const firstWithName = safeList.find(v => v.name);
+        if (firstWithName?.name) setSchemaName(firstWithName.name);
+      }
+    } catch (err) {
+      console.error('Failed to load schema versions:', err);
+      setVersions([]);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
-    if (authData?.token) {
-      fetchVersions();
-    }
+    if (authData?.token && schemaId) fetchVersions();
   }, [schemaId, authData?.token, setAuthData]);
 
   const handleReactivate = async (versionId) => {
@@ -63,21 +75,19 @@ export default function ValidationSchemaVersions() {
     });
     if (!confirmed) return;
 
-    const result = await callApi(async () => {
+    try {
       const res = await fetchWithRefresh(
         `${API_URL}/validation/schemas/${versionId}/reactivateVersion`,
         { method: 'POST' },
         authData.token,
         setAuthData
       );
-      return res;
-    }, {
-      showSuccessMessage: true,
-      successMessage: 'Version réactivée avec succès',
-    });
-
-    if (result) {
-      await fetchVersions();
+      const body = await res.json();
+      if (body?.success) {
+        await fetchVersions();
+      }
+    } catch (err) {
+      console.error('Reactivate error:', err);
     }
   };
 
@@ -108,7 +118,7 @@ export default function ValidationSchemaVersions() {
               Versions du schéma
             </h1>
             <p className="text-[#94A3B8] text-sm mt-1">
-              {schemaName ? `Schéma : ${schemaName}` : 'Chargement du nom...'}
+              {schemaName ? `Schéma : ${schemaName}` : 'Versions disponibles'}
             </p>
           </div>
         </div>

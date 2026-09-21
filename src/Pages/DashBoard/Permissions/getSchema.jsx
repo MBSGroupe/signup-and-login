@@ -3,7 +3,7 @@ import { useContext, useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { UserContext } from "../../../Context/dataCont";
 import { fetchWithRefresh } from "../../../Components/api";
-import Title from "../../../Components/Title";
+import { useModal } from "../../../Context/ModalContext";
 import BackButton from "../../../Components/Buttons/BackButton";
 import {
   Shield,
@@ -42,10 +42,33 @@ const statusColors = {
   stable: "bg-blue-500/10 text-blue-400 border-blue-500/20"
 };
 
+// ─── Helper: describe a single rule regardless of shape ────────────────
+// Returns e.g. "grade:user (self)", "role:architect (self)", or "?" if malformed
+const describeRule = (rule) => {
+  if (!rule || typeof rule !== 'object') return '?';
+  const condition = rule.condition || '?';
+  const hasGrade = typeof rule.grade === 'string' && rule.grade.length > 0;
+  const hasRole = !!rule.role?.name;
+
+  if (hasGrade && hasRole) {
+    // Shouldn't happen after validateRuleShape, but be explicit if it does
+    return `⚠ grade:${rule.grade} + role:${rule.role.name} (${condition})`;
+  }
+  if (hasGrade) return `grade:${rule.grade} (${condition})`;
+  if (hasRole)  return `role:${rule.role.name} (${condition})`;
+  return `? (${condition})`;
+};
+
+const describeRules = (arr) =>
+  Array.isArray(arr) && arr.length > 0
+    ? arr.map(describeRule).join(", ")
+    : "–";
+
 export default function PermissionDetails() {
   const { model, versionId } = useParams();
   const navigate = useNavigate();
   const { authData, setAuthData } = useContext(UserContext);
+  const { alert } = useModal();
   const [schema, setSchema] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -72,13 +95,14 @@ export default function PermissionDetails() {
           setError(data.message || "Erreur");
         }
       } catch (err) {
+        console.error('Failed to load permission schema:', err);
         setError("Erreur réseau");
       } finally {
         setLoading(false);
       }
     };
     if (authData?.token) fetchSchema();
-  }, [model, versionId, authData, setAuthData]);
+  }, [model, versionId, authData?.token, setAuthData]);
 
   const handleRestore = async () => {
     try {
@@ -93,10 +117,17 @@ export default function PermissionDetails() {
       if (res.ok && data.success !== false) {
         window.location.reload();
       } else {
-        alert(data.message || "Erreur lors de la restauration");
+        await alert({
+          title: "Erreur",
+          message: data.message || "Erreur lors de la restauration",
+        });
       }
     } catch (err) {
-      alert("Erreur réseau");
+      console.error('Restore error:', err);
+      await alert({
+        title: "Erreur réseau",
+        message: err?.message || "Impossible de contacter le serveur",
+      });
     }
   };
 
@@ -136,29 +167,23 @@ export default function PermissionDetails() {
 
   if (!schema) return null;
 
-  const renderFieldRow = (field, index) => {
-    const getRolesList = (arr) => arr?.map(r => `${r.role.name} (${r.condition})`).join(", ") || "–";
-    return (
-      <tr key={index} className="border-b border-[rgba(255,255,255,0.04)] hover:bg-[#1F2937]/30 transition-colors group">
-        <td className="py-3 px-4 font-mono text-sm text-[#F8FAFC]">{field.name}</td>
-        <td className="py-3 px-4 text-sm text-[#94A3B8]">{field.label || "–"}</td>
-        <td className="py-3 px-4 text-sm text-[#94A3B8] capitalize">{field.type}</td>
-        <td className="py-3 px-4 text-sm text-[#94A3B8] max-w-[150px] truncate">{getRolesList(field.creatableBy)}</td>
-        <td className="py-3 px-4 text-sm text-[#94A3B8] max-w-[150px] truncate">{getRolesList(field.editableBy)}</td>
-        <td className="py-3 px-4 text-sm text-[#94A3B8] max-w-[150px] truncate">{getRolesList(field.visibleTo)}</td>
-      </tr>
-    );
-  };
+  const renderFieldRow = (field, index) => (
+    <tr key={index} className="border-b border-[rgba(255,255,255,0.04)] hover:bg-[#1F2937]/30 transition-colors group">
+      <td className="py-3 px-4 font-mono text-sm text-[#F8FAFC]">{field.name}</td>
+      <td className="py-3 px-4 text-sm text-[#94A3B8]">{field.label || "–"}</td>
+      <td className="py-3 px-4 text-sm text-[#94A3B8] capitalize">{field.type}</td>
+      <td className="py-3 px-4 text-sm text-[#94A3B8] max-w-[200px] truncate" title={describeRules(field.creatableBy)}>{describeRules(field.creatableBy)}</td>
+      <td className="py-3 px-4 text-sm text-[#94A3B8] max-w-[200px] truncate" title={describeRules(field.editableBy)}>{describeRules(field.editableBy)}</td>
+      <td className="py-3 px-4 text-sm text-[#94A3B8] max-w-[200px] truncate" title={describeRules(field.visibleTo)}>{describeRules(field.visibleTo)}</td>
+    </tr>
+  );
 
-  const renderOperationRow = (op, index) => {
-    const allowed = op.allowed?.map(a => `${a.role.name} (${a.condition})`).join(", ") || "–";
-    return (
-      <tr key={index} className="border-b border-[rgba(255,255,255,0.04)] hover:bg-[#1F2937]/30 transition-colors group">
-        <td className="py-3 px-4 font-mono text-sm capitalize text-[#F8FAFC]">{op.operation}</td>
-        <td className="py-3 px-4 text-sm text-[#94A3B8]">{allowed}</td>
-      </tr>
-    );
-  };
+  const renderOperationRow = (op, index) => (
+    <tr key={index} className="border-b border-[rgba(255,255,255,0.04)] hover:bg-[#1F2937]/30 transition-colors group">
+      <td className="py-3 px-4 font-mono text-sm capitalize text-[#F8FAFC]">{op.operation}</td>
+      <td className="py-3 px-4 text-sm text-[#94A3B8]" title={describeRules(op.allowed)}>{describeRules(op.allowed)}</td>
+    </tr>
+  );
 
   return (
     <div className="min-h-screen bg-[#0A0F1C] p-6 md:p-8 ml-[30px] mt-16">

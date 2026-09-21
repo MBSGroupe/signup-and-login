@@ -32,7 +32,8 @@ const NotificationDropdown = ({ onClose, onRead }) => {
         `${API_URL}/notifications?limit=10&unreadOnly=false`,
         { method: 'GET' },
         authData.token,
-        setAuthData
+        setAuthData,
+        { type: authData.user?.type }
       );
       const data = await res.json();
       console.log(data.data);

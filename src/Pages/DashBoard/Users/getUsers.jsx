@@ -29,7 +29,7 @@ import { fetchWithRefresh } from '../../../Components/api';
 import UserDetailsModal from '../../../Components/Modals/userDetailsModal';
 import PDFPreviewModal from '../../../Components/Modals/pdfPreviexModal';
 import { useNavigate } from 'react-router-dom';
-import wilayasData from '../../../assets/data/wilayas.json';   // static Wilaya list
+import wilayasData from '../../../assets/data/wilayas.json';
 
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
@@ -61,7 +61,7 @@ export default function GetUsers({ mode }) {
   const [totalPages, setTotalPages] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Filter states – all start at "all"
+  // Filter states
   const [selectedSexe, setSelectedSexe] = useState("all");
   const [selectedWilaya, setSelectedWilaya] = useState("all");
   const [selectedProfession, setSelectedProfession] = useState("all");
@@ -78,8 +78,14 @@ export default function GetUsers({ mode }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [displayedUsers, setDisplayedUsers] = useState([]);
-  const [openMenuId, setOpenMenuId] = useState(null);
-  const menuRefs = useRef({});
+
+  // ✅ Single menu state — one dropdown rendered once at the root, anchored to the button rect
+  const [openMenu, setOpenMenu] = useState(null); // { rect: DOMRect, user: object } | null
+
+  // Global permission flags
+  const [canCreateUser, setCanCreateUser] = useState(false);
+  const [canUpdateUser, setCanUpdateUser] = useState(false);
+  const [canDeleteUser, setCanDeleteUser] = useState(false);
 
   // PDF Preview state
   const [pdfPreview, setPdfPreview] = useState({
@@ -91,22 +97,19 @@ export default function GetUsers({ mode }) {
   const [sortBy, setSortBy] = useState('createdAt');
   const [sortOrder, setSortOrder] = useState('desc');
 
-  // Fetch users with pagination and filters
+  // ─── Fetch users ────────────────────────────────────────────────────
   const fetchUsers = async () => {
     if (!authData?.token) return;
-    
     setIsLoading(true);
-    
+
     try {
       const params = new URLSearchParams();
       params.append('page', currentPage);
       params.append('limit', pageSize);
       params.append('sortBy', sortBy);
       params.append('sortOrder', sortOrder);
-      if (mode && mode !== 'all') {
-        params.append('mode', mode);
-      }
-      
+      if (mode && mode !== 'all') params.append('mode', mode);
+
       if (keyWord) params.append('search', keyWord);
       if (selectedSexe !== 'all') params.append('sexe', selectedSexe);
       if (selectedWilaya !== 'all') params.append('wilaya', selectedWilaya);
@@ -126,30 +129,19 @@ export default function GetUsers({ mode }) {
         authData.token,
         setAuthData
       );
-      
+
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      
+
       const results = await response.json();
-      
-      let usersArray = [];
-      let pagination = {};
-      
-      if (results.data && results.data.data) {
-        usersArray = results.data.data;
-        pagination = results.data.pagination;
-      } else if (results.data && Array.isArray(results.data)) {
-        usersArray = results.data;
-        pagination = results.pagination || {};
-      } else if (results.users) {
-        usersArray = results.users;
-        pagination = results.pagination || {};
-      }
-      
+      // Confirmed shape: { data: { data: [...], pagination: {...} } }
+      const usersArray = results?.data?.data || [];
+      const pagination = results?.data?.pagination || {};
+
       setDisplayedUsers(usersArray);
       setTotalUsers(pagination.total || usersArray.length);
       setTotalPages(pagination.totalPages || Math.ceil((pagination.total || usersArray.length) / pageSize));
       setData(usersArray);
-      
+
     } catch (error) {
       console.error("Error fetching users:", error);
       showError("Failed to load users. Please try again.");
@@ -158,29 +150,68 @@ export default function GetUsers({ mode }) {
     }
   };
 
-  // Close menu when clicking outside
+  // ─── Fetch global permission flags ──────────────────────────────────
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (openMenuId !== null) {
-        const menuElement = menuRefs.current[openMenuId];
-        if (menuElement && !menuElement.contains(event.target)) {
-          setOpenMenuId(null);
-        }
+    if (!authData?.token || !authData?.user?.id) return;
+    const viewerId = authData.user.id;
+    let cancelled = false;
+
+    const check = async (operation) => {
+      try {
+        const res = await fetchWithRefresh(
+          `${NEST_API_URL}/permissions/${viewerId}/check-operation`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ operation, model: "User" }),
+          },
+          authData.token,
+          setAuthData
+        );
+        const body = await res.json();
+        return Boolean(body?.data?.canPerform);
+      } catch {
+        return false;
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [openMenuId]);
 
-  // Fetch on dependency changes
+    (async () => {
+      const [create, update, del] = await Promise.all([
+        check("create"),
+        check("update"),
+        check("delete"),
+      ]);
+      if (!cancelled) {
+        setCanCreateUser(create);
+        setCanUpdateUser(update);
+        setCanDeleteUser(del);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [authData?.token, authData?.user?.id, setAuthData]);
+
+  // ─── Close the menu on scroll / resize / outside click ─────────────
   useEffect(() => {
-    if (authData?.token) {
-      fetchUsers();
-    }
+    if (!openMenu) return;
+    const close = () => setOpenMenu(null);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    document.addEventListener('mousedown', close);
+    return () => {
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+      document.removeEventListener('mousedown', close);
+    };
+  }, [openMenu]);
+
+  // Refetch on dependency changes
+  useEffect(() => {
+    if (authData?.token) fetchUsers();
   }, [
-    authData.token, 
-    currentPage, 
-    pageSize, 
+    authData.token,
+    currentPage,
+    pageSize,
     keyWord,
     selectedSexe,
     selectedWilaya,
@@ -208,31 +239,43 @@ export default function GetUsers({ mode }) {
     setSelectedUser(null);
   };
 
-  const toggleMenu = (userId, event) => {
+  // ✅ Toggle the single menu — anchored to the button's screen position
+  const toggleMenuAt = (event, user) => {
     event.stopPropagation();
-    setOpenMenuId(openMenuId === userId ? null : userId);
+    const rect = event.currentTarget.getBoundingClientRect();
+    setOpenMenu(prev => {
+      // Same user already open → close
+      const prevId = prev?.user?.id || prev?.user?._id;
+      const userId = user.id || user._id;
+      if (prev && prevId === userId) return null;
+      return { rect, user };
+    });
   };
 
+  const closeMenu = () => setOpenMenu(null);
+
+  // ─── Action handlers ────────────────────────────────────────────────
   const handleEditUser = (user) => {
-    setOpenMenuId(null);
-    navigate(`/auth/update/${user.id}`);
+    const id = user.id || user._id;
+    if (!id) return showError('Identifiant utilisateur manquant');
+    navigate(`/auth/update/${id}`);
   };
 
   const handleViewDetails = (user) => {
-    setOpenMenuId(null);
     handleUserClick(user);
   };
 
   const handlePrintSituation = async (user) => {
-    setOpenMenuId(null);
-    
+    const userId = user.id || user._id;
+    if (!userId) return showError('Identifiant utilisateur manquant');
+
     try {
       const response = await fetchWithRefresh(
         `${NEST_API_URL}/pdf/preview/situation`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: user.id }),
+          body: JSON.stringify({ userId }),
         },
         authData.token,
         setAuthData
@@ -254,10 +297,7 @@ export default function GetUsers({ mode }) {
       setPdfPreview({
         isOpen: true,
         type: 'situation',
-        data: {
-          blobUrl,
-          memberName: `${user.name} ${user.lastname}`,
-        },
+        data: { blobUrl, memberName: `${user.name} ${user.lastname}` },
       });
 
       showSuccess('Aperçu généré avec succès!');
@@ -267,10 +307,10 @@ export default function GetUsers({ mode }) {
     }
   };
 
-
   const handleDeleteUser = async (user) => {
-    setOpenMenuId(null);
-    
+    const userId = user.id || user._id;
+    if (!userId) return showError('Identifiant utilisateur manquant');
+
     const confirmed = await confirm({
       title: 'Delete User',
       message: `Are you sure you want to delete ${user.name} ${user.lastname}? This action cannot be undone.`
@@ -279,12 +319,12 @@ export default function GetUsers({ mode }) {
     if (confirmed) {
       try {
         const response = await fetchWithRefresh(
-          `${NEST_API_URL}/users/${user.id}`,
+          `${NEST_API_URL}/users/${userId}`,
           { method: 'DELETE' },
           authData.token,
           setAuthData
         );
-        
+
         const data = await response.json();
 
         if (!response.ok) {
@@ -305,7 +345,6 @@ export default function GetUsers({ mode }) {
     }
   };
 
-  const titleText = mode === "membres" ? "Gestion des Membres" : "Gestion des Utilisateurs (Admin)";
   const searchPlaceholder = mode === "membres"
     ? "Rechercher un membre par nom, prénom, email, N° inscription..."
     : "Rechercher un admin par nom, prénom, email...";
@@ -329,19 +368,15 @@ export default function GetUsers({ mode }) {
   };
 
   const activeFilterCount = [
-    selectedSexe, selectedWilaya, selectedProfession, 
+    selectedSexe, selectedWilaya, selectedProfession,
     selectedRegion, selectedStatus, selectedCivility, selectedMaritalStatus,
     selectedDiplomaType, selectedRegistrationStatus, selectedProfessionalMode,
     selectedServiceNational
   ].filter(f => f !== "all").length;
 
-  // Pagination controls
   const goToPage = (page) => {
-    if (page >= 1 && page <= totalPages) {
-      setCurrentPage(page);
-    }
+    if (page >= 1 && page <= totalPages) setCurrentPage(page);
   };
-
   const goToPreviousPage = () => goToPage(currentPage - 1);
   const goToNextPage = () => goToPage(currentPage + 1);
 
@@ -350,25 +385,12 @@ export default function GetUsers({ mode }) {
     const maxVisible = 5;
     let start = Math.max(1, currentPage - Math.floor(maxVisible / 2));
     let end = Math.min(totalPages, start + maxVisible - 1);
-    
-    if (end - start < maxVisible - 1) {
-      start = Math.max(1, end - maxVisible + 1);
-    }
-    
-    for (let i = start; i <= end; i++) {
-      pages.push(i);
-    }
+    if (end - start < maxVisible - 1) start = Math.max(1, end - maxVisible + 1);
+    for (let i = start; i <= end; i++) pages.push(i);
     return pages;
   };
 
-  // Quick action handlers
-  const handleAddMember = () => {
-    navigate('/dash/createUser');
-  };
-
-  const handleExport = () => {
-    showSuccess('Export feature coming soon');
-  };
+  const handleAddMember = () => navigate('/dash/createUser');
 
   return (
     <div className="min-h-screen ml-[30px] mt-16 bg-[#0A0F1C] text-[#F8FAFC] font-sans antialiased p-6 md:p-8">
@@ -387,9 +409,8 @@ export default function GetUsers({ mode }) {
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                     <Shield className="w-3 h-3 mr-1" />
-                    {authData?.user?.role || 'Administrator'}
+                    {authData?.user?.roleLabel || authData?.user?.grade || 'Administrator'}
                   </span>
-
                   <span className="text-sm text-[#94A3B8] flex items-center gap-1">
                     <Calendar className="w-3.5 h-3.5" />
                     Member since {new Date(authData?.user?.createdAt).getFullYear() || '2024'}
@@ -402,14 +423,16 @@ export default function GetUsers({ mode }) {
 
         {/* ===== QUICK ACTIONS ===== */}
         <div className="mt-6 flex flex-wrap gap-3">
-          <button 
-            onClick={handleAddMember}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-medium transition-all duration-200 shadow-lg shadow-emerald-500/20"
-          >
-            <Plus className="w-4 h-4" />
-            Add Member
-          </button>
-          <button 
+          {canCreateUser && (
+            <button
+              onClick={handleAddMember}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-medium transition-all duration-200 shadow-lg shadow-emerald-500/20"
+            >
+              <Plus className="w-4 h-4" />
+              Add Member
+            </button>
+          )}
+          <button
             onClick={() => setShowFilters(!showFilters)}
             className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all duration-200 ${
               showFilters || activeFilterCount > 0
@@ -425,7 +448,7 @@ export default function GetUsers({ mode }) {
               </span>
             )}
           </button>
-          <button 
+          <button
             onClick={resetFilters}
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 transition-all duration-200"
           >
@@ -434,7 +457,7 @@ export default function GetUsers({ mode }) {
           </button>
         </div>
 
-        {/* ===== SEARCH & FILTERS PANEL ===== */}
+        {/* ===== SEARCH & PAGE SIZE ===== */}
         <div className="mt-6 flex flex-col md:flex-row md:items-center gap-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748B]" />
@@ -449,10 +472,7 @@ export default function GetUsers({ mode }) {
           </div>
           <select
             value={pageSize}
-            onChange={(e) => {
-              setPageSize(Number(e.target.value));
-              setCurrentPage(1);
-            }}
+            onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
             className="px-4 py-2.5 rounded-xl bg-[#111827] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
           >
             <option value="10">10 / page</option>
@@ -462,10 +482,10 @@ export default function GetUsers({ mode }) {
           </select>
         </div>
 
+        {/* ===== FILTER PANEL ===== */}
         {showFilters && (
           <div className="mt-4 p-5 bg-[#111827] rounded-xl border border-[rgba(255,255,255,0.06)] shadow-xl">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {/* Sexe */}
               {SEXE_OPTIONS.length > 0 && (
                 <div>
                   <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Sexe</label>
@@ -482,7 +502,6 @@ export default function GetUsers({ mode }) {
                 </div>
               )}
 
-              {/* Wilaya (CLOA) */}
               {wilayasData.length > 0 && (
                 <div>
                   <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">CLOA</label>
@@ -501,11 +520,6 @@ export default function GetUsers({ mode }) {
                 </div>
               )}
 
-              {/* Profession – keep dynamic for now, or replace with static if desired */}
-              {/* Keeping dynamic for profession (unchanged) */}
-              {/* ... same for region ... */}
-
-              {/* Civility */}
               {CIVILITY_OPTIONS.length > 0 && (
                 <div>
                   <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Civilité</label>
@@ -522,7 +536,6 @@ export default function GetUsers({ mode }) {
                 </div>
               )}
 
-              {/* Marital Status */}
               {MARITAL_STATUS_OPTIONS.length > 0 && (
                 <div>
                   <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Situation Familiale</label>
@@ -539,7 +552,6 @@ export default function GetUsers({ mode }) {
                 </div>
               )}
 
-              {/* Diploma Type */}
               {DIPLOMA_TYPE_OPTIONS.length > 0 && (
                 <div>
                   <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Type de Diplôme</label>
@@ -556,7 +568,6 @@ export default function GetUsers({ mode }) {
                 </div>
               )}
 
-              {/* Registration Status */}
               {REGISTRATION_STATUS_OPTIONS.length > 0 && (
                 <div>
                   <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Statut d'inscription</label>
@@ -573,7 +584,6 @@ export default function GetUsers({ mode }) {
                 </div>
               )}
 
-              {/* Professional Mode */}
               {PROFESSIONAL_MODE_OPTIONS.length > 0 && (
                 <div>
                   <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Mode d'exercice</label>
@@ -590,7 +600,6 @@ export default function GetUsers({ mode }) {
                 </div>
               )}
 
-              {/* Service National */}
               {SERVICE_NATIONAL_OPTIONS.length > 0 && (
                 <div>
                   <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Service National</label>
@@ -607,7 +616,6 @@ export default function GetUsers({ mode }) {
                 </div>
               )}
 
-              {/* Status */}
               {STATUS_OPTIONS.length > 0 && (
                 <div>
                   <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Statut</label>
@@ -640,7 +648,7 @@ export default function GetUsers({ mode }) {
                   <table className="w-full min-w-[900px]">
                     <thead>
                       <tr className="border-b border-[rgba(255,255,255,0.06)]">
-                        <th 
+                        <th
                           className="py-4 px-6 text-left text-xs uppercase tracking-wider text-[#64748B] font-semibold cursor-pointer hover:text-[#F8FAFC] transition"
                           onClick={() => {
                             setSortBy('name');
@@ -650,7 +658,7 @@ export default function GetUsers({ mode }) {
                         >
                           Nom {sortBy === 'name' && (sortOrder === 'asc' ? '↑' : '↓')}
                         </th>
-                        <th 
+                        <th
                           className="py-4 px-6 text-left text-xs uppercase tracking-wider text-[#64748B] font-semibold cursor-pointer hover:text-[#F8FAFC] transition"
                           onClick={() => {
                             setSortBy('lastname');
@@ -668,81 +676,39 @@ export default function GetUsers({ mode }) {
                     </thead>
                     <tbody>
                       {displayedUsers.length > 0 ? (
-                        displayedUsers.map((user) => (
-                          <tr 
-                            key={user.id || user._id} 
-                            className="border-b border-[rgba(255,255,255,0.04)] hover:bg-[#1F2937]/30 transition-colors group"
-                          >
-                            <td className="py-3 px-6 text-[#F8FAFC] font-medium">{user.name || '-'}</td>
-                            <td className="py-3 px-6 text-[#F8FAFC]">{user.lastname || '-'}</td>
-                            <td className="py-3 px-6 text-[#94A3B8] truncate max-w-[150px]">{user.email || '-'}</td>
-                            <td className="py-3 px-6 text-[#F8FAFC]">{user.region || '-'}</td>
-                            <td className="py-3 px-6">
-                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                user.status === 'active' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
-                                user.status === 'pending' ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20' :
-                                'bg-gray-500/10 text-gray-400 border border-gray-500/20'
-                              }`}>
-                                {user.status || 'inconnu'}
-                              </span>
-                            </td>
-                            <td className="py-3 px-6 text-right">
-                              <div className="relative" ref={el => menuRefs.current[user.id] = el}>
+                        displayedUsers.map((user) => {
+                          const rowId = user.id || user._id;
+                          return (
+                            <tr
+                              key={rowId}
+                              className="border-b border-[rgba(255,255,255,0.04)] hover:bg-[#1F2937]/30 transition-colors group"
+                            >
+                              <td className="py-3 px-6 text-[#F8FAFC] font-medium">{user.name || '-'}</td>
+                              <td className="py-3 px-6 text-[#F8FAFC]">{user.lastname || '-'}</td>
+                              <td className="py-3 px-6 text-[#94A3B8] truncate max-w-[150px]">{user.email || '-'}</td>
+                              {/* CLOA column reads `region` per product decision */}
+                              <td className="py-3 px-6 text-[#F8FAFC]">{user.region || '-'}</td>
+                              <td className="py-3 px-6">
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                  user.status === 'active' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                                  user.status === 'pending' ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20' :
+                                  'bg-gray-500/10 text-gray-400 border border-gray-500/20'
+                                }`}>
+                                  {user.status || 'inconnu'}
+                                </span>
+                              </td>
+                              <td className="py-3 px-6 text-right">
+                                {/* ✅ Just a button — no dropdown here. The menu is rendered once at the root. */}
                                 <button
-                                  onClick={(e) => toggleMenu(user.id, e)}
+                                  onClick={(e) => toggleMenuAt(e, user)}
                                   className="p-1.5 rounded-lg hover:bg-[#1F2937] transition-colors"
                                 >
                                   <MoreVertical className="w-5 h-5 text-[#64748B] group-hover:text-[#F8FAFC]" />
                                 </button>
-                                
-                                {openMenuId === user.id && (
-                                  <div className="absolute right-0 mt-2 w-56 bg-[#182233] border border-[rgba(255,255,255,0.06)] rounded-xl shadow-2xl z-50 py-1 overflow-hidden">
-                                    <button
-                                      onClick={() => handleViewDetails(user)}
-                                      className="w-full px-4 py-2.5 text-left text-[#F8FAFC] hover:bg-[#1F2937] transition-colors flex items-center gap-3 text-sm"
-                                    >
-                                      <Eye className="w-4 h-4 text-[#64748B]" />
-                                      Détails
-                                    </button>
-                                    <button
-                                      onClick={() => handleEditUser(user)}
-                                      className="w-full px-4 py-2.5 text-left text-[#F8FAFC] hover:bg-[#1F2937] transition-colors flex items-center gap-3 text-sm"
-                                    >
-                                      <Edit className="w-4 h-4 text-[#64748B]" />
-                                      Modifier
-                                    </button>
-                                    <div className="border-t border-[rgba(255,255,255,0.06)] my-1"></div>
-                                    <button
-                                      onClick={() => handlePrintSituation(user)}
-                                      className="w-full px-4 py-2.5 text-left text-[#F8FAFC] hover:bg-[#1F2937] transition-colors flex items-center gap-3 text-sm"
-                                    >
-                                      <FileText className="w-4 h-4 text-[#64748B]" />
-                                      Situation du membre
-                                    </button>
-                                    <div className="border-t border-[rgba(255,255,255,0.06)] my-1"></div>
-                                    <button
-                                      onClick={() => {
-                                        setOpenMenuId(null);
-                                        navigate(`/dash/adminUser/${user.id}`);
-                                      }}
-                                      className="w-full px-4 py-2.5 text-left text-[#F8FAFC] hover:bg-[#1F2937] transition-colors flex items-center gap-3 text-sm"
-                                    >
-                                      <BarChart3 className="w-4 h-4 text-[#64748B]" />
-                                      Profil complet
-                                    </button>
-                                    <button
-                                      onClick={() => handleDeleteUser(user)}
-                                      className="w-full px-4 py-2.5 text-left text-rose-400 hover:bg-rose-500/10 transition-colors flex items-center gap-3 text-sm border-t border-[rgba(255,255,255,0.06)] mt-1 pt-1"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                      Supprimer
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        ))
+                              </td>
+                            </tr>
+                          );
+                        })
                       ) : (
                         <tr>
                           <td colSpan="8" className="text-center py-12 text-[#64748B]">
@@ -766,14 +732,14 @@ export default function GetUsers({ mode }) {
                       onClick={goToPreviousPage}
                       disabled={currentPage === 1}
                       className={`p-2 rounded-lg transition ${
-                        currentPage === 1 
-                          ? 'bg-[#111827] text-[#64748B] cursor-not-allowed opacity-50' 
+                        currentPage === 1
+                          ? 'bg-[#111827] text-[#64748B] cursor-not-allowed opacity-50'
                           : 'bg-[#111827] text-[#F8FAFC] hover:bg-[#1F2937] border border-[rgba(255,255,255,0.06)]'
                       }`}
                     >
                       <ChevronLeft className="w-4 h-4" />
                     </button>
-                    
+
                     {getPageNumbers().map(page => (
                       <button
                         key={page}
@@ -787,13 +753,13 @@ export default function GetUsers({ mode }) {
                         {page}
                       </button>
                     ))}
-                    
+
                     <button
                       onClick={goToNextPage}
                       disabled={currentPage === totalPages}
                       className={`p-2 rounded-lg transition ${
-                        currentPage === totalPages 
-                          ? 'bg-[#111827] text-[#64748B] cursor-not-allowed opacity-50' 
+                        currentPage === totalPages
+                          ? 'bg-[#111827] text-[#64748B] cursor-not-allowed opacity-50'
                           : 'bg-[#111827] text-[#F8FAFC] hover:bg-[#1F2937] border border-[rgba(255,255,255,0.06)]'
                       }`}
                     >
@@ -806,6 +772,74 @@ export default function GetUsers({ mode }) {
           )}
         </div>
       </div>
+
+      {/* ===== SINGLE DROPDOWN MENU (rendered once, fixed-position) ===== */}
+      {openMenu && (
+        <>
+          {/* Invisible full-screen backdrop — closes on any click outside the menu */}
+          <div
+            className="fixed inset-0 z-40"
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              closeMenu();
+            }}
+          />
+          <div
+            className="fixed w-56 bg-[#182233] border border-[rgba(255,255,255,0.06)] rounded-xl shadow-2xl z-50 py-1 overflow-hidden"
+            style={{
+              top: openMenu.rect.bottom + 4,
+              left: Math.max(8, openMenu.rect.right - 224),
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => { closeMenu(); handleViewDetails(openMenu.user); }}
+              className="w-full px-4 py-2.5 text-left text-[#F8FAFC] hover:bg-[#1F2937] transition-colors flex items-center gap-3 text-sm"
+            >
+              <Eye className="w-4 h-4 text-[#64748B]" />
+              Détails
+            </button>
+            {canUpdateUser && (
+              <button
+                onClick={() => { closeMenu(); handleEditUser(openMenu.user); }}
+                className="w-full px-4 py-2.5 text-left text-[#F8FAFC] hover:bg-[#1F2937] transition-colors flex items-center gap-3 text-sm"
+              >
+                <Edit className="w-4 h-4 text-[#64748B]" />
+                Modifier
+              </button>
+            )}
+            <div className="border-t border-[rgba(255,255,255,0.06)] my-1"></div>
+            <button
+              onClick={() => { closeMenu(); handlePrintSituation(openMenu.user); }}
+              className="w-full px-4 py-2.5 text-left text-[#F8FAFC] hover:bg-[#1F2937] transition-colors flex items-center gap-3 text-sm"
+            >
+              <FileText className="w-4 h-4 text-[#64748B]" />
+              Situation du membre
+            </button>
+            <div className="border-t border-[rgba(255,255,255,0.06)] my-1"></div>
+            <button
+              onClick={() => {
+                const id = openMenu.user.id || openMenu.user._id;
+                closeMenu();
+                if (id) navigate(`/dash/adminUser/${id}`);
+              }}
+              className="w-full px-4 py-2.5 text-left text-[#F8FAFC] hover:bg-[#1F2937] transition-colors flex items-center gap-3 text-sm"
+            >
+              <BarChart3 className="w-4 h-4 text-[#64748B]" />
+              Profil complet
+            </button>
+            {canDeleteUser && (
+              <button
+                onClick={() => { const u = openMenu.user; closeMenu(); handleDeleteUser(u); }}
+                className="w-full px-4 py-2.5 text-left text-rose-400 hover:bg-rose-500/10 transition-colors flex items-center gap-3 text-sm border-t border-[rgba(255,255,255,0.06)] mt-1 pt-1"
+              >
+                <Trash2 className="w-4 h-4" />
+                Supprimer
+              </button>
+            )}
+          </div>
+        </>
+      )}
 
       {/* ===== MODALS ===== */}
       {pdfPreview.isOpen && (

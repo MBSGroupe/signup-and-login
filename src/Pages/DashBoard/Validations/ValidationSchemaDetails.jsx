@@ -1,13 +1,10 @@
 import { useContext, useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { UserContext } from "../../../Context/dataCont";
-import Title from "../../../Components/Title";
 import { fetchWithRefresh } from "../../../Components/api";
-import { useApi } from "../../../Hooks/useApi";
 import { useModal } from "../../../Context/ModalContext";
 import BackButton from "../../../Components/Buttons/BackButton";
 import {
-  ArrowLeft,
   CheckCircle,
   XCircle,
   Clock,
@@ -21,19 +18,14 @@ import {
   History,
   RefreshCw,
   Edit,
-  MoreVertical,
-  ChevronRight,
   AlertCircle,
   Shield,
   UserCheck,
-  UserX,
   Zap,
   GitBranch,
-  AlertTriangle,
   Info,
   List,
-  Database,
-  ExternalLink
+  Database
 } from "lucide-react";
 
 const API_URL = import.meta.env.VITE_NEST_API_URL;
@@ -52,12 +44,16 @@ const statusColors = {
   stable: "bg-blue-500/10 text-blue-400 border-blue-500/20"
 };
 
+// ─── Helper: unwrap the ResponseInterceptor envelope ────────────────────
+const unwrap = (body) => (body && typeof body === 'object' && 'data' in body && 'success' in body)
+  ? body.data
+  : body;
+
 export default function ValidationSchemaDetails() {
   const { schemaId } = useParams();
   const navigate = useNavigate();
   const { authData, setAuthData } = useContext(UserContext);
-  const { callApi } = useApi();
-  const { confirm, alert } = useModal();
+  const { confirm } = useModal();
   const [schema, setSchema] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -65,66 +61,73 @@ export default function ValidationSchemaDetails() {
   const [userNamesMap, setUserNamesMap] = useState({});
   const [loadingUsers, setLoadingUsers] = useState(false);
 
-  // Fetch schema data
+  // ─── Fetch schema ────────────────────────────────────────────────────
   useEffect(() => {
     const fetchSchema = async () => {
       setLoading(true);
-      const result = await callApi(async () => {
+      setError("");
+      try {
         const res = await fetchWithRefresh(
           `${API_URL}/validation/schemas/${schemaId}`,
           { method: "GET" },
           authData.token,
           setAuthData
         );
-        return res;
-      }, { showSuccessMessage: false });
-
-      if (result) {
-        setSchema(result);
-      } else {
-        setError("Impossible de charger le schéma.");
+        const body = await res.json();
+        const data = unwrap(body);
+        if (data) {
+          setSchema(data);
+        } else {
+          setError("Impossible de charger le schéma.");
+        }
+      } catch (err) {
+        console.error("Failed to load schema:", err);
+        setError(err?.message || "Impossible de charger le schéma.");
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
-    if (authData?.token) fetchSchema();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schemaId, authData.token, setAuthData]);
+    if (authData?.token && schemaId) fetchSchema();
+  }, [schemaId, authData?.token, setAuthData]);
 
-  // Fetch user names for allowedUserIds
+  // ─── Fetch user names for allowedUserIds ─────────────────────────────
   useEffect(() => {
-    if (schema && schema.steps) {
+    const fetchUserNames = async () => {
+      if (!schema?.steps?.length) return;
       const allUserIds = schema.steps.flatMap(step => step.allowedUserIds || []);
-      if (allUserIds.length) {
-        const fetchUserNames = async () => {
-          setLoadingUsers(true);
-          const uniqueIds = [...new Set(allUserIds.map(id => id.toString()))];
-          const results = {};
-          for (const id of uniqueIds) {
-            const result = await callApi(async () => {
-              const res = await fetchWithRefresh(
-                `${API_URL}/users/${id}`,
-                { method: "GET" },
-                authData.token,
-                setAuthData
-              );
-              return res;
-            }, { showSuccessMessage: false });
+      if (!allUserIds.length) return;
 
-            if (result && result.user) {
-              const user = result.user;
-              results[id] = `${user.name} ${user.lastname} (${user.email})`;
-            } else {
-              results[id] = id;
-            }
+      setLoadingUsers(true);
+      const uniqueIds = [...new Set(allUserIds.map(id => id.toString()))];
+      const results = {};
+
+      for (const id of uniqueIds) {
+        try {
+          const res = await fetchWithRefresh(
+            `${API_URL}/users/${id}`,
+            { method: "GET" },
+            authData.token,
+            setAuthData
+          );
+          const body = await res.json();
+          const payload = unwrap(body);
+          const user = payload?.user || payload;
+          if (user && (user.name || user.email)) {
+            results[id] = `${user.name || ''} ${user.lastname || ''}`.trim() || user.email || id;
+          } else {
+            results[id] = id;
           }
-          setUserNamesMap(results);
-          setLoadingUsers(false);
-        };
-        fetchUserNames();
+        } catch {
+          results[id] = id;
+        }
       }
-    }
-  }, [schema, authData.token, setAuthData]);
+      setUserNamesMap(results);
+      setLoadingUsers(false);
+    };
+
+    if (schema) fetchUserNames();
+  }, [schema, authData?.token, setAuthData]);
 
   const handleRollback = async () => {
     const confirmed = await confirm({
@@ -133,21 +136,19 @@ export default function ValidationSchemaDetails() {
     });
     if (!confirmed) return;
 
-    const result = await callApi(async () => {
+    try {
       const res = await fetchWithRefresh(
         `${API_URL}/validation/schemas/${schema.id}/rollback`,
         { method: "POST" },
         authData.token,
         setAuthData
       );
-      return res;
-    }, {
-      showSuccessMessage: true,
-      successMessage: "Rollback successful"
-    });
-
-    if (result) {
-      window.location.reload();
+      const body = await res.json();
+      if (body?.success) {
+        window.location.reload();
+      }
+    } catch (err) {
+      console.error("Rollback error:", err);
     }
   };
 
@@ -158,21 +159,19 @@ export default function ValidationSchemaDetails() {
     });
     if (!confirmed) return;
 
-    const result = await callApi(async () => {
+    try {
       const res = await fetchWithRefresh(
         `${API_URL}/validation/schemas/${schema.id}/reactivateVersion`,
         { method: "POST" },
         authData.token,
         setAuthData
       );
-      return res;
-    }, {
-      showSuccessMessage: true,
-      successMessage: "Version reactivated"
-    });
-
-    if (result) {
-      window.location.reload();
+      const body = await res.json();
+      if (body?.success) {
+        window.location.reload();
+      }
+    } catch (err) {
+      console.error("Reactivate error:", err);
     }
   };
 
@@ -222,7 +221,6 @@ export default function ValidationSchemaDetails() {
       }
     }
 
-    // New: step type badge
     const stepType = step.type || 'validation';
     const stepTypeLabel = stepType === 'verification' ? 'Vérification' : 'Validation';
     const stepTypeColor = stepType === 'verification'
@@ -239,7 +237,6 @@ export default function ValidationSchemaDetails() {
             <h4 className="font-semibold text-[#F8FAFC]">{step.stepName}</h4>
           </div>
           <div className="flex items-center gap-2">
-            {/* Existing required/optional badge */}
             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
               step.required
                 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
@@ -247,8 +244,6 @@ export default function ValidationSchemaDetails() {
             }`}>
               {step.required ? 'Requis' : 'Optionnel'}
             </span>
-
-            {/* Step type badge */}
             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${stepTypeColor}`}>
               {stepTypeLabel}
             </span>
@@ -324,7 +319,6 @@ export default function ValidationSchemaDetails() {
   return (
     <div className="min-h-screen ml-[30px]  bg-[#0A0F1C] p-6 md:p-8">
       <div className="max-w-7xl mx-auto">
-        {/* Back button */}
         <div className="mb-4">
           <BackButton />
         </div>
@@ -626,7 +620,7 @@ export default function ValidationSchemaDetails() {
         </div>
       </div>
 
-      <style jsx="true" >{`
+      <style>{`
         .custom-scrollbar::-webkit-scrollbar {
           width: 6px;
         }

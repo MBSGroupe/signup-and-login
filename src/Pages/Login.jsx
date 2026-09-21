@@ -1,7 +1,7 @@
 import { React, useState, useEffect, useContext } from "react";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { UserContext } from "../Context/dataCont";
-import { Mail, Lock, LogIn, Shield, AlertCircle } from "lucide-react";
+import { Mail, Lock, LogIn, Shield, AlertCircle, User as UserIcon, Building2 } from "lucide-react";
 import CNOALOGO from '../assets/LOGOCLOA.png';
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
@@ -12,6 +12,7 @@ const LoginForm = () => {
   const [searchParams] = useSearchParams();
   const isVerified = searchParams.get("verified") === "true";
 
+  const [loginType, setLoginType] = useState('user'); // 'user' | 'admin'
   const [message, setMessage] = useState(
     isVerified ? "✅ Votre email a été vérifié avec succès ! Veuillez vous connecter à votre compte." : ""
   );
@@ -63,8 +64,13 @@ const LoginForm = () => {
     e.preventDefault();
     setMessage("");
     setFormData((prev) => ({ ...prev, password: "" }));
+
+    const endpoint = loginType === 'admin' 
+      ? `${NEST_API_URL}/auth/admin/login` 
+      : `${NEST_API_URL}/auth/login`;
+
     try {
-      const response = await fetch(`${NEST_API_URL}/auth/login`, {
+      const response = await fetch(endpoint, {
         method: "POST",
         credentials: 'include',
         headers: { "Content-Type": "application/json" },
@@ -72,14 +78,15 @@ const LoginForm = () => {
       });
 
       const respData = await response.json();
-
       if (response.ok && respData.success) {
-        const { user, accessToken } = respData.data;
+        const innerData = respData.data?.data || respData.data;
+        const user = innerData?.user || respData.user;
+        const accessToken = innerData?.accessToken || respData.accessToken;
         setAuthData({ user, token: accessToken });
 
-        if (user.role === 'admin' || user.role === 'super_admin') {
+        if (user.grade === 'admin' || user.grade === 'super_admin') {
           navigate('/dash');
-        } else if (user.role === 'user') {
+        } else if (user.grade === 'user') {
           navigate('/auth/profile');
         } else {
           navigate('/');
@@ -134,7 +141,7 @@ const LoginForm = () => {
   return (
     <div className="min-h-screen bg-[#0A0F1C] flex flex-col items-center justify-center p-6 font-sans antialiased">
       <div className="w-full max-w-md">
-        {/* ─── Header with logo and title ─────────────────────────────── */}
+        {/* ─── Header with logo and title ─── */}
         <div className="flex flex-col items-center mb-8">
           <img
             src={CNOALOGO}
@@ -144,21 +151,51 @@ const LoginForm = () => {
           <h1 className="text-3xl font-bold text-[#F8FAFC] tracking-tight text-center">
             Ordre National des Architectes
           </h1>
-          <p className="text-[#94A3B8] text-sm mt-1">Espace membre</p>
+          <p className="text-[#94A3B8] text-sm mt-1">
+            {loginType === 'admin' ? 'Espace Administration' : 'Espace Membre'}
+          </p>
         </div>
 
         <div className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] shadow-2xl shadow-black/50 p-8">
+          {/* ─── Toggle: User / Admin ─── */}
+          <div className="flex gap-2 mb-6 p-1 bg-[#0A0F1C] rounded-xl border border-[rgba(255,255,255,0.06)]">
+            <button
+              type="button"
+              onClick={() => { setLoginType('user'); setMessage(''); }}
+              className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 ${
+                loginType === 'user'
+                  ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
+                  : 'text-[#94A3B8] hover:text-white hover:bg-[#1a2332]'
+              }`}
+            >
+              <UserIcon className="w-4 h-4" />
+              Membre
+            </button>
+            <button
+              type="button"
+              onClick={() => { setLoginType('admin'); setMessage(''); }}
+              className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 ${
+                loginType === 'admin'
+                  ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
+                  : 'text-[#94A3B8] hover:text-white hover:bg-[#1a2332]'
+              }`}
+            >
+              <Shield className="w-4 h-4" />
+              Admin
+            </button>
+          </div>
+
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-1.5">
               <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">
-                Email professionnel
+                {loginType === 'admin' ? 'Email administratif' : 'Email professionnel'}
               </label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748B]" />
                 <input
                   type="email"
                   name="email"
-                  placeholder="nom.prenom@elmi3mari.dz"
+                  placeholder={loginType === 'admin' ? 'admin@cnoa.dz' : 'nom.prenom@elmi3mari.dz'}
                   value={formData.email}
                   onChange={handleChange}
                   disabled={lockTime > 0}
@@ -198,7 +235,7 @@ const LoginForm = () => {
               ) : (
                 <>
                   <LogIn className="w-4 h-4" />
-                  Se connecter
+                  {loginType === 'admin' ? 'Connexion Admin' : 'Se connecter'}
                 </>
               )}
             </button>
@@ -216,23 +253,27 @@ const LoginForm = () => {
           )}
         </div>
 
-        <div className="mt-4 text-center">
-          <Link
-            to="/forgot-password"
-            className="text-sm text-emerald-400 hover:underline font-medium"
-          >
-            Mot de Passe Oublié ?
-          </Link>
-        </div>
+        {loginType === 'user' && (
+          <>
+            <div className="mt-4 text-center">
+              <Link
+                to="/forgot-password"
+                className="text-sm text-emerald-400 hover:underline font-medium"
+              >
+                Mot de Passe Oublié ?
+              </Link>
+            </div>
 
-        <div className="mt-8 text-center text-[#64748B] text-m">
-          <p>
-            Vous n'êtes pas inscrit ? Créez un compte{" "}
-            <Link to="/signup" className="text-emerald-400 hover:underline font-medium">
-              S'inscrire
-            </Link>
-          </p>
-        </div>
+            <div className="mt-8 text-center text-[#64748B] text-m">
+              <p>
+                Vous n'êtes pas inscrit ? Créez un compte{" "}
+                <Link to="/signup" className="text-emerald-400 hover:underline font-medium">
+                  S'inscrire
+                </Link>
+              </p>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

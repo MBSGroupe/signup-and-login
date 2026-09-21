@@ -157,10 +157,14 @@ export default function UpdateUser() {
         // 3. Initialize form with user data (only fields that exist)
         const initialForm = {};
         (permData.fields || []).forEach(field => {
+          // `password` here is the viewer's re-auth credential — never pre-fill it
+          if (field === 'password') return;
           if (userDataObj[field] !== undefined) {
             initialForm[field] = userDataObj[field];
           }
         });
+        // Ensure the re-auth field exists in state (empty), so the input is controlled
+        initialForm.password = '';
         setFormData(initialForm);
 
       } catch (error) {
@@ -189,9 +193,11 @@ export default function UpdateUser() {
     setSubmitting(true);
 
     // List of fields allowed by the backend UpdateUserDto
+    // NOTE: `password` is intentionally excluded — it is the VIEWER's re-auth
+    // credential, not a target-user field. It is sent as `viewerPassword`.
     const allowedUserUpdateFields = [
       // Core identity
-      'name', 'lastname', 'email', 'password',
+      'name', 'lastname', 'email',
       // Profile & visuals
       'profilePicture', 'dateOfBirth',
       // CNOA / Professional
@@ -230,13 +236,22 @@ export default function UpdateUser() {
       'createdBy', 'updatedBy', 'metadata', 'isActive', 'isVerified', 'isAdminVerified'
     ];
 
+    // Extract the viewer's re-auth password — it is NOT a target-user field.
+    // The backend expects `viewerPassword` (and optionally `viewerId`), not `password`.
+    const viewerPassword = formData.password || undefined;
+
     // Build payload from formData, only including allowed fields
     const payload = {};
     for (const key of allowedUserUpdateFields) {
-      if (formData[key] !== undefined) {
-        payload[key] = formData[key];
-      }
+      if (formData[key] === undefined) continue;
+      // `password` is the viewer's credential — never send it as a target field
+      if (key === 'password') continue;
+      payload[key] = formData[key];
     }
+
+    // Attach the viewer's re-auth password under the key the backend expects
+    if (viewerPassword) payload.viewerPassword = viewerPassword;
+    if (authData?.user?.id) payload.viewerId = authData.user.id;
 
     try {
       const response = await fetchWithRefresh(
@@ -635,27 +650,30 @@ export default function UpdateUser() {
               {/* ─── Render all sections ──────────────────────────────── */}
               {getVisibleSections().map(key => renderSection(key))}
 
-              {/* ─── Password field ───────────────────────────────────── */}
+              {/* ─── Re-authentication (viewer's own password) ────────── */}
               <div className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)]">
                 <div className="flex items-center gap-3 mb-6">
                   <Shield className="w-5 h-5 text-emerald-400" />
-                  <h3 className="text-lg font-semibold text-[#F8FAFC]">Sécurité</h3>
+                  <h3 className="text-lg font-semibold text-[#F8FAFC]">Confirmation</h3>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div className="space-y-1.5">
                     <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">
-                      Mot de passe <span className="text-rose-400 ml-1">*</span>
+                      Votre mot de passe <span className="text-rose-400 ml-1">*</span>
                     </label>
                     <input
                       type="password"
                       name="password"
                       value={formData.password || ''}
                       onChange={handleChange}
-                      placeholder="Entrez votre mot de passe (8 caractères min)"
+                      placeholder="Saisissez votre mot de passe pour confirmer"
                       required
+                      autoComplete="current-password"
                       className="w-full px-4 py-2.5 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all duration-200 placeholder-[#64748B] hover:border-[rgba(255,255,255,0.12)]"
                     />
-                    <p className="text-xs text-[#64748B]">Minimum 8 caractères, avec une majuscule, une minuscule, un chiffre et un caractère spécial</p>
+                    <p className="text-xs text-[#64748B]">
+                      Requis pour confirmer les modifications. Il s'agit de votre mot de passe, pas de celui de l'utilisateur modifié.
+                    </p>
                   </div>
                 </div>
               </div>

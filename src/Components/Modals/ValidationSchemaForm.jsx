@@ -1,9 +1,8 @@
 import { useState, useContext, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UserContext } from '../../Context/dataCont';
-import { useApi } from '../../Hooks/useApi';
 import { useModal } from '../../Context/ModalContext';
-import { fetchWithRefresh } from '../../Components/api'; // ✅ added
+import { fetchWithRefresh } from '../../Components/api';
 import {
   Plus,
   Trash2,
@@ -52,7 +51,7 @@ const FINAL_ACTIONS = [
   'setField',
   // 'callService',
   'sendEmail'
-]; 
+];
 const PREDEFINED_SERVICES = [
   {
     name: 'PdfService',
@@ -243,8 +242,7 @@ function EmailContentTextarea({ value = '', onChange, ringColor, placeholder }) 
 
 export default function ValidationSchemaForm({ initialData, schemaId, onSuccess, allowedFields = null, fieldConfigs = {} }) {
   const { authData, setAuthData } = useContext(UserContext);
-  const { callApi } = useApi();
-  const { confirm } = useModal();
+  const { confirm, alert } = useModal();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(false);
@@ -286,20 +284,24 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
         authData.token,
         setAuthData
       );
-      if (!res.ok) {
-        console.error('Failed to fetch users by role');
-        setLoadingUsers(false);
-        return [];
-      }
-      const result = await res.json();
-      const users = result || [];
-      setUsersByRole(prev => ({ ...prev, [role]: users }));
-      setLoadingUsers(false);
-      return users;
+      const body = await res.json();
+      // Unwrap ResponseInterceptor envelope; also tolerate bare array or { users: [...] }
+      const payload = (body && typeof body === 'object' && 'success' in body && 'data' in body)
+        ? body.data
+        : body;
+      const users =
+        (Array.isArray(payload) && payload) ||
+        payload?.users ||
+        [];
+      const safeUsers = Array.isArray(users) ? users : [];
+      setUsersByRole(prev => ({ ...prev, [role]: safeUsers }));
+      return safeUsers;
     } catch (error) {
       console.error('Error fetching users by role:', error);
-      setLoadingUsers(false);
+      setUsersByRole(prev => ({ ...prev, [role]: [] }));
       return [];
+    } finally {
+      setLoadingUsers(false);
     }
   };
 
@@ -696,18 +698,18 @@ export default function ValidationSchemaForm({ initialData, schemaId, onSuccess,
         authData.token,
         setAuthData
       );
-      console.log(formData, "form data");
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData.message || 'Erreur lors de l\'enregistrement');
       }
-      // If we get here, success
       if (onSuccess) onSuccess();
       navigate('/dash/validation/schemas');
     } catch (error) {
       console.error('Submit error:', error);
-      // Optionally show error via modal or toast
-      alert(error.message || 'Erreur réseau');
+      await alert({
+        title: 'Erreur',
+        message: error.message || 'Erreur réseau',
+      });
     } finally {
       setLoading(false);
     }

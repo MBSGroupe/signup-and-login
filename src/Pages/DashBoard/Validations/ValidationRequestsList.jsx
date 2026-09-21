@@ -1,9 +1,7 @@
 import { useContext, useEffect, useState } from 'react';
 import { UserContext } from '../../../Context/dataCont';
-import Title from '../../../Components/Title';
 import { fetchWithRefresh } from '../../../Components/api';
 import { useNavigate } from 'react-router-dom';
-import { useApi } from '../../../Hooks/useApi';
 import { useModal } from '../../../Context/ModalContext';
 import BackButton from '../../../Components/Buttons/BackButton';
 import wilayasData from '../../../assets/data/wilayas.json';
@@ -15,6 +13,7 @@ import {
   ChevronRight,
   XCircle,
   AlertCircle,
+  AlertTriangle,
   Filter,
   Calendar,
   User,
@@ -38,7 +37,6 @@ import {
 
 const API_URL = import.meta.env.VITE_NEST_API_URL;
 
-// ─── Static filter options (same as GetUsers) ────────────────────────
 const SEXE_OPTIONS = ['M', 'F'];
 const CIVILITY_OPTIONS = ['Mr', 'Mme', 'Mlle'];
 const MARITAL_STATUS_OPTIONS = ['Célibataire', 'Marié(e)', 'Divorcé(e)', 'Veuf(ve)'];
@@ -47,22 +45,26 @@ const REGISTRATION_STATUS_OPTIONS = ['Inscrit', 'Radié', 'Suspendu'];
 const PROFESSIONAL_MODE_OPTIONS = ['Libéral', 'Associé', 'Salarié'];
 const SERVICE_NATIONAL_OPTIONS = ['Ayant effectué', 'Exempté', 'En cours', 'Non concerné'];
 const USER_STATUS_OPTIONS = ['pending', 'active', 'suspended', 'archived'];
-// 🟢 [MODIFICATION] : Types par défaut étendus dynamiquement à partir des données reçues de l'API
 const DEFAULT_TARGET_TYPES = ['User', 'File', 'Cotisation'];
 const REQUEST_STATUS_OPTIONS = ['pending', 'partial', 'approved', 'rejected', 'cancelled', 'expired'];
 
+// ─── Helper: unwrap the ResponseInterceptor envelope ────────────────────
+const unwrap = (body) => (body && typeof body === 'object' && 'data' in body && 'success' in body)
+  ? body.data
+  : body;
+
 export default function ValidationRequestsList() {
   const { authData, setAuthData } = useContext(UserContext);
-  const { callApi } = useApi();
   const { confirm } = useModal();
   const navigate = useNavigate();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
 
-  // ─── Filter states (all start at "all") ─────────────────────────────
+  // Filter states
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');           // request.status
+  const [statusFilter, setStatusFilter] = useState('all');
   const [targetTypeFilter, setTargetTypeFilter] = useState('all');
   const [wilayaFilter, setWilayaFilter] = useState('all');
   const [sexeFilter, setSexeFilter] = useState('all');
@@ -72,15 +74,15 @@ export default function ValidationRequestsList() {
   const [registrationStatusFilter, setRegistrationStatusFilter] = useState('all');
   const [professionalModeFilter, setProfessionalModeFilter] = useState('all');
   const [serviceNationalFilter, setServiceNationalFilter] = useState('all');
-  const [userStatusFilter, setUserStatusFilter] = useState('all');   // target user's status
+  const [userStatusFilter, setUserStatusFilter] = useState('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
-  // ─── Mass selection ────────────────────────────────────────────────────
+  // Mass selection
   const [selectedRequests, setSelectedRequests] = useState([]);
   const [massApproving, setMassApproving] = useState(false);
 
-  // 🟢 [MODIFICATION] : Extraction dynamique de tous les types de cibles et schémas existants
+  // Dynamic target types + schema names
   const availableTargetTypes = Array.from(
     new Set([
       ...DEFAULT_TARGET_TYPES,
@@ -91,7 +93,6 @@ export default function ValidationRequestsList() {
 
   // ─── Filter logic ──────────────────────────────────────────────────────
   const filteredRequests = requests.filter(req => {
-    // Search
     if (searchTerm) {
       const targetDisplay = getTargetDisplay(req.targetType, req.targetId, req).toLowerCase();
       const schemaName = (req.validationSchema?.name || req.schemaName || '').toLowerCase();
@@ -100,10 +101,8 @@ export default function ValidationRequestsList() {
         return false;
       }
     }
-    // Request status
     if (statusFilter !== 'all' && req.status !== statusFilter) return false;
-    
-    // 🟢 [MODIFICATION] : Filtrage dynamique par type de cible OU nom de schéma
+
     if (targetTypeFilter !== 'all') {
       const currentSchema = req.validationSchema?.name || req.schemaName;
       if (req.targetType !== targetTypeFilter && currentSchema !== targetTypeFilter) {
@@ -111,9 +110,8 @@ export default function ValidationRequestsList() {
       }
     }
 
-    // Wilaya
     if (wilayaFilter !== 'all' && req.targetId?.wilaya !== wilayaFilter) return false;
-    // Date range
+
     if (dateFrom) {
       const from = new Date(dateFrom);
       if (new Date(req.createdAt) < from) return false;
@@ -124,7 +122,6 @@ export default function ValidationRequestsList() {
       if (new Date(req.createdAt) > to) return false;
     }
 
-    // ─── User‑specific filters (only apply if target is a User) ─────
     const target = req.targetId;
     if (req.targetType === 'User' && target) {
       if (sexeFilter !== 'all' && target.sexe !== sexeFilter) return false;
@@ -147,9 +144,7 @@ export default function ValidationRequestsList() {
   ].filter(f => f && f !== 'all').length;
 
   // ─── Helpers ────────────────────────────────────────────────────────────
-  // 🟢 [MODIFICATION] : Helper dynamique capable d'extraire les données d'un schéma générique ou d'une entité
   const getTargetDisplay = (targetType, target, fullReq = null) => {
-    // Si c'est un schéma avec des données de payload directes
     if (fullReq?.payload?.title || fullReq?.data?.title) {
       return fullReq.payload?.title || fullReq.data?.title;
     }
@@ -171,13 +166,12 @@ export default function ValidationRequestsList() {
     }
   };
 
-  // 🟢 [MODIFICATION] : Icône dynamique basée sur le type ou fallback
   const getTargetIcon = (type) => {
     switch (type) {
       case 'User': return <User className="w-4 h-4" />;
       case 'File': return <FileText className="w-4 h-4" />;
       case 'Cotisation': return <CreditCard className="w-4 h-4" />;
-      default: return <FileText className="w-4 h-4" />; // fallback
+      default: return <FileText className="w-4 h-4" />;
     }
   };
 
@@ -208,29 +202,30 @@ export default function ValidationRequestsList() {
   // ─── API calls ────────────────────────────────────────────────────────────
   const fetchRequests = async () => {
     setLoading(true);
-    const result = await callApi(async () => {
+    setError(null);
+    try {
       const res = await fetchWithRefresh(
         `${API_URL}/validation/requests/approver?status=${statusFilter}`,
         { method: 'GET' },
         authData.token,
         setAuthData
       );
-      return res;
-    }, { showSuccessMessage: false });
-
-    if (result) {
-      setRequests(result.requests || []);
-    } else {
+      const body = await res.json();
+      const payload = unwrap(body);
+      const list = payload?.requests || (Array.isArray(payload) ? payload : []);
+      setRequests(Array.isArray(list) ? list : []);
+    } catch (err) {
+      console.error('Failed to load approver requests:', err);
+      setError(err?.message || 'Erreur lors du chargement des demandes.');
       setRequests([]);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
-    if (authData?.token) {
-      fetchRequests();
-    }
-  }, [statusFilter, authData?.token]);
+    if (authData?.token) fetchRequests();
+  }, [statusFilter, authData?.token, setAuthData]);
 
   // ─── Actions ──────────────────────────────────────────────────────────────
   const toggleRequestSelection = (requestId) => {
@@ -265,18 +260,16 @@ export default function ValidationRequestsList() {
         `${API_URL}/validation/requests/mass-approve`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' }, // ✅ Authorization header removed – fetchWithRefresh adds it
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ requestIds: selectedRequests, comments: 'Validation en masse' }),
         },
         authData.token,
         setAuthData
       );
-      if (res.ok) {
-        const result = await res.json();
-        if (result.success) {
-          setSelectedRequests([]);
-          fetchRequests();
-        }
+      const result = await res.json();
+      if (result.success) {
+        setSelectedRequests([]);
+        fetchRequests();
       }
     } catch (err) {
       console.error('Mass approve error:', err);
@@ -292,7 +285,7 @@ export default function ValidationRequestsList() {
     });
     if (!confirmed) return;
 
-    const result = await callApi(async () => {
+    try {
       const res = await fetchWithRefresh(
         `${API_URL}/validation/requests/${requestId}/cancel`,
         {
@@ -303,14 +296,12 @@ export default function ValidationRequestsList() {
         authData.token,
         setAuthData
       );
-      return res;
-    }, {
-      showSuccessMessage: true,
-      successMessage: 'Demande annulée avec succès'
-    });
-
-    if (result) {
-      fetchRequests();
+      const body = await res.json();
+      if (body?.success) {
+        fetchRequests();
+      }
+    } catch (err) {
+      console.error('Cancel error:', err);
     }
   };
 
@@ -347,7 +338,7 @@ export default function ValidationRequestsList() {
   return (
     <div className="min-h-screen bg-[#0A0F1C] p-6 md:p-8 ml-[30px] mt-16">
       <div className="max-w-7xl mx-auto">
-        {/* ===== HEADER ===== */}
+        {/* HEADER */}
         <div className="flex flex-wrap items-center gap-4 mb-6">
           <BackButton fallbackPath="/dash" />
           <div className="flex items-center gap-3">
@@ -365,7 +356,18 @@ export default function ValidationRequestsList() {
           </div>
         </div>
 
-        {/* ===== SEARCH BAR ===== */}
+        {/* ERROR BANNER */}
+        {error && (
+          <div className="mb-6 bg-rose-500/10 rounded-2xl border border-rose-500/20 p-5 flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-rose-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-rose-300 font-medium">Erreur de chargement</p>
+              <p className="text-rose-400/80 text-sm mt-0.5">{error}</p>
+            </div>
+          </div>
+        )}
+
+        {/* SEARCH */}
         <div className="mb-6 flex flex-col md:flex-row md:items-center gap-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748B]" />
@@ -379,7 +381,7 @@ export default function ValidationRequestsList() {
           </div>
         </div>
 
-        {/* ===== QUICK ACTIONS ===== */}
+        {/* QUICK ACTIONS */}
         <div className="flex flex-wrap gap-3 mb-6">
           <button
             onClick={() => setShowFilters(!showFilters)}
@@ -405,233 +407,119 @@ export default function ValidationRequestsList() {
           </button>
         </div>
 
-        {/* ===== FILTERS PANEL ===== */}
+        {/* FILTERS PANEL */}
         {showFilters && (
           <div className="mb-6 p-5 bg-[#111827] rounded-xl border border-[rgba(255,255,255,0.06)] shadow-xl">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {/* Status (request) */}
               <div>
                 <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Statut (demande)</label>
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                >
+                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500">
                   <option value="all">Tous les statuts</option>
-                  {REQUEST_STATUS_OPTIONS.map(s => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
+                  {REQUEST_STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
-
-              {/* 🟢 [MODIFICATION] : Type de cible ou Schéma dynamique */}
               <div>
                 <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Type / Schéma</label>
-                <select
-                  value={targetTypeFilter}
-                  onChange={(e) => setTargetTypeFilter(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                >
+                <select value={targetTypeFilter} onChange={(e) => setTargetTypeFilter(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500">
                   <option value="all">Tous les types & schémas</option>
-                  {availableTargetTypes.map(t => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
+                  {availableTargetTypes.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
-
-              {/* Wilaya */}
               <div>
                 <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Wilaya</label>
-                <select
-                  value={wilayaFilter}
-                  onChange={(e) => setWilayaFilter(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                >
+                <select value={wilayaFilter} onChange={(e) => setWilayaFilter(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500">
                   <option value="all">Toutes les wilayas</option>
-                  {wilayasData.map(w => (
-                    <option key={w.code} value={w.code}>
-                      {w.code} - {w.name}
-                    </option>
-                  ))}
+                  {wilayasData.map(w => <option key={w.code} value={w.code}>{w.code} - {w.name}</option>)}
                 </select>
               </div>
-
-              {/* Sexe */}
               <div>
                 <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Sexe</label>
-                <select
-                  value={sexeFilter}
-                  onChange={(e) => setSexeFilter(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                >
+                <select value={sexeFilter} onChange={(e) => setSexeFilter(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500">
                   <option value="all">Tous les sexes</option>
-                  {SEXE_OPTIONS.map(s => (
-                    <option key={s} value={s}>{s === 'M' ? 'Homme' : 'Femme'}</option>
-                  ))}
+                  {SEXE_OPTIONS.map(s => <option key={s} value={s}>{s === 'M' ? 'Homme' : 'Femme'}</option>)}
                 </select>
               </div>
-
-              {/* Civilité */}
               <div>
                 <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Civilité</label>
-                <select
-                  value={civilityFilter}
-                  onChange={(e) => setCivilityFilter(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                >
+                <select value={civilityFilter} onChange={(e) => setCivilityFilter(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500">
                   <option value="all">Toutes les civilités</option>
-                  {CIVILITY_OPTIONS.map(c => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
+                  {CIVILITY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
-
-              {/* Situation familiale */}
               <div>
                 <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Situation familiale</label>
-                <select
-                  value={maritalStatusFilter}
-                  onChange={(e) => setMaritalStatusFilter(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                >
+                <select value={maritalStatusFilter} onChange={(e) => setMaritalStatusFilter(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500">
                   <option value="all">Toutes les situations</option>
-                  {MARITAL_STATUS_OPTIONS.map(m => (
-                    <option key={m} value={m}>{m}</option>
-                  ))}
+                  {MARITAL_STATUS_OPTIONS.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
               </div>
-
-              {/* Type de diplôme */}
               <div>
                 <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Type de diplôme</label>
-                <select
-                  value={diplomaTypeFilter}
-                  onChange={(e) => setDiplomaTypeFilter(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                >
+                <select value={diplomaTypeFilter} onChange={(e) => setDiplomaTypeFilter(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500">
                   <option value="all">Tous les types</option>
-                  {DIPLOMA_TYPE_OPTIONS.map(d => (
-                    <option key={d} value={d}>{d}</option>
-                  ))}
+                  {DIPLOMA_TYPE_OPTIONS.map(d => <option key={d} value={d}>{d}</option>)}
                 </select>
               </div>
-
-              {/* Statut d'inscription */}
               <div>
                 <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Statut d'inscription</label>
-                <select
-                  value={registrationStatusFilter}
-                  onChange={(e) => setRegistrationStatusFilter(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                >
+                <select value={registrationStatusFilter} onChange={(e) => setRegistrationStatusFilter(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500">
                   <option value="all">Tous les statuts</option>
-                  {REGISTRATION_STATUS_OPTIONS.map(r => (
-                    <option key={r} value={r}>{r}</option>
-                  ))}
+                  {REGISTRATION_STATUS_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
               </div>
-
-              {/* Mode d'exercice */}
               <div>
                 <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Mode d'exercice</label>
-                <select
-                  value={professionalModeFilter}
-                  onChange={(e) => setProfessionalModeFilter(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                >
+                <select value={professionalModeFilter} onChange={(e) => setProfessionalModeFilter(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500">
                   <option value="all">Tous les modes</option>
-                  {PROFESSIONAL_MODE_OPTIONS.map(p => (
-                    <option key={p} value={p}>{p}</option>
-                  ))}
+                  {PROFESSIONAL_MODE_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
               </div>
-
-              {/* Service national */}
               <div>
                 <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Service national</label>
-                <select
-                  value={serviceNationalFilter}
-                  onChange={(e) => setServiceNationalFilter(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                >
+                <select value={serviceNationalFilter} onChange={(e) => setServiceNationalFilter(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500">
                   <option value="all">Toutes les situations</option>
-                  {SERVICE_NATIONAL_OPTIONS.map(s => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
+                  {SERVICE_NATIONAL_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
-
-              {/* Statut de l'utilisateur cible */}
               <div>
                 <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Statut (utilisateur)</label>
-                <select
-                  value={userStatusFilter}
-                  onChange={(e) => setUserStatusFilter(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                >
+                <select value={userStatusFilter} onChange={(e) => setUserStatusFilter(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500">
                   <option value="all">Tous les statuts</option>
-                  {USER_STATUS_OPTIONS.map(s => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
+                  {USER_STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
-
-              {/* Date from */}
               <div>
                 <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Créé à partir du</label>
-                <input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                />
+                <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500" />
               </div>
-
-              {/* Date to */}
               <div>
                 <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Créé jusqu'au</label>
-                <input
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                />
+                <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500" />
               </div>
             </div>
           </div>
         )}
 
-        {/* ===== MASS ACTIONS ===== */}
+        {/* MASS ACTIONS */}
         {filteredRequests.some(req => {
           const firstPending = req.steps?.filter(s => s.status === 'pending').sort((a, b) => a.order - b.order)[0];
           return firstPending && firstPending.massValidation && firstPending.allowedUserIds?.some(u => (u.id || u) === authData.user?.id);
         }) && (
-            <div className="flex items-center gap-3 mb-4">
-              {selectedRequests.length > 0 && (
-                <button
-                  onClick={handleMassApprove}
-                  disabled={massApproving}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl shadow-lg shadow-emerald-500/20 transition-all text-sm font-medium disabled:opacity-50"
-                >
-                  {massApproving ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <CheckSquare className="w-4 h-4" />
-                  )}
-                  {massApproving ? 'Approbation...' : `Approuver la sélection (${selectedRequests.length})`}
-                </button>
-              )}
-              <button
-                onClick={handleSelectAll}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-[#1F2937] hover:bg-[#2A3A4A] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl transition-all text-sm font-medium"
-              >
-                <CheckSquare className="w-4 h-4" />
-                Tout sélectionner (mass validation)
+          <div className="flex items-center gap-3 mb-4">
+            {selectedRequests.length > 0 && (
+              <button onClick={handleMassApprove} disabled={massApproving} className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl shadow-lg shadow-emerald-500/20 transition-all text-sm font-medium disabled:opacity-50">
+                {massApproving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckSquare className="w-4 h-4" />}
+                {massApproving ? 'Approbation...' : `Approuver la sélection (${selectedRequests.length})`}
               </button>
-            </div>
-          )}
+            )}
+            <button onClick={handleSelectAll} className="inline-flex items-center gap-2 px-4 py-2 bg-[#1F2937] hover:bg-[#2A3A4A] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl transition-all text-sm font-medium">
+              <CheckSquare className="w-4 h-4" />
+              Tout sélectionner (mass validation)
+            </button>
+          </div>
+        )}
 
-        {/* ===== REQUEST LIST ===== */}
+        {/* REQUEST LIST */}
         {filteredRequests.length === 0 ? (
           <div className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] p-12 text-center shadow-2xl shadow-black/50">
             <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto mb-4">
@@ -674,16 +562,12 @@ export default function ValidationRequestsList() {
                       </div>
                     )}
 
-                    <div
-                      className="flex-1 min-w-0 cursor-pointer"
-                      onClick={() => navigate(`/dash/validation/requests/${req.id}`)}
-                    >
+                    <div className="flex-1 min-w-0 cursor-pointer" onClick={() => navigate(`/dash/validation/requests/${req.id}`)}>
                       <div className="flex items-center gap-3">
                         <span className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 flex-shrink-0">
                           {getTargetIcon(req.targetType)}
                         </span>
                         <div className="min-w-0">
-                          {/*  [MODIFICATION] : Affichage du nom réel de la demande */}
                           <h3 className="text-lg font-semibold text-[#F8FAFC] truncate">
                             {req.validationSchema?.name || req.schemaName || `${req.targetType} – ${getTargetDisplay(req.targetType, req.targetId)}`}
                           </h3>

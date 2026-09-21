@@ -17,7 +17,8 @@ const NotificationBell = () => {
         `${API_URL}/notifications/unread/count`,
         { method: 'GET' },
         authData.token,
-        setAuthData
+        setAuthData,
+        { type: authData.user?.type }
       );
       const data = await res.json();
       setUnreadCount(data.data.count);

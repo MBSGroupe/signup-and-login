@@ -41,18 +41,20 @@ export default function ResetPassword() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          token,
-          newPassword: formData.newPassword,
-        }),
+        token,
+        newPassword: formData.newPassword,
+        confirmPassword: formData.confirmNewPassword,   // ← map to DTO key
+      }),
       });
 
       const data = await response.json();
       if (response.ok && data.success) {
         setSuccess(true);
         setTimeout(() => navigate("/"), 2000);
-      } else {
-        setMessage(data.message || "Échec de la réinitialisation du mot de passe.");
-      }
+        } else {
+          const m = data.message;
+          setMessage(Array.isArray(m) ? m.join(' • ') : (m || "Échec de la réinitialisation du mot de passe."));
+        }
     } catch (err) {
       setMessage("Erreur réseau. Veuillez réessayer.");
     } finally {

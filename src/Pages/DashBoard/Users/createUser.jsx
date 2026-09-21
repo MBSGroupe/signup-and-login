@@ -15,17 +15,19 @@ export default function CreateUser() {
   const [isError, setIsError] = useState(false);
   const [canCreate, setCanCreate] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [creatableFields, setCreatableFields] = useState([]);
   const [fieldConfigs, setFieldConfigs] = useState({});
-  
+
   const { authData, setAuthData } = useContext(UserContext);
   const viewerId = authData?.user?.id || authData?.user?._id;
-  
+
   const [formData, setFormData] = useState({
     password: "",
     secondPassword: "",
+    viewerPassword: "",
   });
-  
+
   useEffect(() => {
     const fetchCreatableFields = async () => {
       try {
@@ -43,9 +45,9 @@ export default function CreateUser() {
           authData.token,
           setAuthData
         );
-        
+
         const canCreateData = await canCreateRes.json();
-        
+
         setCanCreate(canCreateData.data?.canPerform || false);
 
         if (!canCreateData.data?.canPerform) {
@@ -60,23 +62,34 @@ export default function CreateUser() {
           authData.token,
           setAuthData
         );
-        
+
         const fieldsData = await fieldsRes.json();
-        
+
         // Extract from wrapper: { success: true, data: { fields: [], configs: {} } }
         const data = fieldsData.data || fieldsData;
-        setCreatableFields(data.fields || []);
+        const fields = data.fields || [];
+
+        // Guard: if the backend returns no creatable fields, bail with a clear error
+        if (fields.length === 0) {
+          setIsError(true);
+          setMessage("Impossible de charger les champs autorisés. Contactez un administrateur.");
+          setCanCreate(false);
+          setLoading(false);
+          return;
+        }
+
+        setCreatableFields(fields);
         setFieldConfigs(data.configs || {});
-        
+
         // 3. Initialize form with empty values for creatable fields
-        const initialForm = { password: "", secondPassword: "" };
-        (data.fields || []).forEach(field => {
+        const initialForm = { password: "", secondPassword: "", viewerPassword: "" };
+        fields.forEach(field => {
           if (field !== 'password') {
             initialForm[field] = "";
           }
         });
         setFormData(initialForm);
-        
+
       } catch (error) {
         console.error("Error fetching creatable fields:", error);
         setCanCreate(false);
@@ -84,12 +97,12 @@ export default function CreateUser() {
         setLoading(false);
       }
     };
-    
+
     if (authData?.token && viewerId) {
       fetchCreatableFields();
     }
   }, [authData, viewerId, setAuthData]);
-  
+
   const handleChange = (e) => {
     const { name, value, type } = e.target;
     setFormData(prev => ({
@@ -101,10 +114,11 @@ export default function CreateUser() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const requiredFields = creatableFields.filter(field => 
+    // ─── Validation ───────────────────────────────────────────────
+    const requiredFields = creatableFields.filter(field =>
       fieldConfigs[field]?.validation?.required
     );
-    
+
     for (const field of requiredFields) {
       if (!formData[field]) {
         setIsError(true);
@@ -115,7 +129,7 @@ export default function CreateUser() {
 
     if (!formData.password) {
       setIsError(true);
-      setMessage("Le mot de passe est requis.");
+      setMessage("Le mot de passe du nouvel utilisateur est requis.");
       return;
     }
 
@@ -125,9 +139,16 @@ export default function CreateUser() {
       return;
     }
 
-    // Prepare payload
+    if (!formData.viewerPassword) {
+      setIsError(true);
+      setMessage("Votre mot de passe est requis pour confirmer la création.");
+      return;
+    }
+
+    // ─── Build payload ────────────────────────────────────────────
     const payload = {};
     creatableFields.forEach(field => {
+      if (field === 'password') return; // handled explicitly below
       if (formData[field] !== undefined) {
         payload[field] = formData[field];
       }
@@ -154,9 +175,14 @@ export default function CreateUser() {
       delete payload.actvityStartDate;
     }
 
+    // New user's password — the target user's credential
     payload.password = formData.password;
 
-    console.log('Payload being sent:', JSON.stringify(payload, null, 2));
+    // ✅ Viewer's re-auth password — the key the backend expects
+    payload.viewerPassword = formData.viewerPassword;
+    if (authData?.user?.id) payload.viewerId = authData.user.id;
+
+    setSubmitting(true);
 
     try {
       const response = await fetchWithRefresh(
@@ -171,35 +197,45 @@ export default function CreateUser() {
       );
 
       const data = await response.json();
-      
+
       if (response.ok && data.success) {
         setIsError(false);
         setMessage("✅ Utilisateur créé avec succès!");
-        
-        const resetForm = { password: "", secondPassword: "" };
+
+        const resetForm = { password: "", secondPassword: "", viewerPassword: "" };
         creatableFields.forEach(field => {
           if (field !== 'password') resetForm[field] = "";
         });
         setFormData(resetForm);
       } else {
         setIsError(true);
-        setMessage(data.message || data.data?.message || "❌ Échec de la création.");
+        const code = data?.code;
+        const msg = code === 'AUTHZ_REAUTH_FAILED'
+          ? 'Mot de passe incorrect.'
+          : (data.message || data.data?.message || "❌ Échec de la création.");
+        setMessage(msg);
       }
     } catch (err) {
       console.error("Network error:", err);
       setIsError(true);
-      setMessage("⚠️ Erreur réseau. Veuillez réessayer.");
+      if (err?.code === 'AUTHZ_REAUTH_FAILED') {
+        setMessage('Mot de passe incorrect.');
+      } else {
+        setMessage(err?.message || "⚠️ Erreur réseau. Veuillez réessayer.");
+      }
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const renderField = (fieldName) => {
     const config = fieldConfigs[fieldName] || {};
     const value = formData[fieldName] || "";
-    
+
     // Common classes
     const inputClasses = "w-full px-4 py-2.5 bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all duration-200 placeholder-[#64748B]";
     const labelClasses = "block text-xs font-medium text-[#94A3B8] uppercase tracking-wider mb-1.5";
-    
+
     if (fieldName === 'wilaya') {
       return (
         <div key={fieldName} className="space-y-1.5">
@@ -220,7 +256,7 @@ export default function CreateUser() {
         </div>
       );
     }
-    
+
     if (fieldName === 'commune') {
       return (
         <div key={fieldName} className="space-y-1.5">
@@ -244,7 +280,7 @@ export default function CreateUser() {
         </div>
       );
     }
-    
+
     if (config.type === 'select') {
       return (
         <div key={fieldName} className="space-y-1.5">
@@ -265,7 +301,7 @@ export default function CreateUser() {
         </div>
       );
     }
-    
+
     if (config.type === 'email') {
       return (
         <div key={fieldName} className="space-y-1.5">
@@ -281,7 +317,7 @@ export default function CreateUser() {
         </div>
       );
     }
-    
+
     if (config.type === 'date') {
       return (
         <div key={fieldName} className="space-y-1.5">
@@ -297,11 +333,11 @@ export default function CreateUser() {
         </div>
       );
     }
-    
+
     if (config.type === 'password') {
       return null;
     }
-    
+
     return (
       <div key={fieldName} className="space-y-1.5">
         <label className={labelClasses}>{config.label || fieldName.charAt(0).toUpperCase() + fieldName.slice(1)}</label>
@@ -384,33 +420,69 @@ export default function CreateUser() {
               }
             </div>
 
-            {/* Password fields */}
-            <div className="pt-4 border-t border-[rgba(255,255,255,0.06)] grid grid-cols-1 md:grid-cols-2 gap-5">
-              <div className="space-y-1.5">
-                <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">
-                  Mot de passe
-                </label>
-                <input
-                  type="password"
-                  name="password"
-                  value={formData.password}
-                  onChange={handleChange}
-                  placeholder="Entrez le mot de passe"
-                  className="w-full px-4 py-2.5 bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] placeholder-[#64748B] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all duration-200"
-                />
+            {/* Password fields — for the NEW user */}
+            <div className="pt-4 border-t border-[rgba(255,255,255,0.06)]">
+              <h3 className="text-sm font-semibold text-[#F8FAFC] mb-3 uppercase tracking-wider">
+                Mot de passe du nouvel utilisateur
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">
+                    Mot de passe <span className="text-rose-400 ml-1">*</span>
+                  </label>
+                  <input
+                    type="password"
+                    name="password"
+                    value={formData.password}
+                    onChange={handleChange}
+                    placeholder="Entrez le mot de passe"
+                    autoComplete="new-password"
+                    className="w-full px-4 py-2.5 bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] placeholder-[#64748B] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all duration-200"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">
+                    Confirmer <span className="text-rose-400 ml-1">*</span>
+                  </label>
+                  <input
+                    type="password"
+                    name="secondPassword"
+                    value={formData.secondPassword}
+                    onChange={handleChange}
+                    placeholder="Confirmez le mot de passe"
+                    autoComplete="new-password"
+                    className="w-full px-4 py-2.5 bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] placeholder-[#64748B] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all duration-200"
+                  />
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">
-                  Confirmer le mot de passe
-                </label>
-                <input
-                  type="password"
-                  name="secondPassword"
-                  value={formData.secondPassword}
-                  onChange={handleChange}
-                  placeholder="Confirmez le mot de passe"
-                  className="w-full px-4 py-2.5 bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] placeholder-[#64748B] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all duration-200"
-                />
+            </div>
+
+            {/* Re-auth: the VIEWER's own password */}
+            <div className="pt-4 border-t border-[rgba(255,255,255,0.06)]">
+              <div className="flex items-center gap-3 mb-3">
+                <Shield className="w-5 h-5 text-emerald-400" />
+                <h3 className="text-sm font-semibold text-[#F8FAFC] uppercase tracking-wider">
+                  Confirmation
+                </h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">
+                    Votre mot de passe <span className="text-rose-400 ml-1">*</span>
+                  </label>
+                  <input
+                    type="password"
+                    name="viewerPassword"
+                    value={formData.viewerPassword}
+                    onChange={handleChange}
+                    placeholder="Saisissez votre mot de passe pour confirmer"
+                    autoComplete="current-password"
+                    className="w-full px-4 py-2.5 bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] placeholder-[#64748B] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all duration-200"
+                  />
+                  <p className="text-xs text-[#64748B]">
+                    Requis pour confirmer la création. Il s'agit de votre mot de passe, pas de celui du nouvel utilisateur.
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -426,10 +498,20 @@ export default function CreateUser() {
               </button>
               <button
                 type="submit"
-                className="inline-flex items-center justify-center gap-2 px-6 py-2.5 text-sm font-medium text-white bg-emerald-500 hover:bg-emerald-600 rounded-xl shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 transition-all duration-200"
+                disabled={submitting}
+                className="inline-flex items-center justify-center gap-2 px-6 py-2.5 text-sm font-medium text-white bg-emerald-500 hover:bg-emerald-600 rounded-xl shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <UserPlus className="w-4 h-4" />
-                Créer l'utilisateur
+                {submitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Création...
+                  </>
+                ) : (
+                  <>
+                    <UserPlus className="w-4 h-4" />
+                    Créer l'utilisateur
+                  </>
+                )}
               </button>
             </div>
           </form>

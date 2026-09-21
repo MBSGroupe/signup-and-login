@@ -1,130 +1,113 @@
-import { useEffect, useContext, useMemo } from "react";
+import { useEffect, useContext, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { UserDataContext } from '../../Context/userDataCont';
 import { UserContext } from '../../Context/dataCont';
-import { fetchWithRefresh } from '../../Components/api'; // ✅ IMPORT
-import SectionTitle from '../../Components/Title';
-import { 
-  Users, 
-  UserCheck, 
-  UserX, 
-  CreditCard, 
-  TrendingUp, 
-  Calendar, 
-  Shield, 
-  BarChart3,
+import { fetchWithRefresh } from '../../Components/api';
+import {
+  Users,
+  UserX,
+  CreditCard,
+  Shield,
   ArrowUpRight,
-  ArrowDownRight,
   Activity,
-  Building2,
   UserCog,
   LayoutDashboard
 } from "lucide-react";
 
+const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
+
+// Helper: pull a count out of an array shaped [{ _id, count }, ...]
+const pickCount = (arr, key) => {
+  if (!Array.isArray(arr)) return 0;
+  const row = arr.find(r => r?._id === key);
+  return row?.count ?? 0;
+};
+
 export default function AdminDashboard() {
-  const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
-  
-  const { data, setData } = useContext(UserDataContext);
-  const { authData, setAuthData } = useContext(UserContext); // ✅ added setAuthData
+  const { authData, setAuthData } = useContext(UserContext);
   const navigate = useNavigate();
+
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     if (!authData?.token) return;
 
-    const getElements = async () => {
+    const getStats = async () => {
+      setLoading(true);
+      setError(null);
       try {
         const response = await fetchWithRefresh(
-          `${NEST_API_URL}/admin/allUsers`,
+          `${NEST_API_URL}/users/stats`,
           { method: "GET" },
           authData.token,
           setAuthData
         );
-        const results = await response.json();
-        setData(results);
-      } catch (error) {
-        console.error("Erreur lors de la récupération des données:", error);
+        const body = await response.json();
+        // ResponseInterceptor wraps as { success, data }
+        setStats(body?.data ?? body);
+      } catch (err) {
+        console.error("Failed to load dashboard stats:", err);
+        setError(err?.message || "Erreur lors du chargement des statistiques");
+        setStats(null);
+      } finally {
+        setLoading(false);
       }
     };
 
-    getElements();
-  }, [authData.token, setAuthData, setData]); // ✅ added setAuthData to deps
+    getStats();
+  }, [authData.token, setAuthData]);
 
-  // Compute statistics from the data
-  const stats = useMemo(() => {
-    if (!data || !Array.isArray(data)) {
-      return {
-        totalUsers: 0,
-        totalMembers: 0,
-        totalAdmins: 0,
-        activeUsers: 0,
-        pendingUsers: 0,
-        verifiedUsers: 0,
-        superAdmins: 0,
-      };
-    }
+  // Derived values (defensive against missing data)
+  const totalUsers = stats?.totalUsers ?? 0;
+  const activeUsers = stats?.activeUsers ?? 0;
+  const pendingUsers = pickCount(stats?.byStatus, 'pending');
+  const verifiedUsers = stats?.byVerification?.adminVerified ?? 0;
 
-    const total = data.length;
-    const members = data.filter(u => u.role === 'member' || u.role === 'user').length;
-    const admins = data.filter(u => u.role === 'admin').length;
-    const superAdmins = data.filter(u => u.role === 'super_admin').length;
-    const active = data.filter(u => u.status === 'active').length;
-    const pending = data.filter(u => u.status === 'pending').length;
-    const verified = data.filter(u => u.isAdminVerified).length;
+  const members = pickCount(stats?.byGrade, 'user');
+  const admins = pickCount(stats?.byGrade, 'admin');
+  const superAdmins = pickCount(stats?.byGrade, 'super_admin');
 
-    return {
-      totalUsers: total,
-      totalMembers: members,
-      totalAdmins: admins,
-      superAdmins,
-      activeUsers: active,
-      pendingUsers: pending,
-      verifiedUsers: verified,
-    };
-  }, [data]);
-
-  // Construction des cartes en fonction du rôle
-  const cards = useMemo(() => {
-    const baseCards = [
-      { 
-        title: "Membres", 
+  const cards = (() => {
+    const base = [
+      {
+        title: "Membres",
         subtitle: "Gérer les membres",
         icon: Users,
         color: "emerald",
         onClick: () => navigate("/dash/allMembers"),
-        count: stats.totalMembers,
+        count: members,
       },
-      { 
-        title: "Cotisations", 
+      {
+        title: "Cotisations",
         subtitle: "Gérer les cotisations",
         icon: CreditCard,
         color: "blue",
         onClick: () => navigate("/dash/allCotisations"),
-        count: null, // We don't have this count from current data
+        count: null,
       },
     ];
 
-    // La carte "Utilisateurs" n'est visible que pour les super admins
-    if (authData?.user?.role === 'super_admin') {
+    if (authData?.user?.grade === 'super_admin') {
       return [
-        { 
-          title: "Utilisateurs", 
+        {
+          title: "Utilisateurs",
           subtitle: "Gérer les administrateurs",
           icon: UserCog,
           color: "purple",
           onClick: () => navigate("/dash/allUsers"),
-          count: stats.totalAdmins + stats.superAdmins,
+          count: admins + superAdmins,
         },
-        ...baseCards
+        ...base,
       ];
     }
-    return baseCards;
-  }, [authData?.user?.role, navigate, stats]);
+    return base;
+  })();
 
   const getColorClasses = (color) => {
     switch (color) {
       case 'emerald':
         return {
-          bg: 'bg-emerald-500/10',
           border: 'border-emerald-500/20',
           text: 'text-emerald-400',
           hover: 'hover:border-emerald-500/40 hover:bg-emerald-500/20',
@@ -132,7 +115,6 @@ export default function AdminDashboard() {
         };
       case 'blue':
         return {
-          bg: 'bg-blue-500/10',
           border: 'border-blue-500/20',
           text: 'text-blue-400',
           hover: 'hover:border-blue-500/40 hover:bg-blue-500/20',
@@ -140,7 +122,6 @@ export default function AdminDashboard() {
         };
       case 'purple':
         return {
-          bg: 'bg-purple-500/10',
           border: 'border-purple-500/20',
           text: 'text-purple-400',
           hover: 'hover:border-purple-500/40 hover:bg-purple-500/20',
@@ -148,7 +129,6 @@ export default function AdminDashboard() {
         };
       default:
         return {
-          bg: 'bg-gray-500/10',
           border: 'border-gray-500/20',
           text: 'text-gray-400',
           hover: 'hover:border-gray-500/40 hover:bg-gray-500/20',
@@ -160,7 +140,7 @@ export default function AdminDashboard() {
   return (
     <div className="min-h-screen ml-[30px] mt-20 bg-[#0A0F1C] text-[#F8FAFC] font-sans antialiased p-6 md:p-8">
       <div className="max-w-7xl mx-auto">
-        {/* ===== HEADER / ACCOUNT SUMMARY ===== */}
+        {/* HEADER */}
         <div className="bg-[#111827] rounded-2xl p-6 md:p-8 border border-[rgba(255,255,255,0.06)] shadow-2xl shadow-black/50">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
             <div className="flex items-center gap-5">
@@ -174,7 +154,7 @@ export default function AdminDashboard() {
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                     <Shield className="w-3 h-3 mr-1" />
-                    {authData?.user?.role || 'Administrator'}
+                    {authData?.user?.roleLabel || authData?.user?.grade || 'Administrator'}
                   </span>
                   <span className="text-sm text-[#94A3B8] flex items-center gap-1">
                     <LayoutDashboard className="w-3.5 h-3.5" />
@@ -183,36 +163,45 @@ export default function AdminDashboard() {
                 </div>
               </div>
             </div>
-            {/* Quick stats in header */}
             <div className="flex flex-wrap gap-6 md:gap-8 items-center">
               <div className="text-right">
-                <div className="text-2xl font-bold text-[#F8FAFC]">{stats.totalUsers}</div>
+                <div className="text-2xl font-bold text-[#F8FAFC]">{totalUsers}</div>
                 <div className="text-xs uppercase tracking-wider text-[#64748B]">Total Users</div>
               </div>
               <div className="text-right">
-                <div className="text-2xl font-bold text-emerald-400">{stats.activeUsers}</div>
+                <div className="text-2xl font-bold text-emerald-400">{activeUsers}</div>
                 <div className="text-xs uppercase tracking-wider text-[#64748B]">Active</div>
               </div>
               <div className="text-right">
-                <div className="text-2xl font-bold text-yellow-400">{stats.pendingUsers}</div>
+                <div className="text-2xl font-bold text-yellow-400">{pendingUsers}</div>
                 <div className="text-xs uppercase tracking-wider text-[#64748B]">Pending</div>
               </div>
               <div className="text-right">
-                <div className="text-2xl font-bold text-blue-400">{stats.verifiedUsers}</div>
+                <div className="text-2xl font-bold text-blue-400">{verifiedUsers}</div>
                 <div className="text-xs uppercase tracking-wider text-[#64748B]">Verified</div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* ===== METRICS OVERVIEW ===== */}
+        {/* error / loading banners */}
+        {error && (
+          <div className="mt-6 bg-rose-500/10 border border-rose-500/20 rounded-xl px-5 py-3 text-sm text-rose-300">
+            {error}
+          </div>
+        )}
+        {loading && (
+          <div className="mt-6 text-center text-sm text-[#64748B]">Chargement des statistiques…</div>
+        )}
+
+        {/* METRICS OVERVIEW */}
         <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="bg-[#111827] rounded-xl p-5 border border-[rgba(255,255,255,0.06)] shadow-lg">
             <div className="flex items-center justify-between">
               <span className="text-xs uppercase tracking-wider text-[#64748B]">Total Members</span>
               <Users className="w-4 h-4 text-emerald-400" />
             </div>
-            <div className="mt-2 text-3xl font-bold text-[#F8FAFC]">{stats.totalMembers}</div>
+            <div className="mt-2 text-3xl font-bold text-[#F8FAFC]">{members}</div>
             <div className="mt-1 text-xs text-[#94A3B8]">All registered members</div>
           </div>
           <div className="bg-[#111827] rounded-xl p-5 border border-[rgba(255,255,255,0.06)] shadow-lg">
@@ -220,7 +209,7 @@ export default function AdminDashboard() {
               <span className="text-xs uppercase tracking-wider text-[#64748B]">Administrators</span>
               <Shield className="w-4 h-4 text-purple-400" />
             </div>
-            <div className="mt-2 text-3xl font-bold text-[#F8FAFC]">{stats.totalAdmins + stats.superAdmins}</div>
+            <div className="mt-2 text-3xl font-bold text-[#F8FAFC]">{admins + superAdmins}</div>
             <div className="mt-1 text-xs text-[#94A3B8]">Including super admins</div>
           </div>
           <div className="bg-[#111827] rounded-xl p-5 border border-[rgba(255,255,255,0.06)] shadow-lg">
@@ -228,9 +217,10 @@ export default function AdminDashboard() {
               <span className="text-xs uppercase tracking-wider text-[#64748B]">Active Users</span>
               <Activity className="w-4 h-4 text-blue-400" />
             </div>
-            <div className="mt-2 text-3xl font-bold text-[#F8FAFC]">{stats.activeUsers}</div>
+            <div className="mt-2 text-3xl font-bold text-[#F8FAFC]">{activeUsers}</div>
             <div className="mt-1 text-xs text-emerald-400 flex items-center gap-1">
-              <ArrowUpRight className="w-3 h-3" /> {stats.activeUsers > 0 ? Math.round((stats.activeUsers / stats.totalUsers) * 100) : 0}% of total
+              <ArrowUpRight className="w-3 h-3" />
+              {totalUsers > 0 ? Math.round((activeUsers / totalUsers) * 100) : 0}% of total
             </div>
           </div>
           <div className="bg-[#111827] rounded-xl p-5 border border-[rgba(255,255,255,0.06)] shadow-lg">
@@ -238,12 +228,12 @@ export default function AdminDashboard() {
               <span className="text-xs uppercase tracking-wider text-[#64748B]">Pending Validations</span>
               <UserX className="w-4 h-4 text-yellow-400" />
             </div>
-            <div className="mt-2 text-3xl font-bold text-[#F8FAFC]">{stats.pendingUsers}</div>
+            <div className="mt-2 text-3xl font-bold text-[#F8FAFC]">{pendingUsers}</div>
             <div className="mt-1 text-xs text-yellow-400">Awaiting approval</div>
           </div>
         </div>
 
-        {/* ===== QUICK ACTION CARDS ===== */}
+        {/* QUICK ACTION CARDS */}
         <div className="mt-8">
           <h2 className="text-lg font-semibold text-[#F8FAFC] mb-4 tracking-tight">Quick Actions</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -254,7 +244,7 @@ export default function AdminDashboard() {
                   key={index}
                   onClick={card.onClick}
                   className={`
-                    group relative bg-[#111827] rounded-2xl p-6 border ${color.border} 
+                    group relative bg-[#111827] rounded-2xl p-6 border ${color.border}
                     shadow-lg hover:shadow-xl transition-all duration-200 cursor-pointer
                     hover:-translate-y-1 hover:${color.hover}
                   `}
@@ -270,10 +260,7 @@ export default function AdminDashboard() {
                         </div>
                       )}
                     </div>
-                    <div className={`
-                      p-3 rounded-xl ${color.iconBg} ${color.text} 
-                      group-hover:scale-110 transition-transform duration-200
-                    `}>
+                    <div className={`p-3 rounded-xl ${color.iconBg} ${color.text} group-hover:scale-110 transition-transform duration-200`}>
                       <card.icon className="w-6 h-6" />
                     </div>
                   </div>
@@ -286,7 +273,6 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* ===== FOOTER / ADDITIONAL INFO ===== */}
         <div className="mt-10 pt-6 border-t border-[rgba(255,255,255,0.06)] text-center text-sm text-[#64748B]">
           <p>© {new Date().getFullYear()} - Admin Dashboard • All rights reserved</p>
         </div>

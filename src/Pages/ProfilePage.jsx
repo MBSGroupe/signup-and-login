@@ -99,7 +99,7 @@ export default function ProfilePage({ user }) {
 
   const targetUserId = user?.id || id || authData.user?.id;
   const isOwner = authData.user?.id === targetUserId;
-  const isAdmin = authData.user?.role === 'admin' || authData.user?.role === 'super_admin';
+    const isAdmin = ['admin', 'super_admin'].includes(authData?.user?.grade);
 
   const [validationRequests, setValidationRequests] = useState([]);
   const [validationLoading, setValidationLoading] = useState(false);
@@ -1332,7 +1332,7 @@ export default function ProfilePage({ user }) {
 {/* ─── Permission‑driven actions ─────────────────────────── */}
 <div className="flex flex-wrap items-center gap-2" ref={menuRef}>
   {/* Only show the menu to admins and super admins */}
-  {(isAdmin || authData.user?.role === 'super_admin') && (
+  {(isAdmin )&& (
     <>
       <button
         onClick={() => setMenuOpen(!menuOpen)}

@@ -3,6 +3,7 @@ import { useContext, useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { UserContext } from "../../../Context/dataCont";
 import { fetchWithRefresh } from "../../../Components/api";
+import { useModal } from "../../../Context/ModalContext";
 import VersionForm from "../../../Components/Forms/VersionForm";
 import BackButton from "../../../Components/Buttons/BackButton";
 import { Loader2, PlusCircle } from "lucide-react";
@@ -13,6 +14,7 @@ export default function NewVersion() {
   const { model } = useParams();
   const navigate = useNavigate();
   const { authData, setAuthData } = useContext(UserContext);
+  const { alert } = useModal();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [initialSchema, setInitialSchema] = useState({ fields: [], operations: [] });
@@ -45,10 +47,9 @@ export default function NewVersion() {
       }
     };
     if (authData?.token) fetchCurrentSchema();
-  }, [model, authData, setAuthData]);
+  }, [model, authData?.token, setAuthData]);
 
   const handleSubmit = async (schema, status) => {
-    console.log(schema, status);
     setSaving(true);
     try {
       const res = await fetchWithRefresh(
@@ -63,12 +64,19 @@ export default function NewVersion() {
       );
       const data = await res.json();
       if (res.ok && data.success !== false) {
-        navigate(`/dash/permissions/${model}/${data.data?.result?.version || data.result?.version || '?'}`);
+        navigate(`/dash/permissions/${model}/${data.data?.result?.id || data.result?.id || '?'}`);
       } else {
-        alert(data.message || "Erreur lors de la création");
+        await alert({
+          title: "Erreur",
+          message: data.message || "Erreur lors de la création",
+        });
       }
     } catch (err) {
-      alert("Erreur réseau");
+      console.error('Submit error:', err);
+      await alert({
+        title: "Erreur réseau",
+        message: err?.message || "Impossible de contacter le serveur",
+      });
     } finally {
       setSaving(false);
     }
