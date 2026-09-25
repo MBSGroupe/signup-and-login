@@ -4,7 +4,6 @@ import { UserContext } from '../../Context/dataCont';
 import { fetchWithRefresh } from '../../Components/api';
 import {
   Users,
-  UserX,
   CreditCard,
   Shield,
   ArrowUpRight,
@@ -18,6 +17,7 @@ import {
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
+// Helper: pull a count out of an array shaped [{ _id, count }, ...]
 const pickCount = (arr, key) => {
   if (!Array.isArray(arr)) return 0;
   const row = arr.find(r => r?._id === key);
@@ -76,7 +76,7 @@ export default function AdminDashboard() {
     };
 
     load();
-  }, [authData.token, setAuthData]);
+  }, [authData?.token, setAuthData]);
 
   // ─── Derived user stats ───────────────────────────────────────────
   const totalUsers = stats?.totalUsers ?? 0;
@@ -84,10 +84,10 @@ export default function AdminDashboard() {
   const pendingUsers = pickCount(stats?.byStatus, 'pending');
   const verifiedUsers = stats?.byVerification?.adminVerified ?? 0;
 
-  const members = pickCount(stats?.byRole, 'user');
-  const admins = pickCount(stats?.byRole, 'admin');
-  const superAdmins = pickCount(stats?.byRole, 'super_admin');
-  const newRegistrations = stats?.newUsersLast30Days ?? 0;
+  const members = pickCount(stats?.byRole || stats?.byGrade, 'user');
+  const admins = pickCount(stats?.byRole || stats?.byGrade, 'admin');
+  const superAdmins = pickCount(stats?.byRole || stats?.byGrade, 'super_admin');
+  const newRegistrations = stats?.newUsersLast7Days ?? 0;
 
   // ─── Derived validation stats ────────────────────────────────────
   const pendingValidations =
@@ -99,7 +99,7 @@ export default function AdminDashboard() {
   const activeRatio = pct(activeUsers, totalUsers);
   const verifiedRatio = pct(verifiedUsers, totalUsers);
 
-  const isSuperAdmin = authData?.user?.role === 'super_admin';
+  const isSuperAdmin = authData?.user?.role === 'super_admin' || authData?.user?.grade === 'super_admin';
   const adminCount = admins + superAdmins;
 
   return (
@@ -137,7 +137,7 @@ export default function AdminDashboard() {
                   <div className="flex flex-wrap items-center gap-2 mt-2">
                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/5 text-[#94A3B8] border border-[rgba(255,255,255,0.08)]">
                       <Shield className="w-3 h-3 mr-1" />
-                      {authData?.user?.roleLabel || authData?.user?.role || 'Administrateur'}
+                      {authData?.user?.roleLabel || authData?.user?.role || authData?.user?.grade || 'Administrateur'}
                     </span>
                     <span className="text-xs text-[#64748B] flex items-center gap-1">
                       <LayoutDashboard className="w-3.5 h-3.5" />

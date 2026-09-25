@@ -3,15 +3,18 @@ import { useNavigate } from 'react-router-dom';
 import { UserContext } from '../../../Context/dataCont';
 import { fetchWithRefresh } from '../../../Components/api';
 import ValidationSchemaForm from '../../../Components/Modals/ValidationSchemaForm';
-import { useApi } from '../../../Hooks/useApi';
 import BackButton from '../../../Components/Buttons/BackButton';
 import { Loader2, Layers } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_NEST_API_URL;
 
+// ─── Helper: unwrap the ResponseInterceptor envelope ────────────────────
+const unwrap = (body) => (body && typeof body === 'object' && 'data' in body && 'success' in body)
+  ? body.data
+  : body;
+
 export default function NewValidationSchema() {
   const { authData, setAuthData } = useContext(UserContext);
-  const { callApi } = useApi();
   const navigate = useNavigate();
   const [allowedFields, setAllowedFields] = useState(null);
   const [fieldConfigs, setFieldConfigs] = useState({});
@@ -20,32 +23,31 @@ export default function NewValidationSchema() {
   useEffect(() => {
     const fetchCreatableFields = async () => {
       setLoading(true);
-      
-      const result = await callApi(async () => {
+      try {
         const res = await fetchWithRefresh(
-          `${API_URL}/permissions/user/${authData.user.id}/creatable-fields?model=Validation`,
+          `${API_URL}/permissions/user/${authData.user.id}/creatable-fields?model=ValidationSchema`,
           { method: 'GET' },
           authData.token,
           setAuthData
         );
-        return res;
-      }, { showSuccessMessage: false });
-
-      if (result) {
-        setAllowedFields(result.fields || []);
-        setFieldConfigs(result.configs || {});
-      } else {
-        console.warn('Could not fetch creatable fields, using all fields');
+        const body = await res.json();
+        const payload = unwrap(body);
+        if (payload) {
+          setAllowedFields(payload.fields || []);
+          setFieldConfigs(payload.configs || {});
+        } else {
+          console.warn('Could not fetch creatable fields, using all fields');
+          setAllowedFields(null);
+        }
+      } catch (err) {
+        console.error('Failed to load creatable fields:', err);
         setAllowedFields(null);
+      } finally {
+        setLoading(false);
       }
-      
-      setLoading(false);
     };
 
-    if (authData?.token) {
-      fetchCreatableFields();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (authData?.token && authData?.user?.id) fetchCreatableFields();
   }, [authData?.token, setAuthData, authData?.user?.id]);
 
   if (loading) {

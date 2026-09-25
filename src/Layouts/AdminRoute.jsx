@@ -1,17 +1,18 @@
+// src/Layouts/AdminRoute.jsx
 import { Navigate } from "react-router-dom";
 import { useContext } from "react";
 import { UserContext } from "../Context/dataCont";
 
 export default function AdminRoute({ children }) {
-  const { authData, loading } = useContext(UserContext);
+  const { authData, loading, isAdminOrSuper } = useContext(UserContext);
 
-  if (loading) return null; // WAIT for hydration
+  if (loading) return null; // wait for hydration
 
   if (!authData?.token) {
     return <Navigate to="/" replace />;
   }
 
-  if (authData.user?.role !== "admin" && authData.user?.role !== "super_admin") {
+  if (!isAdminOrSuper()) {
     return <Navigate to="/auth/profile" replace />;
   }
 

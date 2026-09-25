@@ -15,7 +15,7 @@ import AddFileCard from '../Components/Cards/AddFileCard';
 import CreditTransactionCard from '../Components/Cards/CreditTransactionCard';
 import PaymentCard from '../Components/Cards/PayementCard';
 
-import { fetchWithRefresh } from '../Components/api'; 
+import { fetchWithRefresh } from '../Components/api';
 
 import {
   User,
@@ -73,35 +73,43 @@ const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 // Order and grouping follow the signup form, not the permission schema.
 // The schema is used only for which fields to show and their labels.
 const PROFILE_SECTIONS = [
-  { key: 'cloa',           label: "CLOA d'exercice",               fields: ['region'] },
-  { key: 'personal',       label: 'Informations Personnelles',     fields: [
+  { key: 'cloa', label: "CLOA d'exercice", fields: ['region'] },
+  {
+    key: 'personal', label: 'Informations Personnelles', fields: [
       'nin', 'sexe', 'serviceNationalStatus',
       'name', 'lastname', 'nomArabe', 'prenomArabe',
       'dateOfBirth', 'lieuNaissance', 'numeroActeNaissance',
       'adressePersonnelle', 'adressePersonnelleArabe', 'commune', 'wilaya', 'maritalStatus', 'enfants'
-  ] },
-  { key: 'family',         label: 'Informations Familiales',       fields: [
+    ]
+  },
+  {
+    key: 'family', label: 'Informations Familiales', fields: [
       'prenomPere', 'prenomPereArabe',
       'nomPrenomMere', 'nomPrenomMereArabe',
-       'nationality', 
-  ] },
-  { key: 'contact',        label: 'Contact',                       fields: ['fixe', 'phone', 'email', 'emailPro'] },
-  { key: 'diplomas',       label: 'Diplômes universitaires',       fields: [
+      'nationality',
+    ]
+  },
+  { key: 'contact', label: 'Contact', fields: ['fixe', 'phone', 'email', 'emailPro'] },
+  {
+    key: 'diplomas', label: 'Diplômes universitaires', fields: [
       'diplomaType',
       'sessionClassique', 'anneeClassique', 'universiteClassique',
       'sessionLMDL', 'anneeLMDL', 'universiteLMDL',
       'sessionLMDM', 'anneeLMDM', 'universiteLMDM',
-  ] },
-  { key: 'other_diplomas', label: 'Autres diplômes',               fields: ['otherDiplomas'] },
-  { key: 'formations',     label: 'Formations',                    fields: ['otherTrainings'] },
-  { key: 'professional',   label: 'Informations professionnelles', fields: [
+    ]
+  },
+  { key: 'other_diplomas', label: 'Autres diplômes', fields: ['otherDiplomas'] },
+  { key: 'formations', label: 'Formations', fields: ['otherTrainings'] },
+  {
+    key: 'professional', label: 'Informations professionnelles', fields: [
       'registrationNumber', 'oathDate', 'oathLocation', 'professionalMode',
       'installationDate', 'nif',
       'adressePro', 'adresseProArabe',
       'benefitStateAid', 'moyensHumains', 'gps',
       'recruitmentDate', 'employerName', 'employerRegistrationNumber',
       'employerAdresse', 'employerAdresseArabe', 'employerCommune', 'employerWilaya',
-  ] },
+    ]
+  },
 ];
 
 // Fields whose value is Arabic text and should render right-to-left.
@@ -296,9 +304,8 @@ function InfoTabContent({ displayUser, permissions }) {
                     {field.label}
                   </p>
                   <p
-                    className={`text-[#F8FAFC] font-medium ${
-                      isRtl ? 'font-arabic text-right' : ''
-                    }`}
+                    className={`text-[#F8FAFC] font-medium ${isRtl ? 'font-arabic text-right' : ''
+                      }`}
                     dir={isRtl ? 'rtl' : 'ltr'}
                   >
                     {display}
@@ -345,7 +352,7 @@ export default function ProfilePage({ user }) {
 
   const targetUserId = user?.id || id || authData.user?.id;
   const isOwner = authData.user?.id === targetUserId;
-  const isAdmin = authData.user?.role === 'admin' || authData.user?.role === 'super_admin';
+  const isAdmin = ['admin', 'super_admin'].includes(authData?.user?.grade);
 
   const [validationRequests, setValidationRequests] = useState([]);
   const [validationLoading, setValidationLoading] = useState(false);
@@ -1129,7 +1136,7 @@ export default function ProfilePage({ user }) {
     }
   };
 
-    const handleAddressSuccess = async (result) => {
+  const handleAddressSuccess = async (result) => {
     setIsAddressModalOpen(false);
     setSelectedAddressRequestId(null);
     const now = Date.now();
@@ -1307,7 +1314,7 @@ export default function ProfilePage({ user }) {
         const permData = await permRes.json();
         const payload = permData.data || permData;
         const fields = payload.fields || [];
-        
+
         const configs = payload.configs || {};
         setPermissions({ fields, configs });
 
@@ -1546,34 +1553,34 @@ export default function ProfilePage({ user }) {
               </div>
 
               {/* ─── Permission‑driven actions ─────────────────────────── */}
-{/* ─── Permission‑driven actions ─────────────────────────── */}
-<div className="flex flex-wrap items-center gap-2" ref={menuRef}>
-  {/* Only show the menu to admins and super admins */}
-  {(isAdmin || authData.user?.role === 'super_admin') && (
-    <>
-      <button
-        onClick={() => setMenuOpen(!menuOpen)}
-        className="p-2.5 bg-[#1F2937] hover:bg-[#2A3A4A] text-[#94A3B8] hover:text-white rounded-lg transition-colors border border-white/5"
-        title="Plus d'actions"
-      >
-        <MoreVertical className="w-5 h-5" />
-      </button>
-      {menuOpen && (
-        <div className="absolute right-0 mt-48 w-48 bg-[#182233] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-20 py-1 divide-y divide-white/5">
-          <div className="py-1">
-            <button
-              onClick={() => { setMenuOpen(false); setTransactionType('deposit'); setShowTransactionModal(true); }}
-              className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
-            >
-              <Plus className="w-4 h-4 text-emerald-400" /> Versement
-            </button>
-            <button
-              onClick={() => { setMenuOpen(false); setTransactionType('withdraw'); setShowTransactionModal(true); }}
-              className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
-            >
-              <Minus className="w-4 h-4 text-rose-400" /> Retrait
-            </button>
-            {/* <button
+              {/* ─── Permission‑driven actions ─────────────────────────── */}
+              <div className="flex flex-wrap items-center gap-2" ref={menuRef}>
+                {/* Only show the menu to admins and super admins */}
+                {(isAdmin) && (
+                  <>
+                    <button
+                      onClick={() => setMenuOpen(!menuOpen)}
+                      className="p-2.5 bg-[#1F2937] hover:bg-[#2A3A4A] text-[#94A3B8] hover:text-white rounded-lg transition-colors border border-white/5"
+                      title="Plus d'actions"
+                    >
+                      <MoreVertical className="w-5 h-5" />
+                    </button>
+                    {menuOpen && (
+                      <div className="absolute right-0 mt-48 w-48 bg-[#182233] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-20 py-1 divide-y divide-white/5">
+                        <div className="py-1">
+                          <button
+                            onClick={() => { setMenuOpen(false); setTransactionType('deposit'); setShowTransactionModal(true); }}
+                            className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
+                          >
+                            <Plus className="w-4 h-4 text-emerald-400" /> Versement
+                          </button>
+                          <button
+                            onClick={() => { setMenuOpen(false); setTransactionType('withdraw'); setShowTransactionModal(true); }}
+                            className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
+                          >
+                            <Minus className="w-4 h-4 text-rose-400" /> Retrait
+                          </button>
+                          {/* <button
               onClick={() => { setMenuOpen(false); handlePrintSituation(); }}
               className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
             >
@@ -1585,12 +1592,12 @@ export default function ProfilePage({ user }) {
             >
               <Award className="w-4 h-4 text-amber-400" /> Agrément
             </button> */}
-          </div>
-        </div>
-      )}
-    </>
-  )}
-</div>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </header>
@@ -1924,10 +1931,10 @@ export default function ProfilePage({ user }) {
                                               {step.stepName || step.name || `Étape ${step.stepOrder || idx + 1}`}
                                             </p>
                                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${isChangesRequested ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-                                                isDone ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-                                                  isRejected ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
-                                                    isSkipped ? 'bg-gray-500/10 text-gray-400 border-gray-500/20' :
-                                                      'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                                              isDone ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                                                isRejected ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
+                                                  isSkipped ? 'bg-gray-500/10 text-gray-400 border-gray-500/20' :
+                                                    'bg-blue-500/10 text-blue-400 border-blue-500/20'
                                               }`}>
                                               {stepStatusLabel}
                                             </span>
@@ -2098,7 +2105,7 @@ export default function ProfilePage({ user }) {
                       );
                     })()}
 
-                                        {/* 🟢 NEW: Carte Changement d'adresse */}
+                    {/* 🟢 NEW: Carte Changement d'adresse */}
                     {/* {(() => {
                       const addrSchema = availableSchemas.find(s =>
                         (s.name || s.title || '').toLowerCase().includes('adresse') ||
@@ -2341,7 +2348,7 @@ export default function ProfilePage({ user }) {
         validationRequests={validationRequests}
       />
 
-            {/* ─── Address Change Request Modal ─────────────────────────────────── */}
+      {/* ─── Address Change Request Modal ─────────────────────────────────── */}
       <AddressChangeModal
         isOpen={isAddressModalOpen}
         onClose={() => {
@@ -2389,4 +2396,3 @@ export default function ProfilePage({ user }) {
     </>
   );
 }
-

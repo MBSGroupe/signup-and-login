@@ -1,9 +1,7 @@
 // AllValidationRequests.jsx
 import { useContext, useEffect, useState, useMemo } from 'react';
 import { UserContext } from '../../../Context/dataCont';
-import { useApi } from '../../../Hooks/useApi';
 import { fetchWithRefresh } from '../../../Components/api';
-import Title from '../../../Components/Title';
 import { useNavigate } from 'react-router-dom';
 import BackButton from '../../../Components/Buttons/BackButton';
 import {
@@ -17,13 +15,10 @@ import {
   User,
   FileText,
   CreditCard,
-  Eye,
   ChevronRight,
   ListChecks,
   Inbox,
-  RefreshCw,
   X,
-  Layers,
 } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_NEST_API_URL;
@@ -87,7 +82,6 @@ function computeDateRange(period, customFrom, customTo) {
 
 export default function AllValidationRequests() {
   const { authData, setAuthData } = useContext(UserContext);
-  const { callApi } = useApi();
   const navigate = useNavigate();
 
   const [requests, setRequests] = useState([]);
@@ -135,20 +129,28 @@ export default function AllValidationRequests() {
       if (from) params.set('from', from.toISOString());
       if (to)   params.set('to', to.toISOString());
 
-      const result = await callApi(async () => {
+      try {
         const res = await fetchWithRefresh(
           `${API_URL}/validation/requests/all?${params.toString()}`,
           { method: 'GET' },
           authData.token,
           setAuthData
         );
-        return res;
-      }, { showSuccessMessage: false });
-
-      if (result) {
-        setRequests(result.requests || []);
+        const body = await res.json();
+        const list =
+          (Array.isArray(body) && body) ||
+          body?.data?.requests ||
+          (Array.isArray(body?.data) && body.data) ||
+          body?.requests ||
+          body?.data ||
+          [];
+        setRequests(Array.isArray(list) ? list : []);
+      } catch (err) {
+        console.error('Failed to load validation requests:', err);
+        setRequests([]);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     if (authData?.token) fetchRequests();
@@ -187,25 +189,33 @@ export default function AllValidationRequests() {
     }
   };
 
+  // Rewritten to handle: full object, partial object, raw string, or nothing
   const getTargetDisplay = (req) => {
-    if (req.payload?.title || req.data?.title) {
-      return req.payload?.title || req.data?.title;
-    }
+    if (req.payload?.title) return req.payload.title;
+    if (req.data?.title) return req.data.title;
+
     const target = req.targetId;
-    if (!target) return req.validationSchema?.name || req.schemaName || req.targetId?._id || req.targetId || 'Demande';
-    switch (req.targetType) {
-      case 'User':
-        return target.fullName || `${target.name || ''} ${target.lastname || ''}`.trim() || target._id;
-      case 'File':
-        return target.fileName || target.name || `Document (${target.folder || 'unknown'})`;
-      case 'Cotisation':
-        return target.type || target.feeType || `Cotisation ${target.year || ''}` || target._id;
-      default:
-        if (typeof target === 'object') {
-          return target.name || target.title || target.fullName || target._id || req.validationSchema?.name || 'Demande';
-        }
-        return target;
+
+    if (!target) {
+      return req.validationSchema?.name || req.schemaName || 'Demande';
     }
+
+    if (typeof target === 'string') {
+      return `Utilisateur #${target.slice(-6)}`;
+    }
+
+    if (target.fullName) return target.fullName;
+    const nameParts = [target.name, target.lastname].filter(Boolean).join(' ').trim();
+    if (nameParts) return nameParts;
+    if (target.email) return target.email;
+    if (target.fileName) return target.fileName;
+    if (target.title) return target.title;
+    if (target.type) return target.type;
+
+    const id = target.id || target._id;
+    if (id) return `Utilisateur #${String(id).slice(-6)}`;
+
+    return req.validationSchema?.name || req.schemaName || 'Demande';
   };
 
   const getTargetIcon = (type) => {
@@ -405,58 +415,62 @@ export default function AllValidationRequests() {
         ) : (
           <div className="space-y-4">
             {requests.map((req) => (
-              <div
-                key={req.id}
-                className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] p-5 hover:border-[rgba(255,255,255,0.12)] hover:bg-[#182233] transition-all duration-200 shadow-lg cursor-pointer group"
-                onClick={() => navigate(`/dash/validation/progress/${req.id}`)}
-              >
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3">
-                      <span className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
-                        {getTargetIcon(req.targetType)}
-                      </span>
-                      <div>
-                        <h3 className="text-lg font-semibold text-[#F8FAFC] truncate">
-                          {req.validationSchema?.name || req.schemaName || `${req.targetType} – ${getTargetDisplay(req)}`}
-                        </h3>
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5">
-                          <span className="text-xs text-[#64748B] bg-[#0A0F1C] px-2 py-0.5 rounded border border-[rgba(255,255,255,0.06)]">
-                            {getTargetDisplay(req)}
-                          </span>
-                          <span className="text-xs text-[#64748B] flex items-center gap-1">
-                            <User className="w-3 h-3" />
-                            {typeof req.createdBy === 'object' && req.createdBy !== null
-                              ? `${req.createdBy.name || ''} ${req.createdBy.lastname || ''}`.trim() || req.createdBy.name || req.createdBy.email || 'Inconnu'
-                              : (req.createdBy || 'Inconnu')}
-                          </span>
-                          <span className="text-xs text-[#64748B] flex items-center gap-1">
-                            <Calendar className="w-3 h-3" />
-                            {new Date(req.createdAt).toLocaleDateString('fr-FR')}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
+            <div
+              key={req.id}
+              className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] p-5 hover:border-[rgba(255,255,255,0.12)] hover:bg-[#182233] transition-all duration-200 shadow-lg cursor-pointer group"
+              onClick={() => navigate(`/dash/validation/progress/${req.id}`)}
+            >
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div className="flex-1 min-w-0">
 
-                    <div className="mt-2 flex items-center gap-3">
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadge(req.status)}`}>
-                        {getStatusIcon(req.status)}
-                        {req.status}
-                      </span>
-                      {req.step && (
-                        <span className="text-xs text-[#64748B]">
-                          Étape : {req.step}
-                        </span>
-                      )}
-                    </div>
+                  {/* ── Row 1: name (primary) ───────────────────────────────── */}
+                  <div className="flex items-center gap-3">
+                    <span className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
+                      {getTargetIcon(req.targetType)}
+                    </span>
+                    <h3 className="text-lg font-semibold text-[#F8FAFC] truncate">
+                      {getTargetDisplay(req)}
+                    </h3>
                   </div>
 
-                  <div className="flex items-center gap-2 text-[#64748B] group-hover:text-emerald-400 transition-colors">
-                    <span className="text-sm font-medium">Voir</span>
-                    <ChevronRight className="w-5 h-5" />
+                  {/* ── Row 2: request type + meta ──────────────────────────── */}
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 ml-12">
+                    <span className="text-xs font-medium text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                      {req.validationSchema?.name || req.schemaName || `${req.targetType}`}
+                    </span>
+                    <span className="text-xs text-[#64748B] flex items-center gap-1">
+                      <Calendar className="w-3 h-3" />
+                      {new Date(req.createdAt).toLocaleDateString('fr-FR')}
+                    </span>
+                    <span className="text-xs text-[#64748B] flex items-center gap-1">
+                      <User className="w-3 h-3" />
+                      {typeof req.createdBy === 'object' && req.createdBy !== null
+                        ? `${req.createdBy.name || ''} ${req.createdBy.lastname || ''}`.trim() || req.createdBy.name || req.createdBy.email || 'Inconnu'
+                        : (req.createdBy || 'Inconnu')}
+                    </span>
                   </div>
+
+                  {/* ── Row 3: status ───────────────────────────────────────── */}
+                  <div className="mt-2 flex items-center gap-3 ml-12">
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadge(req.status)}`}>
+                      {getStatusIcon(req.status)}
+                      {req.status}
+                    </span>
+                    {req.step && (
+                      <span className="text-xs text-[#64748B]">
+                        Étape : {req.step}
+                      </span>
+                    )}
+                  </div>
+
+                </div>
+
+                <div className="flex items-center gap-2 text-[#64748B] group-hover:text-emerald-400 transition-colors">
+                  <span className="text-sm font-medium">Voir</span>
+                  <ChevronRight className="w-5 h-5" />
                 </div>
               </div>
+            </div>
             ))}
           </div>
         )}

@@ -89,10 +89,10 @@ export default function ResetPassword() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          token,
-          newPassword: formData.newPassword,
-          confirmPassword: formData.confirmNewPassword,
-        }),
+        token,
+        newPassword: formData.newPassword,
+        confirmPassword: formData.confirmNewPassword,
+      }),
       });
 
       let data = null;

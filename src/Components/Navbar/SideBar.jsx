@@ -30,8 +30,10 @@ export default function SideBar() {
   const navigate = useNavigate();
   const location = useLocation();
   const { authData } = useContext(UserContext);
-  const userRole = authData?.user?.role;
-  const isSuperAdmin = userRole === 'super_admin';
+
+  // ✅ Read grade (real backend field), not role (phantom field)
+  const isSuperAdmin = authData?.user?.grade === 'super_admin';
+  const isAdminOrSuper = ['admin', 'super_admin'].includes(authData?.user?.grade);
 
   const [usersOpen, setUsersOpen] = useState(false);
   const [cotisationsOpen, setCotisationsOpen] = useState(false);
@@ -304,9 +306,9 @@ export default function SideBar() {
               {authData?.user?.name || 'Utilisateur'}
             </p>
             <p className="text-xs text-[#64748B] truncate capitalize">
-              {authData?.user?.role === 'admin' ? 'Administrateur' :
-               authData?.user?.role === 'super_admin' ? 'Super administrateur' :
-               authData?.user?.role || 'Utilisateur'}
+              {authData?.user?.grade === 'admin' ? 'Administrateur' :
+               authData?.user?.grade === 'super_admin' ? 'Super administrateur' :
+               authData?.user?.roleLabel || authData?.user?.roleName || 'Utilisateur'}
             </p>
           </div>
         </div>

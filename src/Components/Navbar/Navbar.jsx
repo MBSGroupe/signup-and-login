@@ -25,7 +25,9 @@ export default function Navbar() {
 
   const user = authData.user;
   const id = user?._id || user?.id;
-  const role = user?.role;
+  // ✅ Read grade (real backend field), not role (phantom field)
+  const grade = user?.grade;
+  const isAdminOrSuper = ['admin', 'super_admin'].includes(grade);
   const PROFILE_URL = user?.profilePicture || AVATAR;
 
   useEffect(() => {
@@ -81,7 +83,7 @@ export default function Navbar() {
           
           {/* Desktop Links */}
           <div className="hidden md:flex items-center gap-6">
-            {(role === "admin" || role === "super_admin") && (
+            {isAdminOrSuper && (
               <Link to="/dash" className="text-[#94A3B8] hover:text-[#22C55E] transition-colors font-medium">
                 Dashboard
               </Link>

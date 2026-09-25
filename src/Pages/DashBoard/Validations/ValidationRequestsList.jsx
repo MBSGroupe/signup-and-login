@@ -1,9 +1,7 @@
 import { useContext, useEffect, useState, useMemo } from 'react';
 import { UserContext } from '../../../Context/dataCont';
-import Title from '../../../Components/Title';
 import { fetchWithRefresh } from '../../../Components/api';
 import { useNavigate } from 'react-router-dom';
-import { useApi } from '../../../Hooks/useApi';
 import { useModal } from '../../../Context/ModalContext';
 import BackButton from '../../../Components/Buttons/BackButton';
 import {
@@ -14,6 +12,7 @@ import {
   ChevronRight,
   XCircle,
   AlertCircle,
+  AlertTriangle,
   Filter,
   Calendar,
   User,
@@ -25,10 +24,19 @@ import {
   Check,
   Search,
 } from 'lucide-react';
+import wilayasData from '../../../assets/data/wilayas.json';
 
 const API_URL = import.meta.env.VITE_NEST_API_URL;
 
 // ─── Static filter options ──────────────────────────────────────────
+const SEXE_OPTIONS = ['M', 'F'];
+const CIVILITY_OPTIONS = ['Mr', 'Mme', 'Mlle'];
+const MARITAL_STATUS_OPTIONS = ['Célibataire', 'Marié(e)', 'Divorcé(e)', 'Veuf(ve)'];
+const DIPLOMA_TYPE_OPTIONS = ['Classique', 'LMD'];
+const REGISTRATION_STATUS_OPTIONS = ['Inscrit', 'Radié', 'Suspendu'];
+const PROFESSIONAL_MODE_OPTIONS = ['Libéral', 'Associé', 'Salarié'];
+const SERVICE_NATIONAL_OPTIONS = ['Ayant effectué', 'Exempté', 'En cours', 'Non concerné'];
+const USER_STATUS_OPTIONS = ['pending', 'active', 'suspended', 'archived'];
 const DEFAULT_TARGET_TYPES = ['User', 'File', 'Cotisation'];
 const REQUEST_STATUS_OPTIONS = ['pending', 'partial', 'approved', 'rejected', 'cancelled', 'expired'];
 
@@ -41,6 +49,11 @@ const PERIOD_OPTIONS = [
   { value: 'thisYear', label: 'Cette année' },
   { value: 'custom',   label: 'Période personnalisée' },
 ];
+
+// Helper: unwrap the ResponseInterceptor envelope
+const unwrap = (body) => (body && typeof body === 'object' && 'data' in body && 'success' in body)
+  ? body.data
+  : body;
 
 // Compute { from, to } Date objects from the selected preset.
 function computeDateRange(period, customFrom, customTo) {
@@ -82,26 +95,35 @@ function computeDateRange(period, customFrom, customTo) {
 
 export default function ValidationRequestsList() {
   const { authData, setAuthData } = useContext(UserContext);
-  const { callApi } = useApi();
   const { confirm } = useModal();
   const navigate = useNavigate();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
 
   // ─── Filter states ──────────────────────────────────────────────
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');       // sent to API
-  const [targetTypeFilter, setTargetTypeFilter] = useState('all'); // client-side
-  const [periodFilter, setPeriodFilter] = useState('all');         // client-side
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [targetTypeFilter, setTargetTypeFilter] = useState('all');
+  const [periodFilter, setPeriodFilter] = useState('all');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
+  const [wilayaFilter, setWilayaFilter] = useState('all');
+  const [sexeFilter, setSexeFilter] = useState('all');
+  const [civilityFilter, setCivilityFilter] = useState('all');
+  const [maritalStatusFilter, setMaritalStatusFilter] = useState('all');
+  const [diplomaTypeFilter, setDiplomaTypeFilter] = useState('all');
+  const [registrationStatusFilter, setRegistrationStatusFilter] = useState('all');
+  const [professionalModeFilter, setProfessionalModeFilter] = useState('all');
+  const [serviceNationalFilter, setServiceNationalFilter] = useState('all');
+  const [userStatusFilter, setUserStatusFilter] = useState('all');
 
   // ─── Mass selection ─────────────────────────────────────────────
   const [selectedRequests, setSelectedRequests] = useState([]);
   const [massApproving, setMassApproving] = useState(false);
 
-  // 🟢 Dynamic target-type / schema options derived from the fetched requests
+  // Dynamic target-type / schema options derived from the fetched requests
   const availableTargetTypes = useMemo(() => {
     return Array.from(
       new Set([
@@ -133,7 +155,7 @@ export default function ValidationRequestsList() {
         }
       }
 
-      // Request status (redundant with API, kept for safety when API filter is 'all')
+      // Request status
       if (statusFilter !== 'all' && req.status !== statusFilter) return false;
 
       // Target type OR schema name
@@ -148,6 +170,20 @@ export default function ValidationRequestsList() {
       if (from && new Date(req.createdAt) < from) return false;
       if (to   && new Date(req.createdAt) > to)   return false;
 
+      // User-specific filters
+      const target = req.targetId;
+      if (req.targetType === 'User' && target && typeof target === 'object') {
+        if (wilayaFilter !== 'all' && target.wilaya !== wilayaFilter && target.region !== wilayaFilter) return false;
+        if (sexeFilter !== 'all' && target.sexe !== sexeFilter) return false;
+        if (civilityFilter !== 'all' && target.civility !== civilityFilter) return false;
+        if (maritalStatusFilter !== 'all' && target.maritalStatus !== maritalStatusFilter) return false;
+        if (diplomaTypeFilter !== 'all' && target.diplomaType !== diplomaTypeFilter) return false;
+        if (registrationStatusFilter !== 'all' && target.registrationStatus !== registrationStatusFilter) return false;
+        if (professionalModeFilter !== 'all' && target.professionalMode !== professionalModeFilter) return false;
+        if (serviceNationalFilter !== 'all' && target.serviceNationalStatus !== serviceNationalFilter) return false;
+        if (userStatusFilter !== 'all' && target.status !== userStatusFilter) return false;
+      }
+
       return true;
     });
   }, [
@@ -158,6 +194,15 @@ export default function ValidationRequestsList() {
     periodFilter,
     customFrom,
     customTo,
+    wilayaFilter,
+    sexeFilter,
+    civilityFilter,
+    maritalStatusFilter,
+    diplomaTypeFilter,
+    registrationStatusFilter,
+    professionalModeFilter,
+    serviceNationalFilter,
+    userStatusFilter,
   ]);
 
   const activeFilterCount = useMemo(() => {
@@ -166,8 +211,22 @@ export default function ValidationRequestsList() {
     if (statusFilter !== 'all') n++;
     if (targetTypeFilter !== 'all') n++;
     if (periodFilter !== 'all') n++;
+    if (wilayaFilter !== 'all') n++;
+    if (sexeFilter !== 'all') n++;
+    if (civilityFilter !== 'all') n++;
+    if (maritalStatusFilter !== 'all') n++;
+    if (diplomaTypeFilter !== 'all') n++;
+    if (registrationStatusFilter !== 'all') n++;
+    if (professionalModeFilter !== 'all') n++;
+    if (serviceNationalFilter !== 'all') n++;
+    if (userStatusFilter !== 'all') n++;
     return n;
-  }, [searchTerm, statusFilter, targetTypeFilter, periodFilter]);
+  }, [
+    searchTerm, statusFilter, targetTypeFilter, periodFilter,
+    wilayaFilter, sexeFilter, civilityFilter, maritalStatusFilter,
+    diplomaTypeFilter, registrationStatusFilter, professionalModeFilter,
+    serviceNationalFilter, userStatusFilter
+  ]);
 
   // ─── Helpers ────────────────────────────────────────────────────
   const getTargetDisplay = (targetType, target, fullReq = null) => {
@@ -228,29 +287,30 @@ export default function ValidationRequestsList() {
   // ─── API calls ──────────────────────────────────────────────────
   const fetchRequests = async () => {
     setLoading(true);
-    const result = await callApi(async () => {
+    setError(null);
+    try {
       const res = await fetchWithRefresh(
         `${API_URL}/validation/requests/approver?status=${statusFilter}`,
         { method: 'GET' },
         authData.token,
         setAuthData
       );
-      return res;
-    }, { showSuccessMessage: false });
-
-    if (result) {
-      setRequests(result.requests || []);
-    } else {
+      const body = await res.json();
+      const payload = unwrap(body);
+      const list = payload?.requests || (Array.isArray(payload) ? payload : []);
+      setRequests(Array.isArray(list) ? list : []);
+    } catch (err) {
+      console.error('Failed to load approver requests:', err);
+      setError(err?.message || 'Erreur lors du chargement des demandes.');
       setRequests([]);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
-    if (authData?.token) {
-      fetchRequests();
-    }
-  }, [statusFilter, authData?.token]);
+    if (authData?.token) fetchRequests();
+  }, [statusFilter, authData?.token, setAuthData]);
 
   // ─── Actions ────────────────────────────────────────────────────
   const toggleRequestSelection = (requestId) => {
@@ -291,12 +351,10 @@ export default function ValidationRequestsList() {
         authData.token,
         setAuthData
       );
-      if (res.ok) {
-        const result = await res.json();
-        if (result.success) {
-          setSelectedRequests([]);
-          fetchRequests();
-        }
+      const result = await res.json();
+      if (result.success) {
+        setSelectedRequests([]);
+        fetchRequests();
       }
     } catch (err) {
       console.error('Mass approve error:', err);
@@ -312,7 +370,7 @@ export default function ValidationRequestsList() {
     });
     if (!confirmed) return;
 
-    const result = await callApi(async () => {
+    try {
       const res = await fetchWithRefresh(
         `${API_URL}/validation/requests/${requestId}/cancel`,
         {
@@ -323,14 +381,12 @@ export default function ValidationRequestsList() {
         authData.token,
         setAuthData
       );
-      return res;
-    }, {
-      showSuccessMessage: true,
-      successMessage: 'Demande annulée avec succès'
-    });
-
-    if (result) {
-      fetchRequests();
+      const body = await res.json();
+      if (body?.success) {
+        fetchRequests();
+      }
+    } catch (err) {
+      console.error('Cancel error:', err);
     }
   };
 
@@ -341,6 +397,15 @@ export default function ValidationRequestsList() {
     setPeriodFilter('all');
     setCustomFrom('');
     setCustomTo('');
+    setWilayaFilter('all');
+    setSexeFilter('all');
+    setCivilityFilter('all');
+    setMaritalStatusFilter('all');
+    setDiplomaTypeFilter('all');
+    setRegistrationStatusFilter('all');
+    setProfessionalModeFilter('all');
+    setServiceNationalFilter('all');
+    setUserStatusFilter('all');
   };
 
   // ─── Loading ────────────────────────────────────────────────────
@@ -359,7 +424,7 @@ export default function ValidationRequestsList() {
   return (
     <div className="min-h-screen bg-[#0A0F1C] p-6 md:p-8 ml-[30px] mt-16">
       <div className="max-w-7xl mx-auto">
-        {/* ===== HEADER ===== */}
+        {/* HEADER */}
         <div className="flex flex-wrap items-center gap-4 mb-6">
           <BackButton fallbackPath="/dash" />
           <div className="flex items-center gap-3">
@@ -377,7 +442,18 @@ export default function ValidationRequestsList() {
           </div>
         </div>
 
-        {/* ===== SEARCH BAR ===== */}
+        {/* ERROR BANNER */}
+        {error && (
+          <div className="mb-6 bg-rose-500/10 rounded-2xl border border-rose-500/20 p-5 flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-rose-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-rose-300 font-medium">Erreur de chargement</p>
+              <p className="text-rose-400/80 text-sm mt-0.5">{error}</p>
+            </div>
+          </div>
+        )}
+
+        {/* SEARCH */}
         <div className="mb-6 flex flex-col md:flex-row md:items-center gap-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748B]" />
@@ -391,7 +467,7 @@ export default function ValidationRequestsList() {
           </div>
         </div>
 
-        {/* ===== QUICK ACTIONS ===== */}
+        {/* QUICK ACTIONS */}
         <div className="flex flex-wrap gap-3 mb-6">
           <button
             onClick={() => setShowFilters(!showFilters)}
@@ -423,10 +499,10 @@ export default function ValidationRequestsList() {
           </button>
         </div>
 
-        {/* ===== FILTERS PANEL ===== */}
+        {/* FILTERS PANEL */}
         {showFilters && (
           <div className="mb-6 p-5 bg-[#111827] rounded-xl border border-[rgba(255,255,255,0.06)] shadow-xl">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {/* Statut (demande) */}
               <div>
                 <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">
@@ -438,9 +514,7 @@ export default function ValidationRequestsList() {
                   className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500"
                 >
                   <option value="all">Tous les statuts</option>
-                  {REQUEST_STATUS_OPTIONS.map(s => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
+                  {REQUEST_STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
 
@@ -455,9 +529,7 @@ export default function ValidationRequestsList() {
                   className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500"
                 >
                   <option value="all">Tous les types & schémas</option>
-                  {availableTargetTypes.map(t => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
+                  {availableTargetTypes.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
 
@@ -474,6 +546,87 @@ export default function ValidationRequestsList() {
                   {PERIOD_OPTIONS.map(opt => (
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
+                </select>
+              </div>
+
+              {/* Wilaya */}
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Wilaya</label>
+                <select value={wilayaFilter} onChange={(e) => setWilayaFilter(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                  <option value="all">Toutes les wilayas</option>
+                  {wilayasData?.map(w => <option key={w.code} value={w.code}>{w.code} - {w.name}</option>)}
+                </select>
+              </div>
+
+              {/* Sexe */}
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Sexe</label>
+                <select value={sexeFilter} onChange={(e) => setSexeFilter(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                  <option value="all">Tous les sexes</option>
+                  {SEXE_OPTIONS.map(s => <option key={s} value={s}>{s === 'M' ? 'Homme' : 'Femme'}</option>)}
+                </select>
+              </div>
+
+              {/* Civilité */}
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Civilité</label>
+                <select value={civilityFilter} onChange={(e) => setCivilityFilter(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                  <option value="all">Toutes les civilités</option>
+                  {CIVILITY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+
+              {/* Situation familiale */}
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Situation familiale</label>
+                <select value={maritalStatusFilter} onChange={(e) => setMaritalStatusFilter(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                  <option value="all">Toutes les situations</option>
+                  {MARITAL_STATUS_OPTIONS.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+
+              {/* Type de diplôme */}
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Type de diplôme</label>
+                <select value={diplomaTypeFilter} onChange={(e) => setDiplomaTypeFilter(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                  <option value="all">Tous les types</option>
+                  {DIPLOMA_TYPE_OPTIONS.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+
+              {/* Statut d'inscription */}
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Statut d'inscription</label>
+                <select value={registrationStatusFilter} onChange={(e) => setRegistrationStatusFilter(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                  <option value="all">Tous les statuts</option>
+                  {REGISTRATION_STATUS_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </div>
+
+              {/* Mode d'exercice */}
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Mode d'exercice</label>
+                <select value={professionalModeFilter} onChange={(e) => setProfessionalModeFilter(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                  <option value="all">Tous les modes</option>
+                  {PROFESSIONAL_MODE_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+
+              {/* Service national */}
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Service national</label>
+                <select value={serviceNationalFilter} onChange={(e) => setServiceNationalFilter(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                  <option value="all">Toutes les situations</option>
+                  {SERVICE_NATIONAL_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+
+              {/* Statut utilisateur */}
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Statut (utilisateur)</label>
+                <select value={userStatusFilter} onChange={(e) => setUserStatusFilter(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                  <option value="all">Tous les statuts</option>
+                  {USER_STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
             </div>
@@ -508,7 +661,7 @@ export default function ValidationRequestsList() {
           </div>
         )}
 
-        {/* ===== MASS ACTIONS ===== */}
+        {/* MASS ACTIONS */}
         {filteredRequests.some(req => {
           const firstPending = req.steps?.filter(s => s.status === 'pending').sort((a, b) => a.order - b.order)[0];
           return firstPending && firstPending.massValidation && firstPending.allowedUserIds?.some(u => (u.id || u) === authData.user?.id);
@@ -538,7 +691,7 @@ export default function ValidationRequestsList() {
           </div>
         )}
 
-        {/* ===== REQUEST LIST ===== */}
+        {/* REQUEST LIST */}
         {filteredRequests.length === 0 ? (
           <div className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] p-12 text-center shadow-2xl shadow-black/50">
             <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto mb-4">
@@ -586,10 +739,7 @@ export default function ValidationRequestsList() {
                       </div>
                     )}
 
-                    <div
-                      className="flex-1 min-w-0 cursor-pointer"
-                      onClick={() => navigate(`/dash/validation/requests/${req.id}`)}
-                    >
+                    <div className="flex-1 min-w-0 cursor-pointer" onClick={() => navigate(`/dash/validation/requests/${req.id}`)}>
                       <div className="flex items-center gap-3">
                         <span className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 flex-shrink-0">
                           {getTargetIcon(req.targetType)}

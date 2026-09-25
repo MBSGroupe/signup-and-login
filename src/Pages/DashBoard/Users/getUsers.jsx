@@ -1,5 +1,4 @@
-import { useContext, useEffect, useLayoutEffect, useState, useRef } from "react";
-import { createPortal } from "react-dom";
+import { useContext, useEffect, useState } from "react";
 import { UserDataContext } from '../../../Context/userDataCont';
 import { UserContext } from '../../../Context/dataCont';
 import { useError } from '../../../Context/ErrorContext';
@@ -11,18 +10,14 @@ import {
   ChevronLeft,
   ChevronRight,
   MoreVertical,
-  User,
   Shield,
   Calendar,
   Plus,
-  Download,
   Filter,
   Eye,
   Edit,
   FileText,
-  Printer,
   Trash2,
-  UserCheck,
   BarChart3,
   Loader2
 } from "lucide-react";
@@ -32,14 +27,13 @@ import PDFPreviewModal from '../../../Components/Modals/pdfPreviexModal';
 import { useNavigate } from 'react-router-dom';
 import wilayasData from '../../../assets/data/wilayas.json';
 
-
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
 // ─────────────────────────────────────────────────
 //  Static lists for filter dropdowns
 // ─────────────────────────────────────────────────
 const SEXE_OPTIONS = ['M', 'F'];
-
+const CIVILITY_OPTIONS = ['Mr', 'Mme', 'Mlle'];
 const MARITAL_STATUS_OPTIONS = ['Célibataire', 'Marié(e)', 'Divorcé(e)', 'Veuf(ve)'];
 const DIPLOMA_TYPE_OPTIONS = ['Classique', 'LMD'];
 const REGISTRATION_STATUS_OPTIONS = ['Inscrit', 'Radié', 'Suspendu'];
@@ -47,17 +41,12 @@ const PROFESSIONAL_MODE_OPTIONS = ['Libéral', 'Associé', 'Salarié'];
 const SERVICE_NATIONAL_OPTIONS = ['Ayant effectué', 'Exempté', 'En cours', 'Non concerné'];
 const STATUS_OPTIONS = ['pending', 'active', 'suspended', 'archived'];
 
-// ─── Menu geometry constants ────────────────────────────────────────
-const MENU_WIDTH = 224;       // w-56 = 14rem = 224px
-const MENU_MARGIN = 8;        // min gap from viewport edges
-const MENU_GAP = 4;           // gap between button and menu
-
 export default function GetUsers({ mode }) {
-  const { data, setData } = useContext(UserDataContext);
+  const { setData } = useContext(UserDataContext);
   const { authData, setAuthData } = useContext(UserContext);
   const { keyWord, handleChange } = useContext(SearchBarContext);
   const { showError, showWarning, showSuccess } = useError();
-  const { confirm, alert } = useModal();
+  const { confirm } = useModal();
   const navigate = useNavigate();
 
   // Pagination state
@@ -67,7 +56,7 @@ export default function GetUsers({ mode }) {
   const [totalPages, setTotalPages] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Filter states – all start at "all"
+  // Filter states
   const [selectedSexe, setSelectedSexe] = useState("all");
   const [selectedWilaya, setSelectedWilaya] = useState("all");
   const [selectedProfession, setSelectedProfession] = useState("all");
@@ -84,12 +73,14 @@ export default function GetUsers({ mode }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [displayedUsers, setDisplayedUsers] = useState([]);
-  const [openMenuId, setOpenMenuId] = useState(null);
-  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
-  const menuRefs = useRef({});
-  const menuButtonRefs = useRef({});
-  // Tracks which menu we've already auto-adjusted (so we only measure once per open)
-  const menuAdjustedRef = useRef(null);
+
+  // ✅ Single menu state — one dropdown rendered once at the root, anchored to the button rect
+  const [openMenu, setOpenMenu] = useState(null); // { rect: DOMRect, user: object } | null
+
+  // Global permission flags
+  const [canCreateUser, setCanCreateUser] = useState(false);
+  const [canUpdateUser, setCanUpdateUser] = useState(false);
+  const [canDeleteUser, setCanDeleteUser] = useState(false);
 
   // PDF Preview state
   const [pdfPreview, setPdfPreview] = useState({
@@ -101,10 +92,9 @@ export default function GetUsers({ mode }) {
   const [sortBy, setSortBy] = useState('createdAt');
   const [sortOrder, setSortOrder] = useState('desc');
 
-  // Fetch users with pagination and filters
+  // ─── Fetch users ────────────────────────────────────────────────────
   const fetchUsers = async () => {
     if (!authData?.token) return;
-
     setIsLoading(true);
 
     try {
@@ -113,13 +103,12 @@ export default function GetUsers({ mode }) {
       params.append('limit', pageSize);
       params.append('sortBy', sortBy);
       params.append('sortOrder', sortOrder);
-      if (mode && mode !== 'all') {
-        params.append('mode', mode);
-      }
+
+      if (mode && mode !== 'all') params.append('mode', mode);
 
       if (keyWord && keyWord.trim()) params.append('search', keyWord.trim());
-      if (selectedCivility !== 'all') params.append('sexe', selectedCivility);
       if (selectedSexe !== 'all') params.append('sexe', selectedSexe);
+      if (selectedCivility !== 'all') params.append('civility', selectedCivility);
       if (selectedWilaya !== 'all') params.append('wilaya', selectedWilaya);
       if (selectedProfession !== 'all') params.append('profession', selectedProfession);
       if (selectedRegion !== 'all') params.append('region', selectedRegion);
@@ -149,19 +138,20 @@ export default function GetUsers({ mode }) {
       }
 
       const results = await response.json();
-
       let usersArray = [];
       let pagination = {};
 
-      if (results.data && results.data.data) {
+      if (results?.data?.data && Array.isArray(results.data.data)) {
         usersArray = results.data.data;
-        pagination = results.data.pagination;
-      } else if (results.data && Array.isArray(results.data)) {
+        pagination = results.data.pagination || {};
+      } else if (results?.data && Array.isArray(results.data)) {
         usersArray = results.data;
         pagination = results.pagination || {};
-      } else if (results.users) {
+      } else if (results?.users && Array.isArray(results.users)) {
         usersArray = results.users;
         pagination = results.pagination || {};
+      } else if (Array.isArray(results)) {
+        usersArray = results;
       }
 
       setDisplayedUsers(usersArray);
@@ -177,88 +167,66 @@ export default function GetUsers({ mode }) {
     }
   };
 
-  // Close menu when clicking outside
+  // ─── Fetch global permission flags ──────────────────────────────────
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (openMenuId !== null) {
-        const menuElement = menuRefs.current[openMenuId];
-        const buttonElement = menuButtonRefs.current[openMenuId];
-        const clickedInsideMenu = menuElement && menuElement.contains(event.target);
-        const clickedInsideButton = buttonElement && buttonElement.contains(event.target);
-        if (!clickedInsideMenu && !clickedInsideButton) {
-          setOpenMenuId(null);
-        }
+    if (!authData?.token || !authData?.user?.id) return;
+    const viewerId = authData.user.id;
+    let cancelled = false;
+
+    const check = async (operation) => {
+      try {
+        const res = await fetchWithRefresh(
+          `${NEST_API_URL}/permissions/${viewerId}/check-operation`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ operation, model: "User" }),
+          },
+          authData.token,
+          setAuthData
+        );
+        const body = await res.json();
+        return Boolean(body?.data?.canPerform ?? body?.canPerform);
+      } catch {
+        return false;
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [openMenuId]);
 
-  // Close menu on scroll / resize / escape so a fixed-position menu never drifts
+    (async () => {
+      const [create, update, del] = await Promise.all([
+        check("create"),
+        check("update"),
+        check("delete"),
+      ]);
+      if (!cancelled) {
+        setCanCreateUser(create);
+        setCanUpdateUser(update);
+        setCanDeleteUser(del);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [authData?.token, authData?.user?.id, setAuthData]);
+
+  // ─── Close the menu on scroll / resize / outside click ─────────────
   useEffect(() => {
-    if (openMenuId === null) return;
-    const close = () => setOpenMenuId(null);
-    const onKey = (e) => { if (e.key === 'Escape') setOpenMenuId(null); };
+    if (!openMenu) return;
+    const close = () => setOpenMenu(null);
     window.addEventListener('scroll', close, true);
     window.addEventListener('resize', close);
-    document.addEventListener('keydown', onKey);
+    document.addEventListener('mousedown', close);
     return () => {
       window.removeEventListener('scroll', close, true);
       window.removeEventListener('resize', close);
-      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('mousedown', close);
     };
-  }, [openMenuId]);
+  }, [openMenu]);
 
-  // ─── Auto-adjust menu position after it mounts ─────────────────────
-  // Runs once per open. If the menu would overflow the viewport bottom,
-  // flip it above the button (or clamp it to fit if there's no room above).
-  // Uses useLayoutEffect so the correction happens BEFORE the browser paints.
-  useLayoutEffect(() => {
-    if (openMenuId === null) {
-      menuAdjustedRef.current = null;
-      return;
-    }
-    // Already adjusted this menu → skip to avoid loops
-    if (menuAdjustedRef.current === openMenuId) return;
-
-    const menuEl = menuRefs.current[openMenuId];
-    const btnEl = menuButtonRefs.current[openMenuId];
-    if (!menuEl || !btnEl) return;
-
-    const menuRect = menuEl.getBoundingClientRect();
-    const btnRect = btnEl.getBoundingClientRect();
-    const vh = window.innerHeight;
-
-    let newTop = menuRect.top;
-
-    // If the menu's bottom edge is below the viewport, try flipping up
-    if (menuRect.bottom > vh - MENU_MARGIN) {
-      const flippedTop = btnRect.top - menuRect.height - MENU_GAP;
-
-      if (flippedTop >= MENU_MARGIN) {
-        // Enough room above the button → flip up
-        newTop = flippedTop;
-      } else {
-        // Not enough room either way → clamp so max of the menu is visible
-        newTop = Math.max(MENU_MARGIN, vh - menuRect.height - MENU_MARGIN);
-      }
-    }
-
-    if (Math.abs(newTop - menuRect.top) > 0.5) {
-      setMenuPosition(prev => ({ ...prev, top: newTop }));
-    }
-
-    // Mark as adjusted so the effect doesn't keep re-running
-    menuAdjustedRef.current = openMenuId;
-  }, [openMenuId]);
-
-  // Fetch on dependency changes
+  // Refetch on dependency changes
   useEffect(() => {
-    if (authData?.token) {
-      fetchUsers();
-    }
+    if (authData?.token) fetchUsers();
   }, [
-    authData.token,
+    authData?.token,
     currentPage,
     pageSize,
     keyWord,
@@ -278,30 +246,6 @@ export default function GetUsers({ mode }) {
     mode
   ]);
 
-  // Returns true if the current viewer can perform `operation` on the target user.
-  const checkOperation = async (targetUserId, operation, model = 'User') => {
-    try {
-      const res = await fetchWithRefresh(
-        `${NEST_API_URL}/permissions/${targetUserId}/check-operation`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ operation, model }),
-        },
-        authData.token,
-        setAuthData,
-      );
-
-      if (!res.ok) return true;
-      const body = await res.json();
-      const canPerform = body?.data?.canPerform ?? body?.canPerform;
-      return canPerform !== false;
-    } catch (err) {
-      console.error('Permission check failed:', err);
-      return true;
-    }
-  };
-
   const handleUserClick = (user) => {
     setSelectedUser(user);
     setIsModalOpen(true);
@@ -312,71 +256,34 @@ export default function GetUsers({ mode }) {
     setSelectedUser(null);
   };
 
-  // ─── Open/close the row menu, computing an initial position ─────────
-  const toggleMenu = (userId, event) => {
+  // ✅ Toggle the single menu — anchored to the button's screen position
+  const toggleMenuAt = (event, user) => {
     event.stopPropagation();
-    if (openMenuId === userId) {
-      setOpenMenuId(null);
-      return;
-    }
-
     const rect = event.currentTarget.getBoundingClientRect();
-
-    // Horizontal: align right edge with button's right edge, clamp to viewport
-    let left = rect.right - MENU_WIDTH;
-    if (left < MENU_MARGIN) left = MENU_MARGIN;
-    if (left + MENU_WIDTH > window.innerWidth - MENU_MARGIN) {
-      left = window.innerWidth - MENU_WIDTH - MENU_MARGIN;
-    }
-
-    // Vertical: initial guess is below the button. useLayoutEffect will
-    // correct this if the menu would overflow the viewport bottom.
-    setMenuPosition({ top: rect.bottom + MENU_GAP, left });
-    setOpenMenuId(userId);
-  };
-
-  const requirePermission = async (user, operation, deniedMessage) => {
-    const allowed = await checkOperation(user.id, operation);
-    if (allowed) return true;
-
-    await alert({
-      title: "Action non autorisée",
-      message: deniedMessage,
+    setOpenMenu(prev => {
+      const prevId = prev?.user?.id || prev?.user?._id;
+      const userId = user.id || user._id;
+      if (prev && prevId === userId) return null;
+      return { rect, user };
     });
-    return false;
   };
 
-  const handleEditUser = async (user) => {
-    setOpenMenuId(null);
-    const ok = await requirePermission(
-      user,
-      'update',
-      "Vous n'avez pas la permission de modifier cet utilisateur.",
-    );
-    if (!ok) return;
-    navigate(`/auth/update/${user.id}`);
+  const closeMenu = () => setOpenMenu(null);
+
+  // ─── Action handlers ────────────────────────────────────────────────
+  const handleEditUser = (user) => {
+    const id = user.id || user._id;
+    if (!id) return showError('Identifiant utilisateur manquant');
+    navigate(`/auth/update/${id}`);
   };
 
-  const handleViewDetails = async (user) => {
-    setOpenMenuId(null);
-    const ok = await requirePermission(
-      user,
-      'read',
-      "Vous n'avez pas la permission de consulter les détails de cet utilisateur.",
-    );
-    if (!ok) return;
+  const handleViewDetails = (user) => {
     handleUserClick(user);
   };
 
   const handlePrintSituation = async (user) => {
-    setOpenMenuId(null);
-
-    const ok = await requirePermission(
-      user,
-      'read',
-      "Vous n'avez pas la permission de générer la situation de cet utilisateur.",
-    );
-    if (!ok) return;
+    const userId = user.id || user._id;
+    if (!userId) return showError('Identifiant utilisateur manquant');
 
     try {
       const response = await fetchWithRefresh(
@@ -384,7 +291,7 @@ export default function GetUsers({ mode }) {
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: user.id }),
+          body: JSON.stringify({ userId }),
         },
         authData.token,
         setAuthData
@@ -406,10 +313,7 @@ export default function GetUsers({ mode }) {
       setPdfPreview({
         isOpen: true,
         type: 'situation',
-        data: {
-          blobUrl,
-          memberName: `${user.name} ${user.lastname}`,
-        },
+        data: { blobUrl, memberName: `${user.name} ${user.lastname}` },
       });
 
       showSuccess('Aperçu généré avec succès!');
@@ -420,25 +324,19 @@ export default function GetUsers({ mode }) {
   };
 
   const handleDeleteUser = async (user) => {
-    setOpenMenuId(null);
-
-    const ok = await requirePermission(
-      user,
-      'delete',
-      "Vous n'avez pas la permission de supprimer cet utilisateur.",
-    );
-    if (!ok) return;
+    const userId = user.id || user._id;
+    if (!userId) return showError('Identifiant utilisateur manquant');
 
     const confirmed = await confirm({
-      title: 'Delete User',
-      message: `Are you sure you want to delete ${user.name} ${user.lastname}? This action cannot be undone.`,
+      title: 'Supprimer utilisateur',
+      message: `Êtes-vous sûr de vouloir supprimer ${user.name || ''} ${user.lastname || ''} ? Cette action est irréversible.`,
     });
 
     if (!confirmed) return;
 
     try {
       const response = await fetchWithRefresh(
-        `${NEST_API_URL}/users/${user.id}`,
+        `${NEST_API_URL}/users/${userId}`,
         { method: 'DELETE' },
         authData.token,
         setAuthData
@@ -463,18 +361,6 @@ export default function GetUsers({ mode }) {
     }
   };
 
-  const handleViewFullProfile = async (user) => {
-    setOpenMenuId(null);
-    const ok = await requirePermission(
-      user,
-      'read',
-      "Vous n'avez pas la permission d'accéder à ce profil.",
-    );
-    if (!ok) return;
-    navigate(`/dash/adminUser/${user.id}`);
-  };
-
-  const titleText = mode === "membres" ? "Gestion des Membres" : "Gestion des Utilisateurs (Admin)";
   const searchPlaceholder = mode === "membres"
     ? "Rechercher un membre par nom, prénom, email, N° inscription..."
     : "Rechercher un admin par nom, prénom, email...";
@@ -504,13 +390,9 @@ export default function GetUsers({ mode }) {
     selectedServiceNational
   ].filter(f => f !== "all").length;
 
-  // Pagination controls
   const goToPage = (page) => {
-    if (page >= 1 && page <= totalPages) {
-      setCurrentPage(page);
-    }
+    if (page >= 1 && page <= totalPages) setCurrentPage(page);
   };
-
   const goToPreviousPage = () => goToPage(currentPage - 1);
   const goToNextPage = () => goToPage(currentPage + 1);
 
@@ -519,86 +401,12 @@ export default function GetUsers({ mode }) {
     const maxVisible = 5;
     let start = Math.max(1, currentPage - Math.floor(maxVisible / 2));
     let end = Math.min(totalPages, start + maxVisible - 1);
-
-    if (end - start < maxVisible - 1) {
-      start = Math.max(1, end - maxVisible + 1);
-    }
-
-    for (let i = start; i <= end; i++) {
-      pages.push(i);
-    }
+    if (end - start < maxVisible - 1) start = Math.max(1, end - maxVisible + 1);
+    for (let i = start; i <= end; i++) pages.push(i);
     return pages;
   };
 
-  // Quick action handlers
-  const handleAddMember = () => {
-    navigate('/dash/createUser');
-  };
-
-  const handleExport = () => {
-    showSuccess('Export feature coming soon');
-  };
-
-  // ─── The dropdown menu (rendered via portal to escape table overflow) ────
-  const renderRowMenu = (user) => {
-    if (openMenuId !== user.id) return null;
-
-    return createPortal(
-      <div
-        ref={(el) => { menuRefs.current[user.id] = el; }}
-        style={{
-          position: 'fixed',
-          top: menuPosition.top,
-          left: menuPosition.left,
-          width: MENU_WIDTH,
-          maxHeight: `calc(100vh - ${MENU_MARGIN * 2}px)`,
-          overflowY: 'auto',
-          zIndex: 9999,
-        }}
-        className="bg-[#182233] border border-[rgba(255,255,255,0.06)] rounded-xl shadow-2xl py-1 animate-in fade-in zoom-in-95 duration-100"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button
-          onClick={() => handleViewDetails(user)}
-          className="w-full px-4 py-2.5 text-left text-[#F8FAFC] hover:bg-[#1F2937] transition-colors flex items-center gap-3 text-sm"
-        >
-          <Eye className="w-4 h-4 text-[#64748B]" />
-          Détails
-        </button>
-        <button
-          onClick={() => handleEditUser(user)}
-          className="w-full px-4 py-2.5 text-left text-[#F8FAFC] hover:bg-[#1F2937] transition-colors flex items-center gap-3 text-sm"
-        >
-          <Edit className="w-4 h-4 text-[#64748B]" />
-          Modifier
-        </button>
-        <div className="border-t border-[rgba(255,255,255,0.06)] my-1"></div>
-        {/* <button
-          onClick={() => handlePrintSituation(user)}
-          className="w-full px-4 py-2.5 text-left text-[#F8FAFC] hover:bg-[#1F2937] transition-colors flex items-center gap-3 text-sm"
-        >
-          <FileText className="w-4 h-4 text-[#64748B]" />
-          Situation du membre
-        </button> */}
-        <div className="border-t border-[rgba(255,255,255,0.06)] my-1"></div>
-        <button
-          onClick={() => handleViewFullProfile(user)}
-          className="w-full px-4 py-2.5 text-left text-[#F8FAFC] hover:bg-[#1F2937] transition-colors flex items-center gap-3 text-sm"
-        >
-          <BarChart3 className="w-4 h-4 text-[#64748B]" />
-          Profil complet
-        </button>
-        <button
-          onClick={() => handleDeleteUser(user)}
-          className="w-full px-4 py-2.5 text-left text-rose-400 hover:bg-rose-500/10 transition-colors flex items-center gap-3 text-sm border-t border-[rgba(255,255,255,0.06)] mt-1 pt-1"
-        >
-          <Trash2 className="w-4 h-4" />
-          Supprimer
-        </button>
-      </div>,
-      document.body
-    );
-  };
+  const handleAddMember = () => navigate('/dash/createUser');
 
   return (
     <div className="min-h-screen ml-[30px] mt-16 bg-[#0A0F1C] text-[#F8FAFC] font-sans antialiased p-6 md:p-8">
@@ -617,12 +425,11 @@ export default function GetUsers({ mode }) {
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                     <Shield className="w-3 h-3 mr-1" />
-                    {authData?.user?.role || 'Administrator'}
+                    {authData?.user?.roleLabel || authData?.user?.role || authData?.user?.grade || 'Administrator'}
                   </span>
-
                   <span className="text-sm text-[#94A3B8] flex items-center gap-1">
                     <Calendar className="w-3.5 h-3.5" />
-                    Member Depuis {new Date(authData?.user?.createdAt).getFullYear() || '2024'}
+                    Membre depuis {authData?.user?.createdAt ? new Date(authData.user.createdAt).getFullYear() : '2024'}
                   </span>
                 </div>
               </div>
@@ -632,6 +439,15 @@ export default function GetUsers({ mode }) {
 
         {/* ===== QUICK ACTIONS ===== */}
         <div className="mt-6 flex flex-wrap gap-3">
+          {canCreateUser && (
+            <button
+              onClick={handleAddMember}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-medium transition-all duration-200 shadow-lg shadow-emerald-500/20"
+            >
+              <Plus className="w-4 h-4" />
+              Ajouter
+            </button>
+          )}
           <button
             onClick={() => setShowFilters(!showFilters)}
             className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all duration-200 ${
@@ -641,7 +457,7 @@ export default function GetUsers({ mode }) {
             }`}
           >
             <Filter className="w-4 h-4" />
-            Filters
+            Filtres
             {activeFilterCount > 0 && (
               <span className="ml-1 bg-emerald-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
                 {activeFilterCount}
@@ -653,11 +469,11 @@ export default function GetUsers({ mode }) {
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 transition-all duration-200"
           >
             <X className="w-4 h-4" />
-            Reset
+            Réinitialiser
           </button>
         </div>
 
-        {/* ===== SEARCH & FILTERS PANEL ===== */}
+        {/* ===== SEARCH & PAGE SIZE ===== */}
         <div className="mt-6 flex flex-col md:flex-row md:items-center gap-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748B]" />
@@ -672,10 +488,7 @@ export default function GetUsers({ mode }) {
           </div>
           <select
             value={pageSize}
-            onChange={(e) => {
-              setPageSize(Number(e.target.value));
-              setCurrentPage(1);
-            }}
+            onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
             className="px-4 py-2.5 rounded-xl bg-[#111827] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
           >
             <option value="10">10 / page</option>
@@ -685,10 +498,10 @@ export default function GetUsers({ mode }) {
           </select>
         </div>
 
+        {/* ===== FILTER PANEL ===== */}
         {showFilters && (
           <div className="mt-4 p-5 bg-[#111827] rounded-xl border border-[rgba(255,255,255,0.06)] shadow-xl">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {/* Sexe */}
               {SEXE_OPTIONS.length > 0 && (
                 <div>
                   <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Sexe</label>
@@ -705,8 +518,23 @@ export default function GetUsers({ mode }) {
                 </div>
               )}
 
-              {/* CLOA d'installation */}
-              {wilayasData.length > 0 && (
+              {CIVILITY_OPTIONS.length > 0 && (
+                <div>
+                  <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Civilité</label>
+                  <select
+                    value={selectedCivility}
+                    onChange={(e) => { setSelectedCivility(e.target.value); setCurrentPage(1); }}
+                    className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  >
+                    <option value="all">Toutes les civilités</option>
+                    {CIVILITY_OPTIONS.map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {wilayasData && wilayasData.length > 0 && (
                 <div>
                   <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">CLOA d'installation</label>
                   <select
@@ -724,7 +552,6 @@ export default function GetUsers({ mode }) {
                 </div>
               )}
 
-              {/* Marital Status */}
               {MARITAL_STATUS_OPTIONS.length > 0 && (
                 <div>
                   <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Situation Familiale</label>
@@ -741,7 +568,6 @@ export default function GetUsers({ mode }) {
                 </div>
               )}
 
-              {/* Diploma Type */}
               {DIPLOMA_TYPE_OPTIONS.length > 0 && (
                 <div>
                   <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Type de Diplôme</label>
@@ -758,7 +584,6 @@ export default function GetUsers({ mode }) {
                 </div>
               )}
 
-              {/* Registration Status */}
               {REGISTRATION_STATUS_OPTIONS.length > 0 && (
                 <div>
                   <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Statut d'inscription</label>
@@ -775,7 +600,6 @@ export default function GetUsers({ mode }) {
                 </div>
               )}
 
-              {/* Professional Mode */}
               {PROFESSIONAL_MODE_OPTIONS.length > 0 && (
                 <div>
                   <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Mode d'exercice</label>
@@ -792,7 +616,6 @@ export default function GetUsers({ mode }) {
                 </div>
               )}
 
-              {/* Service National */}
               {SERVICE_NATIONAL_OPTIONS.length > 0 && (
                 <div>
                   <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Service National</label>
@@ -809,7 +632,6 @@ export default function GetUsers({ mode }) {
                 </div>
               )}
 
-              {/* Status */}
               {STATUS_OPTIONS.length > 0 && (
                 <div>
                   <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Statut</label>
@@ -870,36 +692,37 @@ export default function GetUsers({ mode }) {
                     </thead>
                     <tbody>
                       {displayedUsers.length > 0 ? (
-                        displayedUsers.map((user) => (
-                          <tr
-                            key={user.id || user._id}
-                            className="border-b border-[rgba(255,255,255,0.04)] hover:bg-[#1F2937]/30 transition-colors group"
-                          >
-                            <td className="py-3 px-6 text-[#F8FAFC] font-medium">{user.name || '-'}</td>
-                            <td className="py-3 px-6 text-[#F8FAFC]">{user.lastname || '-'}</td>
-                            <td className="py-3 px-6 text-[#94A3B8] truncate max-w-[150px]">{user.email || '-'}</td>
-                            <td className="py-3 px-6 text-[#F8FAFC]">{user.region || '-'}</td>
-                            <td className="py-3 px-6">
-                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                user.status === 'active' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
-                                user.status === 'pending' ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20' :
-                                'bg-gray-500/10 text-gray-400 border border-gray-500/20'
-                              }`}>
-                                {user.status || 'inconnu'}
-                              </span>
-                            </td>
-                            <td className="py-3 px-6 text-right">
-                              <button
-                                ref={(el) => { menuButtonRefs.current[user.id] = el; }}
-                                onClick={(e) => toggleMenu(user.id, e)}
-                                className="p-1.5 rounded-lg hover:bg-[#1F2937] transition-colors"
-                              >
-                                <MoreVertical className="w-5 h-5 text-[#64748B] group-hover:text-[#F8FAFC]" />
-                              </button>
-                              {renderRowMenu(user)}
-                            </td>
-                          </tr>
-                        ))
+                        displayedUsers.map((user) => {
+                          const rowId = user.id || user._id;
+                          return (
+                            <tr
+                              key={rowId}
+                              className="border-b border-[rgba(255,255,255,0.04)] hover:bg-[#1F2937]/30 transition-colors group"
+                            >
+                              <td className="py-3 px-6 text-[#F8FAFC] font-medium">{user.name || '-'}</td>
+                              <td className="py-3 px-6 text-[#F8FAFC]">{user.lastname || '-'}</td>
+                              <td className="py-3 px-6 text-[#94A3B8] truncate max-w-[150px]">{user.email || '-'}</td>
+                              <td className="py-3 px-6 text-[#F8FAFC]">{user.region || '-'}</td>
+                              <td className="py-3 px-6">
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                  user.status === 'active' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                                  user.status === 'pending' ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20' :
+                                  'bg-gray-500/10 text-gray-400 border border-gray-500/20'
+                                }`}>
+                                  {user.status || 'inconnu'}
+                                </span>
+                              </td>
+                              <td className="py-3 px-6 text-right">
+                                <button
+                                  onClick={(e) => toggleMenuAt(e, user)}
+                                  className="p-1.5 rounded-lg hover:bg-[#1F2937] transition-colors"
+                                >
+                                  <MoreVertical className="w-5 h-5 text-[#64748B] group-hover:text-[#F8FAFC]" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
                       ) : (
                         <tr>
                           <td colSpan="8" className="text-center py-12 text-[#64748B]">
@@ -963,6 +786,74 @@ export default function GetUsers({ mode }) {
           )}
         </div>
       </div>
+
+      {/* ===== SINGLE DROPDOWN MENU (rendered once, fixed-position) ===== */}
+      {openMenu && (
+        <>
+          {/* Invisible full-screen backdrop — closes on any click outside the menu */}
+          <div
+            className="fixed inset-0 z-40"
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              closeMenu();
+            }}
+          />
+          <div
+            className="fixed w-56 bg-[#182233] border border-[rgba(255,255,255,0.06)] rounded-xl shadow-2xl z-50 py-1 overflow-hidden"
+            style={{
+              top: openMenu.rect.bottom + 4,
+              left: Math.max(8, openMenu.rect.right - 224),
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => { closeMenu(); handleViewDetails(openMenu.user); }}
+              className="w-full px-4 py-2.5 text-left text-[#F8FAFC] hover:bg-[#1F2937] transition-colors flex items-center gap-3 text-sm"
+            >
+              <Eye className="w-4 h-4 text-[#64748B]" />
+              Détails
+            </button>
+            {canUpdateUser && (
+              <button
+                onClick={() => { closeMenu(); handleEditUser(openMenu.user); }}
+                className="w-full px-4 py-2.5 text-left text-[#F8FAFC] hover:bg-[#1F2937] transition-colors flex items-center gap-3 text-sm"
+              >
+                <Edit className="w-4 h-4 text-[#64748B]" />
+                Modifier
+              </button>
+            )}
+            <div className="border-t border-[rgba(255,255,255,0.06)] my-1"></div>
+            <button
+              onClick={() => { closeMenu(); handlePrintSituation(openMenu.user); }}
+              className="w-full px-4 py-2.5 text-left text-[#F8FAFC] hover:bg-[#1F2937] transition-colors flex items-center gap-3 text-sm"
+            >
+              <FileText className="w-4 h-4 text-[#64748B]" />
+              Situation du membre
+            </button>
+            <div className="border-t border-[rgba(255,255,255,0.06)] my-1"></div>
+            <button
+              onClick={() => {
+                const id = openMenu.user.id || openMenu.user._id;
+                closeMenu();
+                if (id) navigate(`/dash/adminUser/${id}`);
+              }}
+              className="w-full px-4 py-2.5 text-left text-[#F8FAFC] hover:bg-[#1F2937] transition-colors flex items-center gap-3 text-sm"
+            >
+              <BarChart3 className="w-4 h-4 text-[#64748B]" />
+              Profil complet
+            </button>
+            {canDeleteUser && (
+              <button
+                onClick={() => { const u = openMenu.user; closeMenu(); handleDeleteUser(u); }}
+                className="w-full px-4 py-2.5 text-left text-rose-400 hover:bg-rose-500/10 transition-colors flex items-center gap-3 text-sm border-t border-[rgba(255,255,255,0.06)] mt-1 pt-1"
+              >
+                <Trash2 className="w-4 h-4" />
+                Supprimer
+              </button>
+            )}
+          </div>
+        </>
+      )}
 
       {/* ===== MODALS ===== */}
       {pdfPreview.isOpen && (

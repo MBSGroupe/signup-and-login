@@ -1,14 +1,13 @@
 import { useContext, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { UserContext } from '../../../Context/dataCont';
-import Title from '../../../Components/Title';
 import { fetchWithRefresh } from '../../../Components/api';
-import { useApi } from '../../../Hooks/useApi';
 import { useError } from '../../../Context/ErrorContext';
 import BackButton from '../../../Components/Buttons/BackButton';
 import {
   Loader2,
   AlertCircle,
+  AlertTriangle,
   Clock,
   CheckCircle,
   XCircle,
@@ -83,18 +82,23 @@ const USER_FIELDS = [
   { key: 'nin', label: 'NIN', icon: Shield },
   { key: 'installationDate', label: "Date d'installation", icon: Calendar },
   { key: 'recruitmentDate', label: 'Date de recrutement', icon: Calendar },
-  { key: 'numeroActeNaissance', label: "N° acte de naissance", icon: FileText },
+  { key: 'numeroActeNaissance', label: 'N° acte de naissance', icon: FileText },
 ];
+
+// ─── Helper: unwrap the ResponseInterceptor envelope ────────────────────
+const unwrap = (body) => (body && typeof body === 'object' && 'data' in body && 'success' in body)
+  ? body.data
+  : body;
 
 export default function ValidationRequestDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { authData, setAuthData } = useContext(UserContext);
-  const { callApi } = useApi();
   const { showWarning } = useError();
 
   const [request, setRequest] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [comments, setComments] = useState({});
   const [isCustomComment, setIsCustomComment] = useState({});
@@ -112,36 +116,46 @@ export default function ValidationRequestDetail() {
   useEffect(() => {
     const fetchRequest = async () => {
       setLoading(true);
-      const result = await callApi(async () => {
+      setError(null);
+      try {
+        // ─── 1. Fetch the request ────────────────────────────────────
         const res = await fetchWithRefresh(
           `${API_URL}/validation/request/${id}`,
           { method: 'GET' },
           authData.token,
           setAuthData
         );
-        return res;
-      }, { showSuccessMessage: false });
+        const body = await res.json();
+        const reqData = unwrap(body);
+        setRequest(reqData);
 
-      if (result) {
-        setRequest(result);
-        if (result.targetType === 'User') {
+        // ─── 2. If target is a User, fetch their data + permissions ──
+        if (reqData?.targetType === 'User') {
           setTargetLoading(true);
-          const targetUserId = result.targetId?.id || result.targetId;
-          const userRes = await callApi(async () => {
-            const res = await fetchWithRefresh(
-              `${API_URL}/users/${targetUserId}`,
-              { method: 'GET' },
-              authData.token,
-              setAuthData
-            );
-            return res;
-          }, { showSuccessMessage: false });
-          if (userRes && userRes.user) {
-            setTargetUserData(userRes.user);
-            const allFiles = userRes.user.files || [];
+          const targetUserId = reqData.targetId?.id || reqData.targetId;
+          if (!targetUserId) {
+            setTargetLoading(false);
+            return;
+          }
+
+          const userRes = await fetchWithRefresh(
+            `${API_URL}/users/${targetUserId}`,
+            { method: 'GET' },
+            authData.token,
+            setAuthData
+          );
+          const userBody = await userRes.json();
+          const userPayload = unwrap(userBody);
+          const userObj = userPayload?.user || userPayload;
+
+          if (userObj) {
+            setTargetUserData(userObj);
+            const allFiles = userObj.files || [];
             setTargetFiles(allFiles);
             setCurrentDocIndex(0);
             setImageErrors({});
+
+            // Permissions — viewable fields for this target
             try {
               const permRes = await fetchWithRefresh(
                 `${API_URL}/permissions/user/${targetUserId}/viewable-fields?model=User`,
@@ -149,30 +163,31 @@ export default function ValidationRequestDetail() {
                 authData.token,
                 setAuthData
               );
-              const permData = await permRes.json();
-              let fields = [];
-              if (permData.data?.fields) {
-                fields = permData.data.fields;
-              } else if (permData.fields) {
-                fields = permData.fields;
-              } else if (Array.isArray(permData.data)) {
-                fields = permData.data;
-              } else if (Array.isArray(permData)) {
-                fields = permData;
-              }
-              setAllowedFields(fields);
-            } catch (err) {
-              console.error('Failed to load permissions for target user', err);
+              const permBody = await permRes.json();
+              const permPayload = unwrap(permBody);
+              const fields = permPayload?.fields || (Array.isArray(permPayload) ? permPayload : []);
+              setAllowedFields(Array.isArray(fields) ? fields : []);
+            } catch (permErr) {
+              console.error('Failed to load permissions for target user', permErr);
               setAllowedFields([]);
             }
           }
           setTargetLoading(false);
         }
+      } catch (err) {
+        console.error('Failed to load validation request:', err);
+        setError(
+          err?.status === 404
+            ? "Cette demande n'existe pas ou a été supprimée."
+            : err?.message || "Erreur lors du chargement de la demande."
+        );
+        setRequest(null);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
-    if (authData?.token) {
+    if (authData?.token && id) {
       fetchRequest();
     }
   }, [id, authData?.token, setAuthData]);
@@ -221,45 +236,39 @@ export default function ValidationRequestDetail() {
       return;
     }
     setActionLoading(true);
-    let body = action === 'approve' ? { comments: comment } : { reason: comment };
+    const body = action === 'approve' ? { comments: comment } : { reason: comment };
     try {
-      const result = await callApi(async () => {
-        const res = await fetchWithRefresh(
-          `${API_URL}/validation/requests/${id}/${action}/${stepOrder}`,
-          {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-          },
+      const res = await fetchWithRefresh(
+        `${API_URL}/validation/requests/${id}/${action}/${stepOrder}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        },
+        authData.token,
+        setAuthData
+      );
+      const resBody = await res.json();
+      const updated = unwrap(resBody);
+      const updatedRequest = updated?.request || updated;
+
+      if (updatedRequest && updatedRequest.id) {
+        setRequest(updatedRequest);
+      } else {
+        // Refetch to get fresh state
+        const refetchRes = await fetchWithRefresh(
+          `${API_URL}/validation/request/${id}`,
+          { method: 'GET' },
           authData.token,
           setAuthData
         );
-        return res;
-      }, {
-        showSuccessMessage: true,
-        successMessage: `Étape ${action}ée avec succès`,
-      });
-      if (result) {
-        const updatedRequest = result.request || result.data || result;
-        if (updatedRequest && updatedRequest.id) {
-          setRequest(updatedRequest);
-        } else {
-          const refetched = await callApi(async () => {
-            const res = await fetchWithRefresh(
-              `${API_URL}/validation/request/${id}`,
-              { method: 'GET' },
-              authData.token,
-              setAuthData
-            );
-            return res;
-          }, { showSuccessMessage: false });
-          if (refetched) setRequest(refetched);
-        }
-        setComments(prev => ({ ...prev, [stepOrder]: '' }));
-        setIsCustomComment(prev => ({ ...prev, [stepOrder]: false }));
+        const refetchBody = await refetchRes.json();
+        setRequest(unwrap(refetchBody));
       }
-    } catch (error) {
-      console.error('Error during step action:', error);
+      setComments(prev => ({ ...prev, [stepOrder]: '' }));
+      setIsCustomComment(prev => ({ ...prev, [stepOrder]: false }));
+    } catch (err) {
+      console.error('Error during step action:', err);
     } finally {
       setActionLoading(false);
     }
@@ -346,11 +355,10 @@ export default function ValidationRequestDetail() {
         authData.token,
         setAuthData
       );
-      const updatedUser = await res.json();
-      if (res.ok) {
-        setTargetUserData(prev => ({ ...prev, ...(updatedUser.data?.user || updatedUser) }));
-        setLocalEdits({});
-      }
+      const body = await res.json();
+      const payload = unwrap(body);
+      setTargetUserData(prev => ({ ...prev, ...(payload?.user || payload) }));
+      setLocalEdits({});
     } catch (err) {
       console.error('Failed to update user fields', err);
     } finally {
@@ -364,6 +372,25 @@ export default function ValidationRequestDetail() {
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="w-12 h-12 text-emerald-400 animate-spin" />
           <p className="text-[#94A3B8] text-sm">Chargement de la demande...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-[#0A0F1C] flex items-center justify-center ml-[30px] mt-16">
+        <div className="bg-rose-500/10 rounded-2xl border border-rose-500/20 p-8 text-center max-w-md">
+          <AlertTriangle className="w-12 h-12 text-rose-400 mx-auto mb-4" />
+          <p className="text-rose-300 text-lg font-medium">Erreur de chargement</p>
+          <p className="text-rose-400/80 text-sm mt-1">{error}</p>
+          <button
+            onClick={() => navigate('/dash/validation/requests')}
+            className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition"
+          >
+            <ArrowRight className="w-4 h-4" />
+            Retour aux demandes
+          </button>
         </div>
       </div>
     );
@@ -474,9 +501,7 @@ export default function ValidationRequestDetail() {
           {userSteps.map((step, idx) => {
             const stepType = step.type || 'validation';
             const stepTypeLabel = stepType === 'verification' ? 'Vérification' : 'Validation';
-            const stepTypeColor = stepType === 'verification'
-              ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
-              : 'bg-blue-500/10 text-blue-400 border-blue-500/20';
+            const stepTypeColor = 'bg-blue-500/10 text-blue-400 border-blue-500/20';
 
             const currentComment = comments[step.order] || '';
             const showCustom = isCustomComment[step.order] || false;
@@ -599,13 +624,13 @@ export default function ValidationRequestDetail() {
                                   <div className="flex items-center justify-between">
                                     <span className="text-sm font-medium text-[#F8FAFC]">
                                       {currentFile?.documentType ||
-                                       currentFile?.fileName ||
-                                       currentFile?.name ||
-                                       `Document ${currentDocIndex+1}`}
+                                        currentFile?.fileName ||
+                                        currentFile?.name ||
+                                        `Document ${currentDocIndex + 1}`}
                                     </span>
                                     <div className="flex items-center gap-2">
                                       <span className="text-xs text-[#64748B]">
-                                        {currentDocIndex+1} / {totalDocs}
+                                        {currentDocIndex + 1} / {totalDocs}
                                       </span>
                                       {fileUrl && (
                                         <a
@@ -626,7 +651,7 @@ export default function ValidationRequestDetail() {
                                         <iframe
                                           src={fileUrl}
                                           className="w-full h-full"
-                                          title={`Document ${currentDocIndex+1}`}
+                                          title={`Document ${currentDocIndex + 1}`}
                                           frameBorder="0"
                                           onError={() => {
                                             setImageErrors(prev => ({ ...prev, [fileUrl]: true }));
@@ -635,7 +660,7 @@ export default function ValidationRequestDetail() {
                                       ) : (
                                         <img
                                           src={fileUrl}
-                                          alt={`Document ${currentDocIndex+1}`}
+                                          alt={`Document ${currentDocIndex + 1}`}
                                           className="max-h-full max-w-full object-contain"
                                           onError={() => {
                                             setImageErrors(prev => ({ ...prev, [fileUrl]: true }));
@@ -672,7 +697,7 @@ export default function ValidationRequestDetail() {
                                         </button>
                                         <button
                                           onClick={goToNext}
-                                          disabled={currentDocIndex === totalDocs-1}
+                                          disabled={currentDocIndex === totalDocs - 1}
                                           className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-[#0A0F1C]/70 hover:bg-[#0A0F1C] border border-white/10 text-white disabled:opacity-30 transition-all"
                                         >
                                           <ChevronRight className="w-5 h-5" />
@@ -790,7 +815,7 @@ export default function ValidationRequestDetail() {
                           >
                             <ThumbsDown className="w-4 h-4" /> Rejeter
                           </button>
-                          {(authData.user?.role === 'admin' || authData.user?.role === 'super_admin') && (
+                          {['admin', 'super_admin'].includes(authData?.user?.grade) && (
                             <button
                               onClick={() => handleStepAction(step.order, 'skip')}
                               disabled={actionLoading}

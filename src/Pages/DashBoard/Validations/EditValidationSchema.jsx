@@ -3,18 +3,20 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { UserContext } from '../../../Context/dataCont';
 import { fetchWithRefresh } from '../../../Components/api';
 import ValidationSchemaForm from '../../../Components/Modals/ValidationSchemaForm';
-import { useApi } from '../../../Hooks/useApi';
 import BackButton from '../../../Components/Buttons/BackButton';
-import Title from '../../../Components/Title';
 import { Loader2, Layers } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_NEST_API_URL;
+
+// ─── Helper: unwrap the ResponseInterceptor envelope ────────────────────
+const unwrap = (body) => (body && typeof body === 'object' && 'data' in body && 'success' in body)
+  ? body.data
+  : body;
 
 export default function EditValidationSchema() {
   const { schemaId } = useParams();
   const navigate = useNavigate();
   const { authData, setAuthData } = useContext(UserContext);
-  const { callApi } = useApi();
   const [initialData, setInitialData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [allowedFields, setAllowedFields] = useState(null);
@@ -23,51 +25,54 @@ export default function EditValidationSchema() {
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-
-      // 1. Fetch schema data
-      const schemaResult = await callApi(async () => {
-        const res = await fetchWithRefresh(
+      try {
+        // 1. Fetch schema data
+        const schemaRes = await fetchWithRefresh(
           `${API_URL}/validation/schemas/${schemaId}`,
           { method: 'GET' },
           authData.token,
           setAuthData
         );
-        return res;
-      });
+        const schemaBody = await schemaRes.json();
+        const schemaData = unwrap(schemaBody);
 
-      if (!schemaResult) {
+        if (!schemaData) {
+          navigate('/dash/validation/schemas');
+          return;
+        }
+        setInitialData(schemaData);
+
+        // 2. Fetch editable fields for this schema model
+        //    NOTE: model is `ValidationSchema` (matches the Prisma model / permission schema name)
+        try {
+          const permRes = await fetchWithRefresh(
+            `${API_URL}/permissions/user/${authData.user.id}/editable-fields?model=ValidationSchema`,
+            { method: 'GET' },
+            authData.token,
+            setAuthData
+          );
+          const permBody = await permRes.json();
+          const permData = unwrap(permBody);
+          if (permData) {
+            setAllowedFields(permData.fields || []);
+            setFieldConfigs(permData.configs || {});
+          } else {
+            setAllowedFields(null);
+          }
+        } catch (permErr) {
+          // Permissions are optional — if this fails, the form falls back to defaults
+          console.error('Failed to load editable fields for ValidationSchema:', permErr);
+          setAllowedFields(null);
+        }
+      } catch (err) {
+        console.error('Failed to load validation schema:', err);
         navigate('/dash/validation/schemas');
+      } finally {
         setLoading(false);
-        return;
       }
-
-      setInitialData(schemaResult);
-
-      // 2. Fetch editable fields (optional)
-      const permResult = await callApi(async () => {
-        const res = await fetchWithRefresh(
-          `${API_URL}/permissions/user/${authData.user.id}/editable-fields?model=Validation`,
-          { method: 'GET' },
-          authData.token,
-          setAuthData
-        );
-        return res;
-      }, { showSuccessMessage: false });
-
-      if (permResult) {
-        setAllowedFields(permResult.fields || []);
-        setFieldConfigs(permResult.configs || {});
-      } else {
-        setAllowedFields(null);
-      }
-
-      setLoading(false);
     };
 
-    if (authData?.token) {
-      fetchData();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (authData?.token && schemaId) fetchData();
   }, [schemaId, authData?.token, setAuthData, authData?.user?.id, navigate]);
 
   if (loading) {

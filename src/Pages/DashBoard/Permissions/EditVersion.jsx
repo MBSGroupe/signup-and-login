@@ -3,6 +3,7 @@ import { useContext, useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { UserContext } from "../../../Context/dataCont";
 import { fetchWithRefresh } from "../../../Components/api";
+import { useModal } from "../../../Context/ModalContext";
 import VersionForm from "../../../Components/Forms/VersionForm";
 import BackButton from "../../../Components/Buttons/BackButton";
 import { Loader2, Shield, Edit } from "lucide-react";
@@ -13,6 +14,7 @@ export default function EditVersion() {
   const { versionId } = useParams();
   const navigate = useNavigate();
   const { authData, setAuthData } = useContext(UserContext);
+  const { alert } = useModal();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [schema, setSchema] = useState(null);
@@ -34,24 +36,23 @@ export default function EditVersion() {
             setSchema({ fields: versionData.fields || [], operations: versionData.operations || [] });
             setInitialStatus(versionData.status || "active");
           } else {
-            alert("Version non trouvée");
+            await alert({ title: "Erreur", message: "Version non trouvée" });
             navigate(-1);
           }
         } else {
-          alert(data.message || "Erreur");
+          await alert({ title: "Erreur", message: data.message || "Erreur" });
         }
       } catch (err) {
         console.error(err);
-        alert("Erreur réseau");
+        await alert({ title: "Erreur réseau", message: err?.message || "Impossible de contacter le serveur" });
       } finally {
         setLoading(false);
       }
     };
     if (authData?.token) fetchVersion();
-  }, [versionId, authData, navigate, setAuthData]);
+  }, [versionId, authData?.token, navigate, setAuthData]);
 
   const handleSubmit = async (updatedSchema, status) => {
-    console.log(updatedSchema);
     setSaving(true);
     try {
       const res = await fetchWithRefresh(
@@ -73,10 +74,11 @@ export default function EditVersion() {
       if (res.ok && data.success !== false) {
         navigate(-1);
       } else {
-        alert(data.message || "Erreur lors de la mise à jour");
+        await alert({ title: "Erreur", message: data.message || "Erreur lors de la mise à jour" });
       }
     } catch (err) {
-      alert("Erreur réseau");
+      console.error('Submit error:', err);
+      await alert({ title: "Erreur réseau", message: err?.message || "Impossible de contacter le serveur" });
     } finally {
       setSaving(false);
     }

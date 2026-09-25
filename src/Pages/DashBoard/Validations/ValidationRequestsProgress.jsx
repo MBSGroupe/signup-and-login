@@ -1,9 +1,7 @@
 import { useContext, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { UserContext } from '../../../Context/dataCont';
-import Title from '../../../Components/Title';
 import { fetchWithRefresh } from '../../../Components/api';
-import { useApi } from '../../../Hooks/useApi';
 import BackButton from '../../../Components/Buttons/BackButton';
 import {
   Loader2,
@@ -11,6 +9,7 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
+  AlertTriangle,
   User,
   FileText,
   CreditCard,
@@ -30,15 +29,19 @@ import {
 
 const API_URL = import.meta.env.VITE_NEST_API_URL;
 
+// ─── Helper: unwrap the ResponseInterceptor envelope ────────────────────
+const unwrap = (body) => (body && typeof body === 'object' && 'data' in body && 'success' in body)
+  ? body.data
+  : body;
+
 export default function ValidationRequestProgress() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { authData, setAuthData } = useContext(UserContext);
-  const { callApi } = useApi();
   const [request, setRequest] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // 🟢 [MODIFICATION] : Helper dynamique pour afficher la cible ou le nom de la demande
   const getTargetDisplay = (targetType, target, fullReq = null) => {
     if (fullReq?.payload?.title || fullReq?.data?.title) {
       return fullReq.payload?.title || fullReq.data?.title;
@@ -62,26 +65,31 @@ export default function ValidationRequestProgress() {
   useEffect(() => {
     const fetchRequest = async () => {
       setLoading(true);
-      const result = await callApi(async () => {
+      setError(null);
+      try {
         const res = await fetchWithRefresh(
           `${API_URL}/validation/request/${id}`,
           { method: 'GET' },
           authData.token,
           setAuthData
         );
-        return res;
-      }, { showSuccessMessage: false });
-
-      if (result) {
-        console.log(result);
-        setRequest(result);
+        const body = await res.json();
+        setRequest(unwrap(body));
+      } catch (err) {
+        console.error('Failed to load validation request:', err);
+        setError(
+          err?.status === 404
+            ? "Cette demande n'existe pas ou a été supprimée."
+            : err?.message || 'Erreur lors du chargement de la demande.'
+        );
+        setRequest(null);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
-    if (authData?.token) fetchRequest();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, authData.token, setAuthData]);
+    if (authData?.token && id) fetchRequest();
+  }, [id, authData?.token, setAuthData]);
 
   const getStepStatusBadge = (status) => {
     const colors = {
@@ -91,7 +99,6 @@ export default function ValidationRequestProgress() {
       expired: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
       skipped: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
       cancelled: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
-      //  [MODIFICATION] : Style du statut 'changes_requested'
       changes_requested: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
     };
     return colors[status] || 'bg-gray-500/10 text-gray-400 border-gray-500/20';
@@ -105,7 +112,6 @@ export default function ValidationRequestProgress() {
       case 'expired': return <AlertCircle className="w-3.5 h-3.5" />;
       case 'skipped': return <SkipForward className="w-3.5 h-3.5" />;
       case 'cancelled': return <X className="w-3.5 h-3.5" />;
-      //  [MODIFICATION] : Icône pour 'changes_requested'
       case 'changes_requested': return <AlertCircle className="w-3.5 h-3.5" />;
       default: return null;
     }
@@ -126,6 +132,25 @@ export default function ValidationRequestProgress() {
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="w-12 h-12 text-emerald-400 animate-spin" />
           <p className="text-[#94A3B8] text-sm">Chargement du progrès...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-[#0A0F1C] flex items-center justify-center ml-[30px] mt-16">
+        <div className="bg-rose-500/10 rounded-2xl border border-rose-500/20 p-8 text-center max-w-md">
+          <AlertTriangle className="w-12 h-12 text-rose-400 mx-auto mb-4" />
+          <p className="text-rose-300 text-lg font-medium">Erreur de chargement</p>
+          <p className="text-rose-400/80 text-sm mt-1">{error}</p>
+          <button
+            onClick={() => navigate('/dash/validation/requests')}
+            className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition"
+          >
+            <ArrowRight className="w-4 h-4" />
+            Retour aux demandes
+          </button>
         </div>
       </div>
     );
@@ -155,7 +180,7 @@ export default function ValidationRequestProgress() {
   return (
     <div className="min-h-screen bg-[#0A0F1C] p-6 md:p-8 ml-[30px] mt-16">
       <div className="max-w-7xl mx-auto">
-        {/* Header with Back Button and Title */}
+        {/* Header */}
         <div className="flex flex-wrap items-center gap-4 mb-6">
           <BackButton fallbackPath="/dash/validation/requests" />
           <div className="flex items-center gap-3">
@@ -163,7 +188,6 @@ export default function ValidationRequestProgress() {
               <History className="w-6 h-6 text-emerald-400" />
             </div>
             <div>
-              {/* 🟢 [MODIFICATION] : Affichage du nom réel de la demande avec son identifiant court */}
               <h1 className="text-2xl md:text-3xl font-bold text-[#F8FAFC] tracking-tight">
                 {request.validationSchema?.name || request.schemaName || `Demande #${request.id?.slice(-6)}`}
               </h1>

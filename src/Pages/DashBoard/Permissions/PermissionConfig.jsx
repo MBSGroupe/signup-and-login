@@ -2,7 +2,6 @@
 import { useContext, useEffect, useState } from "react";
 import { UserContext } from "../../../Context/dataCont";
 import { fetchWithRefresh } from "../../../Components/api";
-import Title from "../../../Components/Title";
 import { useNavigate } from "react-router-dom";
 import { useModal } from "../../../Context/ModalContext";
 import BackButton from "../../../Components/Buttons/BackButton";
@@ -25,17 +24,13 @@ const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
 export default function PermissionManager() {
   const { authData, setAuthData } = useContext(UserContext);
-  const { confirm } = useModal();
+  const { confirm, alert } = useModal();
   const navigate = useNavigate();
   const [schemas, setSchemas] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    fetchSchemas();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authData]);
-
+  // Defined before the effect so it can be referenced without lint issues
   const fetchSchemas = async () => {
     setLoading(true);
     setError("");
@@ -47,9 +42,8 @@ export default function PermissionManager() {
         setAuthData
       );
       const data = await res.json();
-      console.log(data)
       if (res.ok) {
-        const schemasData = data.data.schemas || [];
+        const schemasData = data?.data?.schemas || data?.schemas || [];
         const grouped = schemasData.reduce((acc, schema) => {
           if (!acc[schema.model]) acc[schema.model] = [];
           acc[schema.model].push(schema);
@@ -60,11 +54,16 @@ export default function PermissionManager() {
         setError(data.message || "Erreur lors du chargement");
       }
     } catch (err) {
+      console.error('Failed to load permission schemas:', err);
       setError("Erreur réseau");
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (authData?.token) fetchSchemas();
+  }, [authData?.token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleNewVersion = (model) => {
     navigate(`/dash/permissions/new/${model}`);
@@ -86,16 +85,15 @@ export default function PermissionManager() {
         setAuthData
       );
       const data = await res.json();
-      if (res.ok) {
-        // Success – refresh the list
+      if (res.ok && data.success !== false) {
         await fetchSchemas();
-        // Optional: show success message (you could use a toast)
-        alert("Rollback effectué avec succès");
+        await alert({ title: "Succès", message: "Rollback effectué avec succès" });
       } else {
-        alert(data.message || "Erreur lors du rollback");
+        await alert({ title: "Erreur", message: data.message || "Erreur lors du rollback" });
       }
     } catch (err) {
-      alert("Erreur réseau");
+      console.error('Rollback error:', err);
+      await alert({ title: "Erreur réseau", message: err?.message || "Impossible de contacter le serveur" });
     }
   };
 
@@ -220,7 +218,8 @@ export default function PermissionManager() {
                         </tr>
                       </thead>
                       <tbody>
-                        {versions
+                        {/* ✅ Copy before sort — do not mutate state */}
+                        {[...versions]
                           .sort((a, b) => b.version - a.version)
                           .map((ver) => (
                             <tr

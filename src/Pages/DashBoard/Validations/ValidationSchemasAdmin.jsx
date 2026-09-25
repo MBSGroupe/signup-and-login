@@ -1,54 +1,66 @@
 import { useContext, useEffect, useState } from 'react';
 import { UserContext } from '../../../Context/dataCont';
-import Title from '../../../Components/Title';
 import { fetchWithRefresh } from '../../../Components/api';
 import { useNavigate } from 'react-router-dom';
-import { useApi } from '../../../Hooks/useApi';
 import { useModal } from '../../../Context/ModalContext';
-import { 
-  Plus, 
-  Edit, 
-  Eye, 
-  History, 
-  RefreshCw, 
-  CheckCircle, 
-  XCircle, 
+import {
+  Plus,
+  Edit,
+  Eye,
+  History,
+  RefreshCw,
+  CheckCircle,
+  XCircle,
   Layers,
   FileText,
   Loader2,
-  ChevronRight
+  ChevronRight,
+  AlertTriangle,
 } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_NEST_API_URL;
 
+// ─── Helper: unwrap the ResponseInterceptor envelope ────────────────────
+const unwrap = (body) => (body && typeof body === 'object' && 'data' in body && 'success' in body)
+  ? body.data
+  : body;
+
 export default function ValidationSchemasList() {
   const { authData, setAuthData } = useContext(UserContext);
-  const { callApi } = useApi();
-  const { confirm } = useModal(); 
+  const { confirm } = useModal();
   const navigate = useNavigate();
   const [schemas, setSchemas] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const fetchSchemas = async () => {
     setLoading(true);
-    const url = `${API_URL}/validation/schemas`;
-    const result = await callApi(async () => {
-      const res = await fetchWithRefresh(url, { method: 'GET' }, authData.token, setAuthData);
-      return res;
-    }, { showSuccessMessage: false });
-
-    if (result) {
-      setSchemas(result.schemas || result || []);
-    } else {
+    setError(null);
+    try {
+      const res = await fetchWithRefresh(
+        `${API_URL}/validation/schemas`,
+        { method: 'GET' },
+        authData.token,
+        setAuthData
+      );
+      const body = await res.json();
+      const payload = unwrap(body);
+      const list =
+        (Array.isArray(payload) && payload) ||
+        payload?.schemas ||
+        [];
+      setSchemas(Array.isArray(list) ? list : []);
+    } catch (err) {
+      console.error('Failed to load validation schemas:', err);
+      setError(err?.message || 'Erreur lors du chargement des schémas.');
       setSchemas([]);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
-    if (authData?.token) {
-      fetchSchemas();
-    }
+    if (authData?.token) fetchSchemas();
   }, [authData?.token, setAuthData]);
 
   const handleRollback = async (schema) => {
@@ -58,21 +70,19 @@ export default function ValidationSchemasList() {
     });
     if (!confirmed) return;
 
-    const result = await callApi(async () => {
+    try {
       const res = await fetchWithRefresh(
         `${API_URL}/validation/schemas/${schema.id}/rollback`,
         { method: 'POST' },
         authData.token,
         setAuthData
       );
-      return res;
-    }, {
-      showSuccessMessage: true, 
-      successMessage: 'Rollback successful',
-    });
-
-    if (result) {
-      await fetchSchemas();
+      const body = await res.json();
+      if (body?.success) {
+        await fetchSchemas();
+      }
+    } catch (err) {
+      console.error('Rollback error:', err);
     }
   };
 
@@ -109,6 +119,17 @@ export default function ValidationSchemasList() {
             New Schema
           </button>
         </div>
+
+        {/* Error banner */}
+        {error && (
+          <div className="mb-6 bg-rose-500/10 rounded-2xl border border-rose-500/20 p-5 flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-rose-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-rose-300 font-medium">Erreur de chargement</p>
+              <p className="text-rose-400/80 text-sm mt-0.5">{error}</p>
+            </div>
+          </div>
+        )}
 
         {/* Schema list */}
         <div className="space-y-4">
