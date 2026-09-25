@@ -223,12 +223,12 @@ export default function SideBar() {
                   active={isActive("/dash/validation/requests")}
                 />
                 
+                
                   <SubItem
                     label="Toutes les demandes"
                     onClick={() => handleNavigation("/dash/validation/all-requests")}
                     active={isActive("/dash/validation/all-requests")}
                   />
-              
               </div>
             )}
           </div>
