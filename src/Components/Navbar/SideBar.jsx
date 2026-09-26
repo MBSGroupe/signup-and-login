@@ -36,6 +36,7 @@ export default function SideBar() {
   const isAdminOrSuper = ['admin', 'super_admin'].includes(authData?.user?.grade);
 
   const [usersOpen, setUsersOpen] = useState(false);
+  const [adminsOpen, setAdminsOpen] = useState(false);
   const [cotisationsOpen, setCotisationsOpen] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
   const [validationOpen, setValidationOpen] = useState(false);
@@ -47,6 +48,7 @@ export default function SideBar() {
     const handleClickOutside = (event) => {
       if (sidebarRef.current && !sidebarRef.current.contains(event.target)) {
         setUsersOpen(false);
+        setAdminsOpen(false);
         setCotisationsOpen(false);
         setStatsOpen(false);
         setValidationOpen(false);
@@ -65,6 +67,7 @@ export default function SideBar() {
   const handleNavigation = (path) => {
     navigate(path);
     setUsersOpen(false);
+    setAdminsOpen(false);
     setCotisationsOpen(false);
     setStatsOpen(false);
     setValidationOpen(false);
@@ -159,17 +162,22 @@ export default function SideBar() {
           {isSuperAdmin && (
             <div>
               <DropdownToggle
-                icon={Users}
-                label="Utilisateurs"
-                isOpen={usersOpen}
-                onClick={() => toggleDropdown(setUsersOpen, [setCotisationsOpen, setStatsOpen, setValidationOpen, setConfigOpen])}
+                icon={Shield}
+                label="Administrateurs"
+                isOpen={adminsOpen}
+                onClick={() => toggleDropdown(setAdminsOpen, [setUsersOpen, setCotisationsOpen, setStatsOpen, setValidationOpen, setConfigOpen])}
               />
-              {usersOpen && (
+              {adminsOpen && (
                 <div className="ml-3 mt-1 space-y-1 border-l border-[rgba(255,255,255,0.06)] pl-2">
                   <SubItem
-                    label="Tous les utilisateurs"
-                    onClick={() => handleNavigation("/dash/allUsers")}
-                    active={isActive("/dash/allUsers")}
+                    label="Tous les administrateurs"
+                    onClick={() => handleNavigation("/dash/admins")}
+                    active={isActive("/dash/admins")}
+                  />
+                  <SubItem
+                    label="Ajouter un administrateur"
+                    onClick={() => handleNavigation("/dash/admins/create")}
+                    active={isActive("/dash/admins/create")}
                   />
                 </div>
               )}
@@ -188,7 +196,7 @@ export default function SideBar() {
               icon={CreditCard}
               label="Cotisations"
               isOpen={cotisationsOpen}
-              onClick={() => toggleDropdown(setCotisationsOpen, [setUsersOpen, setStatsOpen, setValidationOpen, setConfigOpen])}
+              onClick={() => toggleDropdown(setCotisationsOpen, [setUsersOpen, setAdminsOpen, setStatsOpen, setValidationOpen, setConfigOpen])}
             />
             {cotisationsOpen && (
               <div className="ml-3 mt-1 space-y-1 border-l border-[rgba(255,255,255,0.06)] pl-2">
@@ -213,7 +221,7 @@ export default function SideBar() {
               icon={CheckSquare}
               label="Validations"
               isOpen={validationOpen}
-              onClick={() => toggleDropdown(setValidationOpen, [setUsersOpen, setCotisationsOpen, setStatsOpen, setConfigOpen])}
+              onClick={() => toggleDropdown(setValidationOpen, [setUsersOpen, setAdminsOpen, setCotisationsOpen, setStatsOpen, setConfigOpen])}
             />
             {validationOpen && (
               <div className="ml-3 mt-1 space-y-1 border-l border-[rgba(255,255,255,0.06)] pl-2">
@@ -222,13 +230,11 @@ export default function SideBar() {
                   onClick={() => handleNavigation("/dash/validation/requests")}
                   active={isActive("/dash/validation/requests")}
                 />
-                
-                
-                  <SubItem
-                    label="Toutes les demandes"
-                    onClick={() => handleNavigation("/dash/validation/all-requests")}
-                    active={isActive("/dash/validation/all-requests")}
-                  />
+                <SubItem
+                  label="Toutes les demandes"
+                  onClick={() => handleNavigation("/dash/validation/all-requests")}
+                  active={isActive("/dash/validation/all-requests")}
+                />
               </div>
             )}
           </div>
@@ -238,7 +244,7 @@ export default function SideBar() {
               icon={BarChart3}
               label="Statistiques"
               isOpen={statsOpen}
-              onClick={() => toggleDropdown(setStatsOpen, [setUsersOpen, setCotisationsOpen, setValidationOpen, setConfigOpen])}
+              onClick={() => toggleDropdown(setStatsOpen, [setUsersOpen, setAdminsOpen, setCotisationsOpen, setValidationOpen, setConfigOpen])}
             />
             {statsOpen && (
               <div className="ml-3 mt-1 space-y-1 border-l border-[rgba(255,255,255,0.06)] pl-2">
@@ -262,7 +268,7 @@ export default function SideBar() {
                 icon={Settings}
                 label="Configuration"
                 isOpen={configOpen}
-                onClick={() => toggleDropdown(setConfigOpen, [setUsersOpen, setCotisationsOpen, setStatsOpen, setValidationOpen])}
+                onClick={() => toggleDropdown(setConfigOpen, [setUsersOpen, setAdminsOpen, setCotisationsOpen, setStatsOpen, setValidationOpen])}
               />
               {configOpen && (
                 <div className="ml-3 mt-1 space-y-1 border-l border-[rgba(255,255,255,0.06)] pl-2">

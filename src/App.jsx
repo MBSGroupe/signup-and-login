@@ -39,6 +39,8 @@ import ValidationSchemaVersions from "./Pages/DashBoard/Validations/ValidationSc
 import AllValidationRequests from "./Pages/DashBoard/Validations/allValidationRequests";
 import ValidationSchemaDetails from './Pages/DashBoard/Validations/ValidationSchemaDetails'
 import ValidationRequestProgress from './Pages/DashBoard/Validations/ValidationRequestsProgress';
+import AdminsPanel from "./Pages/DashBoard/Admins/AdminsPanel";
+import AdminForm from "./Pages/DashBoard/Admins/AdminForm";
 
 import BackgroundManager from './Pages/DashBoard/EtatsDeSortie/BackgroundManager'
 import ForgotPassword from './Pages/ForgotPassword';
@@ -103,6 +105,12 @@ export default function App() {
         <Route path="createUser" element={<CreateUser/>} />
         <Route path="ajouterCotisation" element={<CreateBulkCotisation />} />
 
+
+        <Route path="admins" element={<AdminsPanel />} />
+        <Route path="/dash/admins/create"   element={<AdminForm mode="create" />} />
+        <Route path="/dash/admins/edit/:id" element={<AdminForm mode="edit" />} />
+
+        
         <Route path="permissions" element={<PermissionManager />} />
         <Route path="permissions/:model/:versionId" element={<PermissionDetails />} />
         <Route path="permissions/new/:model" element={<NewVersion />} />
