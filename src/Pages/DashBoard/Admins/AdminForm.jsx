@@ -15,11 +15,9 @@ import {
   X,
   CheckCircle,
   AlertCircle,
-  Mail,
   IdCard,
   Lock,
   Award,
-  Briefcase,
   MapPin,
   ToggleLeft,
 } from "lucide-react";
@@ -77,12 +75,10 @@ const FIELD_CONFIGS = {
   roleId: {
     label: "Rôle",
     type: "select",
-    validation: { options: [] }, // filled at runtime
+    // options injected at render time from the live roles list
+    validation: { options: [] },
   },
-  region: {
-    label: "CLOA / Région",
-    type: "wilaya", // same select, uses wilaya list (code)
-  },
+  region: { label: "CLOA / Région", type: "wilaya" },
   wilaya: { label: "Wilaya", type: "wilaya" },
   commune: { label: "Commune", type: "commune" },
   isActive: { label: "Compte actif", type: "boolean" },
@@ -97,6 +93,27 @@ const DEFAULT_EDIT_FIELDS = [
   "name", "lastname", "email",
   "grade", "roleId", "region", "wilaya", "commune", "isActive",
 ];
+
+// ────────────────────────────────────────────────────────────────
+//  Helpers
+// ────────────────────────────────────────────────────────────────
+
+/**
+ * Resilient extraction for the roles response.
+ * Handles: { data: [...] } | { data: { roles: [...] } } | { roles: [...] } | [...]
+ */
+function extractRoles(body) {
+  if (!body) return [];
+  const list =
+    (Array.isArray(body?.data) && body.data) ||
+    (Array.isArray(body?.data?.roles) && body.data.roles) ||
+    (Array.isArray(body?.roles) && body.roles) ||
+    (Array.isArray(body) && body) ||
+    [];
+  return list
+    .filter((r) => r && (r.id || r._id) && (r.name || r.label))
+    .map((r) => ({ id: r.id || r._id, name: r.name || r.label }));
+}
 
 // ────────────────────────────────────────────────────────────────
 //  Page
@@ -116,6 +133,8 @@ export default function AdminForm({ mode }) {
   const [permittedFields, setPermittedFields] = useState([]);
   const [fieldConfigs, setFieldConfigs] = useState(FIELD_CONFIGS);
   const [availableRoles, setAvailableRoles] = useState([]);
+  const [rolesLoading, setRolesLoading] = useState(true);
+  const [rolesError, setRolesError] = useState(null);
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
 
@@ -134,16 +153,45 @@ export default function AdminForm({ mode }) {
     viewerPassword: "",
   });
 
-  // ── Load: permissions + field set + (edit) target admin + roles ──
+  // ── Load: roles + permissions + field set + (edit) target admin ──
   useEffect(() => {
     if (!authData?.token || !viewerId) return;
     let cancelled = false;
 
     const load = async () => {
-      try {
-        setLoading(true);
+      setLoading(true);
 
-        // 1. Check operation permission
+      // ───────────────────────────────────────────────────────────
+      // 1. Roles — isolated so a failure here doesn't abort the rest
+      // ───────────────────────────────────────────────────────────
+      setRolesLoading(true);
+      try {
+        const rRes = await fetchWithRefresh(
+          `${NEST_API_URL}/roles`,
+          { method: "GET" },
+          authData.token,
+          setAuthData,
+        );
+        const rBody = await rRes.json();
+        const roles = extractRoles(rBody);
+        if (!cancelled) {
+          setAvailableRoles(roles);
+          setRolesError(roles.length === 0 ? "Aucun rôle disponible" : null);
+        }
+      } catch (err) {
+        console.error("Failed to fetch roles:", err);
+        if (!cancelled) {
+          setAvailableRoles([]);
+          setRolesError("Impossible de charger les rôles");
+        }
+      } finally {
+        if (!cancelled) setRolesLoading(false);
+      }
+
+      // ───────────────────────────────────────────────────────────
+      // 2. Permission check
+      // ───────────────────────────────────────────────────────────
+      try {
         const op = isCreate ? "create" : "update";
         const canRes = await fetchWithRefresh(
           `${NEST_API_URL}/permissions/${viewerId}/check-operation`,
@@ -159,61 +207,57 @@ export default function AdminForm({ mode }) {
         const allowed = Boolean(canBody?.data?.canPerform);
         if (cancelled) return;
         setCan(allowed);
-        if (!allowed) return;
+        if (!allowed) {
+          setLoading(false);
+          return;
+        }
+      } catch (err) {
+        console.error("Permission check failed:", err);
+        if (!cancelled) {
+          setCan(false);
+          setLoading(false);
+        }
+        return;
+      }
 
-        // 2. Fetch permitted fields
+      // ───────────────────────────────────────────────────────────
+      // 3. Permitted fields
+      // ───────────────────────────────────────────────────────────
+      try {
         const fieldsUrl = isCreate
           ? `${NEST_API_URL}/permissions/user/${viewerId}/creatable-fields?model=Admin`
           : `${NEST_API_URL}/permissions/user/${id}/editable-fields?model=Admin`;
 
-        try {
-          const fRes = await fetchWithRefresh(fieldsUrl, { method: "GET" }, authData.token, setAuthData);
-          const fBody = await fRes.json();
-          const data = fBody?.data || fBody || {};
-          const fields = Array.isArray(data.fields) && data.fields.length > 0
+        const fRes = await fetchWithRefresh(
+          fieldsUrl,
+          { method: "GET" },
+          authData.token,
+          setAuthData,
+        );
+        const fBody = await fRes.json();
+        const data = fBody?.data || fBody || {};
+        const fields =
+          Array.isArray(data.fields) && data.fields.length > 0
             ? data.fields
-            : (isCreate ? DEFAULT_CREATE_FIELDS : DEFAULT_EDIT_FIELDS);
-          if (cancelled) return;
-          setPermittedFields(fields);
-          if (data.configs) {
-            setFieldConfigs((prev) => ({ ...prev, ...data.configs }));
-          }
-        } catch {
-          if (!cancelled) {
-            setPermittedFields(isCreate ? DEFAULT_CREATE_FIELDS : DEFAULT_EDIT_FIELDS);
-          }
+            : isCreate
+              ? DEFAULT_CREATE_FIELDS
+              : DEFAULT_EDIT_FIELDS;
+        if (!cancelled) setPermittedFields(fields);
+        if (data.configs && !cancelled) {
+          setFieldConfigs((prev) => ({ ...prev, ...data.configs }));
         }
+      } catch {
+        if (!cancelled) {
+          setPermittedFields(isCreate ? DEFAULT_CREATE_FIELDS : DEFAULT_EDIT_FIELDS);
+        }
+      }
 
-        // 3. Load available roles (best-effort)
+      // ───────────────────────────────────────────────────────────
+      // 4. On edit, load the admin's current data
+      //    Backend shape (nested): { success, data: { admin: {...} } }
+      // ───────────────────────────────────────────────────────────
+      if (!isCreate) {
         try {
-          const rRes = await fetchWithRefresh(
-            `${NEST_API_URL}/roles`,
-            { method: "GET" },
-            authData.token,
-            setAuthData,
-          );
-          if (rRes.ok) {
-            const rBody = await rRes.json();
-            const roles = rBody?.data || rBody?.roles || rBody || [];
-            if (Array.isArray(roles)) {
-              if (!cancelled) setAvailableRoles(roles);
-              setFieldConfigs((prev) => ({
-                ...prev,
-                roleId: {
-                  ...prev.roleId,
-                  validation: {
-                    options: roles.map((r) => ({ value: r.id, label: r.name })),
-                  },
-                },
-              }));
-            }
-          }
-        } catch {
-          // /roles endpoint optional
-        }
-
-        // 4. On edit, load the admin's current data
-        if (!isCreate) {
           const aRes = await fetchWithRefresh(
             `${NEST_API_URL}/admins/${id}`,
             { method: "GET" },
@@ -221,8 +265,11 @@ export default function AdminForm({ mode }) {
             setAuthData,
           );
           const aBody = await aRes.json();
-          if (aRes.ok && aBody?.success) {
-            const a = aBody.admin || aBody.data || {};
+
+          // Keep the nested shape: data.admin
+          const a = aBody?.data?.admin;
+
+          if (aRes.ok && a && !cancelled) {
             setFormData((prev) => ({
               ...prev,
               name: a.name ?? "",
@@ -236,20 +283,22 @@ export default function AdminForm({ mode }) {
               isActive: a.isActive !== false,
             }));
           }
+        } catch (err) {
+          console.error("Failed to load admin:", err);
+          if (!cancelled) {
+            setIsError(true);
+            setMessage("Impossible de charger les données de l'administrateur.");
+          }
         }
-      } catch (err) {
-        console.error("Admin form load failed:", err);
-        if (!cancelled) {
-          setIsError(true);
-          setMessage("Erreur lors du chargement");
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
       }
+
+      if (!cancelled) setLoading(false);
     };
 
     load();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [authData?.token, viewerId, id, isCreate, setAuthData]);
 
   // ── Handlers ─────────────────────────────────────────────────────
@@ -267,16 +316,17 @@ export default function AdminForm({ mode }) {
     setIsError(false);
     setMessage("");
 
-    // Validation
     if (!formData.name?.trim()) return fail("Le nom est requis.");
     if (!formData.lastname?.trim()) return fail("Le prénom est requis.");
     if (!formData.email?.trim()) return fail("L'email est requis.");
+
     if (isCreate) {
       if (!formData.password) return fail("Le mot de passe est requis.");
       if (formData.password !== formData.confirmPassword) {
         return fail("Les mots de passe ne correspondent pas.");
       }
     }
+
     if (!formData.viewerPassword) {
       return fail("Votre mot de passe est requis pour confirmer.");
     }
@@ -319,22 +369,32 @@ export default function AdminForm({ mode }) {
 
       if (!res.ok) {
         const code = body?.code;
-        const msg = code === "AUTHZ_REAUTH_FAILED"
-          ? "Mot de passe incorrect."
-          : body?.message || body?.data?.message || "Échec de l'opération.";
+        const msg =
+          code === "AUTHZ_REAUTH_FAILED"
+            ? "Mot de passe incorrect."
+            : body?.message || body?.data?.message || "Échec de l'opération.";
         return fail(msg);
       }
 
       setIsError(false);
-      setMessage(isCreate ? "✅ Administrateur créé avec succès." : "✅ Administrateur mis à jour.");
+      setMessage(
+        isCreate
+          ? "✅ Administrateur créé avec succès."
+          : "✅ Administrateur mis à jour.",
+      );
 
-      // On success (create) — reset target fields, keep viewer password field
       if (isCreate) {
         setFormData({
-          name: "", lastname: "", email: "",
-          password: "", confirmPassword: "",
-          grade: "admin", roleId: "",
-          region: "", wilaya: "", commune: "",
+          name: "",
+          lastname: "",
+          email: "",
+          password: "",
+          confirmPassword: "",
+          grade: "admin",
+          roleId: "",
+          region: "",
+          wilaya: "",
+          commune: "",
           isActive: true,
           viewerPassword: "",
         });
@@ -353,10 +413,36 @@ export default function AdminForm({ mode }) {
     }
   };
 
+  // ── Resolved field configs (roleId options injected at render) ──
+  const resolvedConfigs = useMemo(() => {
+    const roleIdOptions = availableRoles.map((r) => ({
+      value: r.id,
+      label: r.name,
+    }));
+
+    return {
+      ...fieldConfigs,
+      roleId: {
+        ...(fieldConfigs.roleId || FIELD_CONFIGS.roleId),
+        label: "Rôle",
+        type: "select",
+        ui: {
+          placeholder: rolesLoading
+            ? "Chargement des rôles…"
+            : rolesError
+              ? rolesError
+              : "Sélectionner un rôle",
+        },
+        validation: { options: roleIdOptions },
+      },
+    };
+  }, [fieldConfigs, availableRoles, rolesLoading, rolesError]);
+
+  const roleFieldDisabled = rolesLoading || availableRoles.length === 0;
+
   // ── Sections & fields ────────────────────────────────────────────
   const fieldList = useMemo(() => {
     if (!permittedFields.length) return [];
-    // On create, also ensure confirmPassword and viewerPassword render properly
     return permittedFields;
   }, [permittedFields]);
 
@@ -437,54 +523,62 @@ export default function AdminForm({ mode }) {
           onSubmit={handleSubmit}
           className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] shadow-2xl shadow-black/50 p-6 md:p-8 space-y-8"
         >
-          {visibleSections.map((sectionKey) => {
-            const section = SECTION_CONFIG[sectionKey];
-            const Icon = section.icon;
-            const fields = section.fields.filter((f) => fieldList.includes(f));
-            if (fields.length === 0) return null;
+{visibleSections.map((sectionKey) => {
+  const section = SECTION_CONFIG[sectionKey];
+  const Icon = section.icon;
+  const fields = section.fields.filter((f) => fieldList.includes(f));
+  if (fields.length === 0) return null;
 
-            return (
-              <section
-                key={sectionKey}
-                className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)]"
-              >
-                <div className="flex items-center gap-3 mb-6">
-                  <Icon className="w-5 h-5 text-emerald-400" />
-                  <h3 className="text-lg font-semibold text-[#F8FAFC]">
-                    {section.label}
-                  </h3>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {fields.map((field) => (
-                    <div key={field} className={field === "email" ? "sm:col-span-2" : ""}>
-                      <DynamicField
-                        name={field}
-                        value={formData[field]}
-                        onChange={handleChange}
-                        config={fieldConfigs[field] || {}}
-                        wilayasData={wilayasData}
-                        parentWilayaCode={parentWilayaFor(field)}
-                        required={["name", "lastname", "email", "password"].includes(field)}
-                      />
-                    </div>
-                  ))}
-                </div>
+  return (
+    <section
+      key={sectionKey}
+      className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)]"
+    >
+      <div className="flex items-center gap-3 mb-6">
+        <Icon className="w-5 h-5 text-emerald-400" />
+        <h3 className="text-lg font-semibold text-[#F8FAFC]">
+          {section.label}
+        </h3>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        {fields.map((field) => (
+          <div
+            key={field}
+            className={field === "email" ? "sm:col-span-2" : ""}
+          >
+            <DynamicField
+              name={field}
+              value={formData[field]}
+              onChange={handleChange}
+              config={resolvedConfigs[field] || {}}
+              wilayasData={wilayasData}
+              parentWilayaCode={parentWilayaFor(field)}
+              required={["name", "lastname", "email", "password"].includes(field)}
+              disabled={field === "roleId" && roleFieldDisabled}
+            />
+          </div>
+        ))}
+      </div>
 
-                {/* Confirm password — only on create, only if password is in fields */}
-                {isCreate && fieldList.includes("password") && (
-                  <div className="mt-6 max-w-md">
-                    <DynamicField
-                      name="confirmPassword"
-                      value={formData.confirmPassword}
-                      onChange={handleChange}
-                      config={{ label: "Confirmer le mot de passe", type: "password", ui: { placeholder: "Répétez le mot de passe" } }}
-                      required
-                    />
-                  </div>
-                )}
-              </section>
-            );
-          })}
+      {/* Confirm password — only inside the credentials section, only on create */}
+      {isCreate && sectionKey === "credentials" && fields.includes("password") && (
+        <div className="mt-6 max-w-md">
+          <DynamicField
+            name="confirmPassword"
+            value={formData.confirmPassword}
+            onChange={handleChange}
+            config={{
+              label: "Confirmer le mot de passe",
+              type: "password",
+              ui: { placeholder: "Répétez le mot de passe" },
+            }}
+            required
+          />
+        </div>
+      )}
+    </section>
+  );
+})}
 
           {/* Re-auth */}
           <section className="bg-[#182233] rounded-xl p-6 border border-[rgba(255,255,255,0.06)]">
@@ -506,7 +600,8 @@ export default function AdminForm({ mode }) {
               />
             </div>
             <p className="text-xs text-[#64748B] mt-3">
-              Requis pour confirmer l'opération. Il s'agit de votre mot de passe, pas celui de l'administrateur {isCreate ? "créé" : "modifié"}.
+              Requis pour confirmer l'opération. Il s'agit de votre mot de passe, pas celui de
+              l'administrateur {isCreate ? "créé" : "modifié"}.
             </p>
           </section>
 

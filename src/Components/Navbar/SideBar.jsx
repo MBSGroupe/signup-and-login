@@ -21,7 +21,8 @@ import {
   Wallet,
   Activity,
   Database,
-  Layers
+  Layers,
+  Award,
 } from "lucide-react";
 // Import the logo (you'll need to adjust the path)
 import cnoaLogo from "../../assets/LOGOCLOA.png"; // ← you'll fix this path
@@ -76,7 +77,11 @@ export default function SideBar() {
 
   const isActive = (path) => location.pathname === path;
   const isValidationActive = () => location.pathname.startsWith('/dash/validation');
-  const isConfigActive = () => location.pathname === '/dash/permissions' || location.pathname === '/dash/validation/schemas';
+  const isConfigActive = () =>
+    location.pathname === '/dash/permissions' ||
+    location.pathname === '/dash/validation/schemas' ||
+    location.pathname.startsWith('/dash/roles') ||
+    location.pathname === '/dash/template/background';
 
   // Helper to render a nav item with icon
   const NavItem = ({ icon: Icon, label, onClick, active, className = "" }) => (
@@ -276,6 +281,16 @@ export default function SideBar() {
                     label="Permissions"
                     onClick={() => handleNavigation("/dash/permissions")}
                     active={isActive("/dash/permissions")}
+                  />
+                  <SubItem
+                    label="Rôles"
+                    onClick={() => handleNavigation("/dash/roles")}
+                    active={isActive("/dash/roles")}
+                  />
+                  <SubItem
+                    label="Ajouter un rôle"
+                    onClick={() => handleNavigation("/dash/roles/create")}
+                    active={isActive("/dash/roles/create")}
                   />
                   <SubItem
                     label="Schémas de validation"

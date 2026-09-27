@@ -42,6 +42,9 @@ import ValidationRequestProgress from './Pages/DashBoard/Validations/ValidationR
 import AdminsPanel from "./Pages/DashBoard/Admins/AdminsPanel";
 import AdminForm from "./Pages/DashBoard/Admins/AdminForm";
 
+import RoleDetails from "./Pages/DashBoard/Roles/RoleDetails";
+import RolesPanel from "./Pages/DashBoard/Roles/RolesPanel";
+import RoleForm from "./Pages/DashBoard/Roles/RoleForm";
 import BackgroundManager from './Pages/DashBoard/EtatsDeSortie/BackgroundManager'
 import ForgotPassword from './Pages/ForgotPassword';
 import ResetPassword from './Pages/ResetPassword';
@@ -110,6 +113,10 @@ export default function App() {
         <Route path="/dash/admins/create"   element={<AdminForm mode="create" />} />
         <Route path="/dash/admins/edit/:id" element={<AdminForm mode="edit" />} />
 
+        <Route path="/dash/roles"           element={<RolesPanel />} />
+        <Route path="/dash/roles/create"    element={<RoleForm mode="create" />} />
+        <Route path="/dash/roles/edit/:id"  element={<RoleForm mode="edit" />} />
+        <Route path="/dash/roles/:id"       element={<RoleDetails />} />
         
         <Route path="permissions" element={<PermissionManager />} />
         <Route path="permissions/:model/:versionId" element={<PermissionDetails />} />
