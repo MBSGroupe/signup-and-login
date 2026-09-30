@@ -346,7 +346,7 @@ export default function ValidationRequestsList() {
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ requestIds: selectedRequests, comments: 'Validation en masse' }),
+          body: JSON.stringify({ requestIds: selectedRequests, comments: 'Dossier Conforme aux exigences' }),
         },
         authData.token,
         setAuthData
@@ -780,15 +780,6 @@ export default function ValidationRequestsList() {
                     </div>
 
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      {['pending', 'partial'].includes(req.status) && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleCancel(req.id); }}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-lg hover:bg-rose-500/20 transition-all text-xs font-medium"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                          Annuler
-                        </button>
-                      )}
                       <button
                         onClick={(e) => { e.stopPropagation(); navigate(`/dash/validation/requests/${req.id}`); }}
                         className="text-[#64748B] hover:text-emerald-400 transition-colors p-1"

@@ -15,6 +15,7 @@ import {
   User,
   FileText,
   CreditCard,
+  ChevronLeft,
   ChevronRight,
   ListChecks,
   Inbox,
@@ -22,6 +23,9 @@ import {
 } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_NEST_API_URL;
+
+// Requests per page — must stay ≤ 100 (backend clamps)
+const PAGE_SIZE = 20;
 
 // ─── Period presets ──────────────────────────────────────────────
 const PERIOD_OPTIONS = [
@@ -80,6 +84,33 @@ function computeDateRange(period, customFrom, customTo) {
   }
 }
 
+// Build a compact list of page numbers with ellipsis markers.
+// e.g. [1, '...', 4, 5, 6, '...', 42]
+function getPageNumbers(current, total) {
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+  const pages = new Set([
+    1,
+    total,
+    current,
+    current - 1,
+    current + 1,
+  ]);
+  const sorted = Array.from(pages)
+    .filter((p) => p >= 1 && p <= total)
+    .sort((a, b) => a - b);
+
+  const result = [];
+  let prev = 0;
+  for (const p of sorted) {
+    if (prev && p - prev > 1) result.push('...');
+    result.push(p);
+    prev = p;
+  }
+  return result;
+}
+
 export default function AllValidationRequests() {
   const { authData, setAuthData } = useContext(UserContext);
   const navigate = useNavigate();
@@ -88,12 +119,22 @@ export default function AllValidationRequests() {
   const [loading, setLoading] = useState(true);
   const [schemas, setSchemas] = useState([]);
 
+  // ─── Pagination state ────────────────────────────────────────
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
   // ─── Filter state ────────────────────────────────────────────
   const [statusFilter, setStatusFilter] = useState('all');
   const [schemaFilter, setSchemaFilter] = useState('all');
   const [periodFilter, setPeriodFilter] = useState('all');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
+
+  // Reset to page 1 whenever any filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, schemaFilter, periodFilter, customFrom, customTo]);
 
   // ─── Fetch available schemas once (for the schema filter dropdown) ──
   useEffect(() => {
@@ -116,7 +157,7 @@ export default function AllValidationRequests() {
     if (authData?.token) fetchSchemas();
   }, [authData?.token, setAuthData]);
 
-  // ─── Fetch requests whenever any filter changes ──────────────
+  // ─── Fetch requests whenever any filter or page changes ──────
   useEffect(() => {
     const fetchRequests = async () => {
       setLoading(true);
@@ -128,6 +169,8 @@ export default function AllValidationRequests() {
       if (schemaFilter !== 'all') params.set('schemaId', schemaFilter);
       if (from) params.set('from', from.toISOString());
       if (to)   params.set('to', to.toISOString());
+      params.set('limit', String(PAGE_SIZE));
+      params.set('skip', String((page - 1) * PAGE_SIZE));
 
       try {
         const res = await fetchWithRefresh(
@@ -137,17 +180,23 @@ export default function AllValidationRequests() {
           setAuthData
         );
         const body = await res.json();
+
+        // Unwrap the ResponseInterceptor envelope if present
+        const data = body?.data ?? body;
+
         const list =
-          (Array.isArray(body) && body) ||
-          body?.data?.requests ||
-          (Array.isArray(body?.data) && body.data) ||
-          body?.requests ||
-          body?.data ||
+          (Array.isArray(data?.requests) && data.requests) ||
+          (Array.isArray(data) && data) ||
           [];
-        setRequests(Array.isArray(list) ? list : []);
+
+        setRequests(list);
+        setTotal(
+          typeof data?.total === 'number' ? data.total : list.length,
+        );
       } catch (err) {
         console.error('Failed to load validation requests:', err);
         setRequests([]);
+        setTotal(0);
       } finally {
         setLoading(false);
       }
@@ -160,6 +209,7 @@ export default function AllValidationRequests() {
     periodFilter,
     customFrom,
     customTo,
+    page,
     authData?.token,
     setAuthData,
   ]);
@@ -189,7 +239,6 @@ export default function AllValidationRequests() {
     }
   };
 
-  // Rewritten to handle: full object, partial object, raw string, or nothing
   const getTargetDisplay = (req) => {
     if (req.payload?.title) return req.payload.title;
     if (req.data?.title) return req.data.title;
@@ -244,7 +293,7 @@ export default function AllValidationRequests() {
     setCustomTo('');
   };
 
-  // ─── Loading screen ──────────────────────────────────────────
+  // ─── Loading screen (only first load, not on page change) ────
   if (loading && requests.length === 0) {
     return (
       <div className="min-h-screen bg-[#0A0F1C] flex items-center justify-center ml-[30px] mt-16">
@@ -255,6 +304,10 @@ export default function AllValidationRequests() {
       </div>
     );
   }
+
+  const rangeStart = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const rangeEnd = Math.min(page * PAGE_SIZE, total);
+  const pageNumbers = getPageNumbers(page, totalPages);
 
   return (
     <div className="min-h-screen bg-[#0A0F1C] p-6 md:p-8 ml-[30px] mt-16">
@@ -290,7 +343,7 @@ export default function AllValidationRequests() {
               </span>
             )}
             <span className="text-xs text-[#64748B] ml-auto">
-              {requests.length} demande{requests.length > 1 ? 's' : ''}
+              {total} demande{total > 1 ? 's' : ''}
             </span>
           </div>
 
@@ -400,7 +453,11 @@ export default function AllValidationRequests() {
         </div>
 
         {/* ─── List ───────────────────────────────────────────── */}
-        {requests.length === 0 ? (
+        {loading && requests.length === 0 ? (
+          <div className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] p-12 text-center shadow-2xl shadow-black/50">
+            <Loader2 className="w-8 h-8 text-emerald-400 animate-spin mx-auto" />
+          </div>
+        ) : requests.length === 0 ? (
           <div className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] p-12 text-center shadow-2xl shadow-black/50">
             <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto mb-4">
               <Inbox className="w-8 h-8 text-emerald-400" />
@@ -413,66 +470,127 @@ export default function AllValidationRequests() {
             </p>
           </div>
         ) : (
-          <div className="space-y-4">
-            {requests.map((req) => (
-            <div
-              key={req.id}
-              className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] p-5 hover:border-[rgba(255,255,255,0.12)] hover:bg-[#182233] transition-all duration-200 shadow-lg cursor-pointer group"
-              onClick={() => navigate(`/dash/validation/progress/${req.id}`)}
-            >
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <div className="flex-1 min-w-0">
+          <>
+            <div className={`space-y-4 transition-opacity duration-150 ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
+              {requests.map((req) => (
+                <div
+                  key={req.id}
+                  className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] p-5 hover:border-[rgba(255,255,255,0.12)] hover:bg-[#182233] transition-all duration-200 shadow-lg cursor-pointer group"
+                  onClick={() => navigate(`/dash/validation/progress/${req.id}`)}
+                >
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div className="flex-1 min-w-0">
 
-                  {/* ── Row 1: name (primary) ───────────────────────────────── */}
-                  <div className="flex items-center gap-3">
-                    <span className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
-                      {getTargetIcon(req.targetType)}
-                    </span>
-                    <h3 className="text-lg font-semibold text-[#F8FAFC] truncate">
-                      {getTargetDisplay(req)}
-                    </h3>
+                      {/* ── Row 1: name (primary) ───────────────────────────────── */}
+                      <div className="flex items-center gap-3">
+                        <span className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
+                          {getTargetIcon(req.targetType)}
+                        </span>
+                        <h3 className="text-lg font-semibold text-[#F8FAFC] truncate">
+                          {getTargetDisplay(req)}
+                        </h3>
+                      </div>
+
+                      {/* ── Row 2: request type + meta ──────────────────────────── */}
+                      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 ml-12">
+                        <span className="text-xs font-medium text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                          {req.validationSchema?.name || req.schemaName || `${req.targetType}`}
+                        </span>
+                        <span className="text-xs text-[#64748B] flex items-center gap-1">
+                          <Calendar className="w-3 h-3" />
+                          {new Date(req.createdAt).toLocaleDateString('fr-FR')}
+                        </span>
+                        <span className="text-xs text-[#64748B] flex items-center gap-1">
+                          <User className="w-3 h-3" />
+                          {typeof req.createdBy === 'object' && req.createdBy !== null
+                            ? `${req.createdBy.name || ''} ${req.createdBy.lastname || ''}`.trim() || req.createdBy.name || req.createdBy.email || 'Inconnu'
+                            : (req.createdBy || 'Inconnu')}
+                        </span>
+                      </div>
+
+                      {/* ── Row 3: status ───────────────────────────────────────── */}
+                      <div className="mt-2 flex items-center gap-3 ml-12">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadge(req.status)}`}>
+                          {getStatusIcon(req.status)}
+                          {req.status}
+                        </span>
+                        {req.step && (
+                          <span className="text-xs text-[#64748B]">
+                            Étape : {req.step}
+                          </span>
+                        )}
+                      </div>
+
+                    </div>
+
+                    <div className="flex items-center gap-2 text-[#64748B] group-hover:text-emerald-400 transition-colors">
+                      <span className="text-sm font-medium">Voir</span>
+                      <ChevronRight className="w-5 h-5" />
+                    </div>
                   </div>
-
-                  {/* ── Row 2: request type + meta ──────────────────────────── */}
-                  <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 ml-12">
-                    <span className="text-xs font-medium text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                      {req.validationSchema?.name || req.schemaName || `${req.targetType}`}
-                    </span>
-                    <span className="text-xs text-[#64748B] flex items-center gap-1">
-                      <Calendar className="w-3 h-3" />
-                      {new Date(req.createdAt).toLocaleDateString('fr-FR')}
-                    </span>
-                    <span className="text-xs text-[#64748B] flex items-center gap-1">
-                      <User className="w-3 h-3" />
-                      {typeof req.createdBy === 'object' && req.createdBy !== null
-                        ? `${req.createdBy.name || ''} ${req.createdBy.lastname || ''}`.trim() || req.createdBy.name || req.createdBy.email || 'Inconnu'
-                        : (req.createdBy || 'Inconnu')}
-                    </span>
-                  </div>
-
-                  {/* ── Row 3: status ───────────────────────────────────────── */}
-                  <div className="mt-2 flex items-center gap-3 ml-12">
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadge(req.status)}`}>
-                      {getStatusIcon(req.status)}
-                      {req.status}
-                    </span>
-                    {req.step && (
-                      <span className="text-xs text-[#64748B]">
-                        Étape : {req.step}
-                      </span>
-                    )}
-                  </div>
-
                 </div>
+              ))}
+            </div>
 
-                <div className="flex items-center gap-2 text-[#64748B] group-hover:text-emerald-400 transition-colors">
-                  <span className="text-sm font-medium">Voir</span>
-                  <ChevronRight className="w-5 h-5" />
+            {/* ─── Pagination ──────────────────────────────────── */}
+            {total > PAGE_SIZE && (
+              <div className="mt-6 bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] px-4 py-3 shadow-lg">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <p className="text-xs text-[#64748B]">
+                    <span className="text-[#94A3B8] font-medium">{rangeStart}–{rangeEnd}</span> sur{' '}
+                    <span className="text-[#94A3B8] font-medium">{total}</span> demande{total > 1 ? 's' : ''}
+                  </p>
+
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={page === 1 || loading}
+                      className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-[#94A3B8] hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      title="Page précédente"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+
+                    {pageNumbers.map((p, i) =>
+                      p === '...' ? (
+                        <span
+                          key={`ellipsis-${i}`}
+                          className="px-2 text-[#64748B] text-xs select-none"
+                        >
+                          …
+                        </span>
+                      ) : (
+                        <button
+                          key={p}
+                          type="button"
+                          onClick={() => setPage(p)}
+                          disabled={loading}
+                          className={`min-w-[32px] h-8 px-2 rounded-lg text-xs font-medium transition-all ${
+                            p === page
+                              ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
+                              : 'bg-white/5 hover:bg-white/10 text-[#94A3B8] hover:text-white disabled:opacity-50'
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      )
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={page === totalPages || loading}
+                      className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-[#94A3B8] hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      title="Page suivante"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
       </div>
     </div>

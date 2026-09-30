@@ -90,6 +90,10 @@ const unwrap = (body) => (body && typeof body === 'object' && 'data' in body && 
   ? body.data
   : body;
 
+// ─── Helper: is this payloadSchema entry a file field? ──────────────────
+const isFileField = (f) =>
+  f?.ui?.widget === 'file' || f?.ui?.widget === 'image' || f?.type === 'file';
+
 export default function ValidationRequestDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -103,7 +107,6 @@ export default function ValidationRequestDetail() {
   const [comments, setComments] = useState({});
   const [isCustomComment, setIsCustomComment] = useState({});
   const [targetUserData, setTargetUserData] = useState(null);
-  const [targetFiles, setTargetFiles] = useState([]);
   const [targetLoading, setTargetLoading] = useState(false);
   const [editingField, setEditingField] = useState(null);
   const [editValue, setEditValue] = useState('');
@@ -112,6 +115,11 @@ export default function ValidationRequestDetail() {
   const [allowedFields, setAllowedFields] = useState([]);
   const [currentDocIndex, setCurrentDocIndex] = useState(0);
   const [imageErrors, setImageErrors] = useState({});
+
+  // ── NEW: blob URL state for authenticated document previews ─────────
+  const [blobUrl, setBlobUrl] = useState(null);
+  const [blobLoading, setBlobLoading] = useState(false);
+  const [blobError, setBlobError] = useState(null);
 
   useEffect(() => {
     const fetchRequest = async () => {
@@ -150,8 +158,6 @@ export default function ValidationRequestDetail() {
 
           if (userObj) {
             setTargetUserData(userObj);
-            const allFiles = userObj.files || [];
-            setTargetFiles(allFiles);
             setCurrentDocIndex(0);
             setImageErrors({});
 
@@ -193,14 +199,17 @@ export default function ValidationRequestDetail() {
   }, [id, authData?.token, setAuthData]);
 
   const getFilePreviewUrl = (file) => {
+    // Prefer an already-resolved absolute URL from the backend
+    if (file.url && (file.url.startsWith('http://') || file.url.startsWith('https://'))) {
+      return file.url;
+    }
+    // Otherwise fall back to the storage endpoint by ID
     if (file.fileId) {
       return `${BACKEND_BASE_URL}/storage/${encodeURIComponent(file.fileId)}`;
     }
+    // Last resort — a relative url/path
     let urlPath = file.url || file.path || '';
     if (!urlPath) return null;
-    if (urlPath.startsWith('http://') || urlPath.startsWith('https://')) {
-      return urlPath;
-    }
     const cleanPath = urlPath.startsWith('/') ? urlPath : `/${urlPath}`;
     return `${BACKEND_BASE_URL}${cleanPath}`;
   };
@@ -209,17 +218,128 @@ export default function ValidationRequestDetail() {
     if (file.mimeType === 'application/pdf' || file.type === 'application/pdf') return true;
     const fileName = file.fileName || file.name || '';
     if (fileName.toLowerCase().endsWith('.pdf')) return true;
+    // Fallback — inspect the URL/path for a .pdf extension
+    const url = file.url || file.path || '';
+    if (typeof url === 'string' && url.toLowerCase().includes('.pdf')) return true;
     return false;
   };
 
-  const declarationFiles = targetFiles.filter(f =>
-    f.folder === 'declaration' || f.folder === 'signup'
-  );
+  // ─── Payload-driven file list ───────────────────────────────────────────
+  const payloadSchema = Array.isArray(request?.validationSchema?.payloadSchema)
+    ? request.validationSchema.payloadSchema
+    : [];
+  const payload = request?.payload || {};
+
+  const filePayloadFields = payloadSchema.filter(isFileField);
+
+  const declarationFiles = filePayloadFields
+    .map((f) => {
+      const raw = payload[f.name];
+      if (raw === undefined || raw === null || raw === '') return null;
+
+      // Array of files
+      if (Array.isArray(raw)) {
+        return raw.map((item, i) => {
+          const obj = typeof item === 'object' && item !== null
+            ? item
+            : { fileId: String(item) };
+          return {
+            ...obj,
+            label: f.label || f.name,
+            fieldName: f.name,
+            fileName: obj.name || obj.fileName || `${f.label || f.name} ${i + 1}`,
+          };
+        });
+      }
+
+      // Resolved object
+      if (typeof raw === 'object') {
+        return {
+          ...raw,
+          label: f.label || f.name,
+          fieldName: f.name,
+          fileName: raw.name || raw.fileName || f.label || f.name,
+        };
+      }
+
+      // Legacy bare string ID
+      return {
+        fileId: String(raw),
+        label: f.label || f.name,
+        fieldName: f.name,
+        fileName: f.label || f.name,
+      };
+    })
+    .filter(Boolean)
+    .flat();
+
   const totalDocs = declarationFiles.length;
   const currentFile = totalDocs > 0 ? declarationFiles[currentDocIndex] : null;
   const fileUrl = currentFile ? getFilePreviewUrl(currentFile) : null;
   const isPdf = currentFile ? isFilePdf(currentFile) : false;
   const hasError = fileUrl ? imageErrors[fileUrl] : false;
+
+  // ── NEW: fetch the current document with the JWT and expose a blob URL ──
+  // Browsers can't attach Authorization headers to <iframe>/<img>/<a>, and
+  // /storage/* is protected. So we fetch here, wrap in a Blob, and hand the
+  // browser a same-origin blob: URL — no CSP, no 401.
+  useEffect(() => {
+    let revoked = false;
+    let objectUrl = null;
+
+    const load = async () => {
+      setBlobError(null);
+      setBlobUrl(null);
+
+      if (!fileUrl) return;
+
+      const isProtected = fileUrl.includes('/storage/');
+
+      // Public URL (Cloudinary / S3 / anything not routed through /storage/)
+      // can be used directly — the browser fetches it without our JWT.
+      if (/^https?:\/\//.test(fileUrl) && !isProtected) {
+        setBlobUrl(fileUrl);
+        return;
+      }
+
+      setBlobLoading(true);
+      try {
+        const res = await fetchWithRefresh(
+          fileUrl,
+          { method: 'GET' },
+          authData.token,
+          setAuthData,
+        );
+        if (!res.ok) {
+          throw new Error(
+            res.status === 401 ? 'Session expirée — reconnectez-vous.'
+            : res.status === 404 ? 'Fichier introuvable sur le serveur.'
+            : `Erreur ${res.status} lors du chargement du document.`,
+          );
+        }
+        const blob = await res.blob();
+        if (revoked) return;
+        objectUrl = URL.createObjectURL(blob);
+        setBlobUrl(objectUrl);
+      } catch (err) {
+        console.error('[ValidationRequestDetail] file fetch failed:', err);
+        if (!revoked) setBlobError(err.message || 'Impossible de charger le document.');
+      } finally {
+        if (!revoked) setBlobLoading(false);
+      }
+    };
+
+    load();
+
+    return () => {
+      revoked = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [fileUrl, authData.token, setAuthData]);
+
+  // Scalar payload fields (everything that's not a file) — used in the
+  // fallback "Données de la demande" panel when there is no user target.
+  const scalarPayloadFields = payloadSchema.filter((f) => !isFileField(f));
 
   const goToPrev = () => {
     if (currentDocIndex > 0) setCurrentDocIndex(currentDocIndex - 1);
@@ -339,6 +459,18 @@ export default function ValidationRequestDetail() {
     }
   };
 
+  // Pretty-print a scalar payload value
+  const renderScalarValue = (v) => {
+    if (v === undefined || v === null || v === '') return '-';
+    if (typeof v === 'boolean') return v ? 'Oui' : 'Non';
+    if (typeof v === 'object') return JSON.stringify(v);
+    if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v)) {
+      const d = new Date(v);
+      if (!isNaN(d.getTime())) return d.toLocaleDateString('fr-FR');
+    }
+    return String(v);
+  };
+
   const handleBatchSave = async () => {
     if (Object.keys(localEdits).length === 0) return;
     const targetId = request?.targetId?.id || request?.targetId;
@@ -415,11 +547,54 @@ export default function ValidationRequestDetail() {
     );
   }
 
-  const userId = authData.user?.id;
-  const userSteps = (request?.steps || []).filter(step =>
-    step.isActive === true &&
-    step.allowedUserIds?.some(user => user.id.toString() === userId?.toString())
-  );
+const viewerId = String(authData.user?.id ?? '');
+const viewerGrade = authData.user?.grade ?? null;
+const viewerRoleName =
+  authData.user?.roleName ??
+  authData.user?.role?.name ??
+  null;
+
+// Mirrors ValidationService._checkPermission on the backend:
+//   - match by ID first (authoritative for explicit-list steps)
+//   - if assignedByRole !== false, also allow role/grade match
+//   - when assignedByRole === false, strict ID matching only
+const stepMatchesViewer = (step) => {
+  const idList = Array.isArray(step.allowedUserIds) ? step.allowedUserIds : [];
+
+  const matchesById = idList.some((entry) => {
+    const id = typeof entry === 'string' ? entry : entry?.id;
+    return id != null && String(id) === viewerId;
+  });
+  if (matchesById) return true;
+
+  const roleBased = step.assignedByRole !== false;
+  if (!roleBased) return false;
+
+  if (step.requiredGrade && viewerGrade && step.requiredGrade === viewerGrade) {
+    return true;
+  }
+  if (
+    step.requiredRole &&
+    viewerRoleName &&
+    step.requiredRole === viewerRoleName
+  ) {
+    return true;
+  }
+  // `requiredRole` can also hold a grade name ('admin', 'super_admin')
+  if (
+    step.requiredRole &&
+    viewerGrade &&
+    ['user', 'admin', 'super_admin'].includes(step.requiredRole) &&
+    step.requiredRole === viewerGrade
+  ) {
+    return true;
+  }
+  return false;
+};
+
+const userSteps = (request?.steps || []).filter(
+  (step) => step.isActive === true && stepMatchesViewer(step),
+);
 
   const visibleFields = allowedFields
     ? USER_FIELDS.filter(f => allowedFields.includes(f.key))
@@ -536,16 +711,18 @@ export default function ValidationRequestDetail() {
 
                 {step.status === 'pending' && (
                   <>
-                    {stepType === 'verification' && (
-                      <div className="mt-4 pt-4 border-t border-[rgba(255,255,255,0.06)]">
-                        <h5 className="text-sm font-medium text-[#F8FAFC] mb-3 flex items-center gap-2">
-                          <Eye className="w-4 h-4 text-blue-400" />
-                          Vérification du dossier & des données
-                        </h5>
-                        {targetLoading ? (
-                          <Loader2 className="w-5 h-5 text-emerald-400 animate-spin mx-auto my-4" />
-                        ) : targetUserData ? (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="mt-4 pt-4 border-t border-[rgba(255,255,255,0.06)]">
+                      <h5 className="text-sm font-medium text-[#F8FAFC] mb-3 flex items-center gap-2">
+                        <Eye className="w-4 h-4 text-blue-400" />
+                        {stepType === 'verification'
+                          ? 'Vérification du dossier & des données'
+                          : 'Dossier & données de la demande'}
+                      </h5>
+                      {targetLoading ? (
+                        <Loader2 className="w-5 h-5 text-emerald-400 animate-spin mx-auto my-4" />
+                      ) : targetUserData ? (
+                        <div className={`grid grid-cols-1 gap-6 ${stepType === 'verification' ? 'md:grid-cols-2' : ''}`}>
+                          {stepType === 'verification' && (
                             <div className="bg-[#0A0F1C] rounded-xl border border-[rgba(255,255,255,0.06)] p-4">
                               <h6 className="text-xs font-semibold text-[#94A3B8] uppercase tracking-wider mb-3">
                                 Informations du membre
@@ -612,153 +789,154 @@ export default function ValidationRequestDetail() {
                                 </div>
                               )}
                             </div>
+                          )}
 
-                            <div className="bg-[#0A0F1C] rounded-xl border border-[rgba(255,255,255,0.06)] p-4">
-                              <h6 className="text-xs font-semibold text-[#94A3B8] uppercase tracking-wider mb-3">
-                                Documents fournis ({totalDocs})
-                              </h6>
-                              {totalDocs === 0 ? (
-                                <p className="text-sm text-[#64748B]">Aucun document de déclaration trouvé.</p>
-                              ) : (
-                                <div className="space-y-3">
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-sm font-medium text-[#F8FAFC]">
-                                      {currentFile?.documentType ||
-                                        currentFile?.fileName ||
-                                        currentFile?.name ||
-                                        `Document ${currentDocIndex + 1}`}
+                          <div className="bg-[#0A0F1C] rounded-xl border border-[rgba(255,255,255,0.06)] p-4">
+                            <h6 className="text-xs font-semibold text-[#94A3B8] uppercase tracking-wider mb-3">
+                              Documents fournis ({totalDocs})
+                            </h6>
+                            {totalDocs === 0 ? (
+                              <p className="text-sm text-[#64748B]">Aucun document joint à cette demande.</p>
+                            ) : (
+                              <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm font-medium text-[#F8FAFC]">
+                                    {currentFile?.label ||
+                                      currentFile?.fileName ||
+                                      currentFile?.name ||
+                                      `Document ${currentDocIndex + 1}`}
+                                  </span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs text-[#64748B]">
+                                      {currentDocIndex + 1} / {totalDocs}
                                     </span>
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-xs text-[#64748B]">
-                                        {currentDocIndex + 1} / {totalDocs}
-                                      </span>
-                                      {fileUrl && (
-                                        <a
-                                          href={fileUrl}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="text-xs text-emerald-400 hover:text-emerald-300 underline"
-                                        >
-                                          Ouvrir
-                                        </a>
-                                      )}
+                                    {blobUrl && (
+                                      <a
+                                        href={blobUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-xs text-emerald-400 hover:text-emerald-300 underline"
+                                      >
+                                        Ouvrir
+                                      </a>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="relative bg-[#111827] rounded-lg border border-[rgba(255,255,255,0.06)] overflow-hidden flex items-center justify-center h-[500px]">
+                                  {blobLoading ? (
+                                    <div className="flex flex-col items-center gap-2 text-[#64748B]">
+                                      <Loader2 className="w-8 h-8 text-emerald-400 animate-spin" />
+                                      <span className="text-xs">Chargement du document…</span>
                                     </div>
-                                  </div>
-
-                                  <div className="relative bg-[#111827] rounded-lg border border-[rgba(255,255,255,0.06)] overflow-hidden flex items-center justify-center h-[500px]">
-                                    {fileUrl && !hasError ? (
-                                      isPdf ? (
-                                        <iframe
-                                          src={fileUrl}
-                                          className="w-full h-full"
-                                          title={`Document ${currentDocIndex + 1}`}
-                                          frameBorder="0"
-                                          onError={() => {
-                                            setImageErrors(prev => ({ ...prev, [fileUrl]: true }));
-                                          }}
-                                        />
-                                      ) : (
-                                        <img
-                                          src={fileUrl}
-                                          alt={`Document ${currentDocIndex + 1}`}
-                                          className="max-h-full max-w-full object-contain"
-                                          onError={() => {
-                                            setImageErrors(prev => ({ ...prev, [fileUrl]: true }));
-                                          }}
-                                        />
-                                      )
+                                  ) : blobUrl && !hasError ? (
+                                    isPdf ? (
+                                      <iframe
+                                        src={blobUrl}
+                                        className="w-full h-full"
+                                        title={`Document ${currentDocIndex + 1}`}
+                                        frameBorder="0"
+                                        onError={() => {
+                                          setImageErrors(prev => ({ ...prev, [blobUrl]: true }));
+                                        }}
+                                      />
                                     ) : (
-                                      <div className="flex flex-col items-center justify-center h-full text-[#64748B]">
-                                        <FileQuestion className="w-12 h-12 mb-2" />
-                                        <span className="text-sm">
-                                          {fileUrl ? 'Aperçu non disponible' : `Fichier: ${currentFile?.documentType || 'Document'}`}
-                                        </span>
-                                        {fileUrl && (
-                                          <a
-                                            href={fileUrl}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="mt-2 text-xs text-emerald-400 hover:text-emerald-300 underline"
-                                          >
-                                            Ouvrir directement
-                                          </a>
-                                        )}
-                                      </div>
-                                    )}
-
-                                    {totalDocs > 1 && (
-                                      <>
-                                        <button
-                                          onClick={goToPrev}
-                                          disabled={currentDocIndex === 0}
-                                          className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-[#0A0F1C]/70 hover:bg-[#0A0F1C] border border-white/10 text-white disabled:opacity-30 transition-all"
-                                        >
-                                          <ChevronLeft className="w-5 h-5" />
-                                        </button>
-                                        <button
-                                          onClick={goToNext}
-                                          disabled={currentDocIndex === totalDocs - 1}
-                                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-[#0A0F1C]/70 hover:bg-[#0A0F1C] border border-white/10 text-white disabled:opacity-30 transition-all"
-                                        >
-                                          <ChevronRight className="w-5 h-5" />
-                                        </button>
-                                      </>
-                                    )}
-                                  </div>
-
-                                  {totalDocs > 1 && (
-                                    <div className="flex items-center justify-center gap-1.5 mt-2">
-                                      {declarationFiles.map((_, idx) => (
-                                        <button
-                                          key={idx}
-                                          onClick={() => setCurrentDocIndex(idx)}
-                                          className="transition-all"
-                                        >
-                                          {idx === currentDocIndex ? (
-                                            <CircleDot className="w-3 h-3 text-emerald-400" />
-                                          ) : (
-                                            <Circle className="w-2.5 h-2.5 text-[#64748B] hover:text-white" />
-                                          )}
-                                        </button>
-                                      ))}
+                                      <img
+                                        src={blobUrl}
+                                        alt={`Document ${currentDocIndex + 1}`}
+                                        className="max-h-full max-w-full object-contain"
+                                        onError={() => {
+                                          setImageErrors(prev => ({ ...prev, [blobUrl]: true }));
+                                        }}
+                                      />
+                                    )
+                                  ) : (
+                                    <div className="flex flex-col items-center justify-center h-full text-[#64748B] px-6 text-center">
+                                      <FileQuestion className="w-12 h-12 mb-2" />
+                                      <span className="text-sm">
+                                        {blobError || `Fichier: ${currentFile?.label || 'Document'}`}
+                                      </span>
                                     </div>
                                   )}
+
+                                  {totalDocs > 1 && (
+                                    <>
+                                      <button
+                                        onClick={goToPrev}
+                                        disabled={currentDocIndex === 0}
+                                        className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-[#0A0F1C]/70 hover:bg-[#0A0F1C] border border-white/10 text-white disabled:opacity-30 transition-all"
+                                      >
+                                        <ChevronLeft className="w-5 h-5" />
+                                      </button>
+                                      <button
+                                        onClick={goToNext}
+                                        disabled={currentDocIndex === totalDocs - 1}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-[#0A0F1C]/70 hover:bg-[#0A0F1C] border border-white/10 text-white disabled:opacity-30 transition-all"
+                                      >
+                                        <ChevronRight className="w-5 h-5" />
+                                      </button>
+                                    </>
+                                  )}
                                 </div>
-                              )}
-                              <p className="text-xs text-[#64748B] mt-3">
-                                Veuillez examiner le dossier puis approuver ou rejeter.
-                              </p>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="bg-[#0A0F1C] rounded-xl border border-[rgba(255,255,255,0.06)] p-5">
-                            <h6 className="text-xs font-semibold text-[#94A3B8] uppercase tracking-wider mb-3 flex items-center gap-2">
-                              <FileText className="w-4 h-4 text-emerald-400" />
-                              Données de la demande ({request.validationSchema?.name || request.schemaName || request.targetType})
-                            </h6>
-                            {request.payload || request.data || request.formData ? (
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                {Object.entries(request.payload || request.data || request.formData).map(([k, v]) => {
-                                  if (k === '_id' || k === 'id') return null;
-                                  return (
-                                    <div key={k} className="p-3 bg-[#111827] rounded-lg border border-[rgba(255,255,255,0.04)]">
-                                      <span className="text-xs text-[#64748B] uppercase tracking-wider block mb-1">{k}</span>
-                                      <span className="text-sm text-[#F8FAFC] font-medium break-words">
-                                        {typeof v === 'object' && v !== null ? JSON.stringify(v) : String(v || '-')}
-                                      </span>
-                                    </div>
-                                  );
-                                })}
+
+                                {totalDocs > 1 && (
+                                  <div className="flex items-center justify-center gap-1.5 mt-2">
+                                    {declarationFiles.map((_, i) => (
+                                      <button
+                                        key={i}
+                                        onClick={() => setCurrentDocIndex(i)}
+                                        className="transition-all"
+                                      >
+                                        {i === currentDocIndex ? (
+                                          <CircleDot className="w-3 h-3 text-emerald-400" />
+                                        ) : (
+                                          <Circle className="w-2.5 h-2.5 text-[#64748B] hover:text-white" />
+                                        )}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
-                            ) : (
-                              <p className="text-sm text-[#94A3B8]">
-                                {getTargetDisplay(request.targetType, request.targetId, request)}
-                              </p>
                             )}
+                            <p className="text-xs text-[#64748B] mt-3">
+                              Veuillez examiner le dossier puis approuver ou rejeter.
+                            </p>
                           </div>
-                        )}
-                      </div>
-                    )}
+                        </div>
+                      ) : (
+                        <div className="bg-[#0A0F1C] rounded-xl border border-[rgba(255,255,255,0.06)] p-5">
+                          <h6 className="text-xs font-semibold text-[#94A3B8] uppercase tracking-wider mb-3 flex items-center gap-2">
+                            <FileText className="w-4 h-4 text-emerald-400" />
+                            Données de la demande ({request.validationSchema?.name || request.schemaName || request.targetType})
+                          </h6>
+                          {scalarPayloadFields.length > 0 ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              {scalarPayloadFields.map((f) => {
+                                const v = payload[f.name];
+                                if (v === undefined || v === null || v === '') return null;
+                                return (
+                                  <div
+                                    key={f.name}
+                                    className="p-3 bg-[#111827] rounded-lg border border-[rgba(255,255,255,0.04)]"
+                                  >
+                                    <span className="text-xs text-[#64748B] uppercase tracking-wider block mb-1">
+                                      {f.label || f.name}
+                                    </span>
+                                    <span className="text-sm text-[#F8FAFC] font-medium break-words">
+                                      {renderScalarValue(v)}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-[#94A3B8]">
+                              {getTargetDisplay(request.targetType, request.targetId, request)}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
 
                     <div className="mt-4 pt-4 border-t border-[rgba(255,255,255,0.06)]">
                       <div className="space-y-3">
@@ -815,15 +993,6 @@ export default function ValidationRequestDetail() {
                           >
                             <ThumbsDown className="w-4 h-4" /> Rejeter
                           </button>
-                          {['admin', 'super_admin'].includes(authData?.user?.grade) && (
-                            <button
-                              onClick={() => handleStepAction(step.order, 'skip')}
-                              disabled={actionLoading}
-                              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-500/20 transition-all text-sm font-medium disabled:opacity-50"
-                            >
-                              <SkipForward className="w-4 h-4" /> Ignorer (admin)
-                            </button>
-                          )}
                         </div>
                       </div>
                     </div>

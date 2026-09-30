@@ -222,15 +222,7 @@ export default function ValidationRequestProgress() {
                 </span>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <span className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
-                <User className="w-4 h-4" />
-              </span>
-              <div>
-                <p className="text-xs text-[#64748B] uppercase tracking-wider">Créée par</p>
-                <p className="text-[#F8FAFC] font-medium text-sm">{request.createdBy?.name || request.createdBy?.email || request.createdBy || 'Inconnu'}</p>
-              </div>
-            </div>
+
             <div className="flex items-center gap-3">
               <span className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
                 <Calendar className="w-4 h-4" />

@@ -45,6 +45,8 @@ import {
   BadgeCheck,
   CalendarDays,
   FileArchive,
+  Folder,
+  FolderOpen,
   Wallet,
   TrendingUp,
   TrendingDown,
@@ -69,9 +71,46 @@ import {
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
+// ─── Folder metadata ────────────────────────────────────────────────
+const FOLDER_LABELS = {
+  uploads: 'Documents',
+  documents: 'Documents',
+  profile: 'Photo de profil',
+  identity: "Pièces d'identité",
+  diplomas: 'Diplômes',
+  cotisations: 'Cotisations',
+  invoices: 'Factures',
+  contracts: 'Contrats',
+  other: 'Autres',
+};
+
+function folderLabel(folder) {
+  if (!folder) return 'Documents';
+  if (FOLDER_LABELS[folder]) return FOLDER_LABELS[folder];
+  return folder.charAt(0).toUpperCase() + folder.slice(1).replace(/_/g, ' ');
+}
+
+const FOLDER_ORDER = [
+  'uploads',
+  'documents',
+  'identity',
+  'diplomas',
+  'cotisations',
+  'invoices',
+  'contracts',
+  'other',
+];
+
+function sortFolders(a, b) {
+  const ia = FOLDER_ORDER.indexOf(a);
+  const ib = FOLDER_ORDER.indexOf(b);
+  if (ia !== -1 && ib !== -1) return ia - ib;
+  if (ia !== -1) return -1;
+  if (ib !== -1) return 1;
+  return a.localeCompare(b);
+}
+
 // ─── Signup-aligned section definition ─────────────────────────────
-// Order and grouping follow the signup form, not the permission schema.
-// The schema is used only for which fields to show and their labels.
 const PROFILE_SECTIONS = [
   { key: 'cloa', label: "CLOA d'exercice", fields: ['region'] },
   {
@@ -112,7 +151,6 @@ const PROFILE_SECTIONS = [
   },
 ];
 
-// Fields whose value is Arabic text and should render right-to-left.
 const RTL_FIELDS = new Set([
   'nomArabe',
   'prenomArabe',
@@ -123,8 +161,6 @@ const RTL_FIELDS = new Set([
   'employerAdresseArabe',
 ]);
 
-// Fallback French labels for fields the schema might not label.
-// Used only when configs[name].label is missing.
 const FALLBACK_LABELS = {
   region: "CLOA d'exercice",
   nin: 'NIN',
@@ -210,8 +246,6 @@ function formatScalar(value) {
   return String(value);
 }
 
-// JSON-array fields (otherDiplomas / otherTrainings) → readable list.
-// Each item is expected to have titre/etablissement/annee or name/institution/year.
 function JsonListValue({ items }) {
   if (!Array.isArray(items) || items.length === 0) return null;
   return (
@@ -332,6 +366,10 @@ export default function ProfilePage({ user }) {
   const [perform, setPerform] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
+
+  const [files, setFiles] = useState([]);
+  const [filesLoading, setFilesLoading] = useState(false);
+
   const [payments, setPayments] = useState([]);
   const [userFees, setUserFees] = useState([]);
   const [creditTransactions, setCreditTransactions] = useState([]);
@@ -362,6 +400,8 @@ export default function ProfilePage({ user }) {
   const [isDeclarationModalOpen, setIsDeclarationModalOpen] = useState(false);
   const [selectedDeclarationSchema, setSelectedDeclarationSchema] = useState(null);
   const [selectedDeclarationRequestId, setSelectedDeclarationRequestId] = useState(null);
+  // ← NEW: distinguishes a fresh declaration from a correction
+  const [isDeclarationResubmitMode, setIsDeclarationResubmitMode] = useState(false);
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [selectedAddressSchema, setSelectedAddressSchema] = useState(null);
   const [selectedAddressRequestId, setSelectedAddressRequestId] = useState(null);
@@ -394,8 +434,7 @@ export default function ProfilePage({ user }) {
   const [canUpdateFile, setCanUpdateFile] = useState(false);
   const [canDeleteFile, setCanDeleteFile] = useState(false);
 
-  // ─── Click outside ────────────────────────────────────────────────────────
-
+  // ─── Click outside ────────────────────────────────────────────────
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (menuRef.current && !menuRef.current.contains(event.target)) {
@@ -406,8 +445,46 @@ export default function ProfilePage({ user }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // ─── File handlers ────────────────────────────────────────────────────────
+  // ─── Files fetch ──────────────────────────────────────────────────
+  const fetchFiles = useCallback(async () => {
+    if (!authData?.token || !targetUserId) return;
+    setFilesLoading(true);
+    try {
+      const res = await fetchWithRefresh(
+        `${NEST_API_URL}/files/user/${targetUserId}`,
+        { method: 'GET' },
+        authData.token,
+        setAuthData,
+      );
 
+      if (!res.ok) {
+        console.warn('Failed to fetch files:', res.status);
+        setFiles([]);
+        return;
+      }
+
+      const body = await res.json();
+
+      let list = [];
+      if (Array.isArray(body)) list = body;
+      else if (Array.isArray(body?.data)) list = body.data;
+      else if (Array.isArray(body?.data?.files)) list = body.data.files;
+      else if (Array.isArray(body?.files)) list = body.files;
+
+      setFiles(list);
+    } catch (err) {
+      console.error('Error fetching files:', err);
+      setFiles([]);
+    } finally {
+      setFilesLoading(false);
+    }
+  }, [authData?.token, targetUserId, setAuthData]);
+
+  useEffect(() => {
+    fetchFiles();
+  }, [fetchFiles]);
+
+  // ─── File handlers ────────────────────────────────────────────────
   const handleUpload = async (file) => {
     try {
       setIsUploading(true);
@@ -420,7 +497,6 @@ export default function ProfilePage({ user }) {
         {
           method: "POST",
           body: uploadData,
-          // No Content-Type header – fetch will add it with boundary
         },
         authData.token,
         setAuthData
@@ -440,13 +516,14 @@ export default function ProfilePage({ user }) {
 
       if (isOwner) {
         setAuthData(prev => ({
-          token: data.data.token || prev.token,
-          user: data.data.user || prev.user
+          token: data.data?.token || prev.token,
+          user: data.data?.user || prev.user
         }));
-      } else {
+      } else if (data.data?.user) {
         setDisplayUser(data.data.user);
       }
 
+      await fetchFiles();
       showSuccess("File uploaded successfully ✅");
     } catch (err) {
       console.error(err);
@@ -462,7 +539,7 @@ export default function ProfilePage({ user }) {
 
       const uploadData = new FormData();
       uploadData.append("file", newFile);
-      uploadData.append("folder", "uploads");
+      uploadData.append("folder", file.folder || "uploads");
 
       const response = await fetchWithRefresh(
         `${NEST_API_URL}/files/${file.id}`,
@@ -488,13 +565,14 @@ export default function ProfilePage({ user }) {
 
       if (isOwner) {
         setAuthData(prev => ({
-          token: data.data.token || prev.token,
-          user: data.data.user || prev.user
+          token: data.data?.token || prev.token,
+          user: data.data?.user || prev.user
         }));
-      } else {
+      } else if (data.data?.user) {
         setDisplayUser(data.data.user);
       }
 
+      await fetchFiles();
       showSuccess("File replaced successfully ✅");
     } catch (err) {
       console.error(err);
@@ -526,13 +604,14 @@ export default function ProfilePage({ user }) {
 
       if (isOwner) {
         setAuthData(prev => ({
-          token: data.data.token || prev.token,
-          user: data.data.user || prev.user
+          token: data.data?.token || prev.token,
+          user: data.data?.user || prev.user
         }));
-      } else {
+      } else if (data.data?.user) {
         setDisplayUser(data.data.user);
       }
 
+      await fetchFiles();
       showSuccess("File deleted successfully ✅");
     } catch (err) {
       console.error(err);
@@ -542,8 +621,7 @@ export default function ProfilePage({ user }) {
     }
   };
 
-  // ─── Refresh functions ──────────────────────────────────────────────────
-
+  // ─── Refresh functions ─────────────────────────────────────────────
   const refreshUserAndFees = async () => {
     try {
       const userRes = await fetchWithRefresh(
@@ -566,6 +644,7 @@ export default function ProfilePage({ user }) {
 
       await refreshUserFees();
       await fetchCreditTransactions();
+      await fetchFiles();
     } catch (error) {
       console.error("Error refreshing user and fees:", error);
     }
@@ -613,8 +692,7 @@ export default function ProfilePage({ user }) {
     }
   };
 
-  // ─── Transaction handler ────────────────────────────────────────────────
-
+  // ─── Transaction handler ──────────────────────────────────────────
   const handleTransaction = async (amount, method, notes, type) => {
     const finalAmount = type === 'deposit'
       ? Math.abs(amount)
@@ -667,8 +745,7 @@ export default function ProfilePage({ user }) {
     }
   };
 
-  // ─── User actions ────────────────────────────────────────────────────────
-
+  // ─── User actions ────────────────────────────────────────────────
   const handleEditUser = () => {
     navigate(`/auth/update/${targetUserId}`);
   };
@@ -698,8 +775,7 @@ export default function ProfilePage({ user }) {
     }
   };
 
-  // ─── PDF helpers ─────────────────────────────────────────────────────────
-
+  // ─── PDF helpers ─────────────────────────────────────────────────
   const waitForPdfJob = async (jobId) => {
     let attempts = 0;
     const maxAttempts = 30;
@@ -772,7 +848,6 @@ export default function ProfilePage({ user }) {
 
     const isCloudinary = fullUrl.startsWith('https://res.cloudinary.com');
 
-    // For Cloudinary, no auth needed; otherwise use fetchWithRefresh
     let pdfRes;
     if (isCloudinary) {
       pdfRes = await fetch(fullUrl);
@@ -902,8 +977,7 @@ export default function ProfilePage({ user }) {
     }
   };
 
-  // ─── Validations fetch ──────────────────────────────────────────────────
-
+  // ─── Validations fetch ────────────────────────────────────────────
   const fetchValidationRequests = async () => {
     if (!targetUserId) return;
     setValidationLoading(true);
@@ -1060,35 +1134,41 @@ export default function ProfilePage({ user }) {
       return 'En cours';
     }
 
-    if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
-      const steps = Array.isArray(rawObj?.steps)
-        ? rawObj.steps
-        : Array.isArray(rawObj?.validationSteps)
-          ? rawObj.validationSteps
-          : [];
+if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
+  const steps = Array.isArray(rawObj?.steps)
+    ? rawObj.steps
+    : Array.isArray(rawObj?.validationSteps)
+      ? rawObj.validationSteps
+      : [];
 
-      const hasActiveChangesRequestedStep = steps.some((st) => {
-        const stepStatus = String(st.status || '').toUpperCase().trim();
-        const hasCommentOrReason = Boolean(
-          (st.comments && String(st.comments).trim().length > 0) ||
-          (st.reason && String(st.reason).trim().length > 0)
-        );
-        return (
-          s === 'PARTIAL' && (stepStatus === 'CHANGES_REQUESTED' || stepStatus === 'CORRECTION' || ((stepStatus === 'PENDING' || !stepStatus) && hasCommentOrReason))
-        );
-      });
+  // Any active step → an admin owns the workflow. Never prompt the user
+  // to resubmit, even if an earlier step carries a "returned" comment.
+  const hasActiveStep = steps.some((st) => st.isActive === true);
+  if (hasActiveStep) {
+    return 'En cours';
+  }
 
-      if (hasActiveChangesRequestedStep) {
-        return 'Modifications requises';
-      }
+  // No active step → workflow is paused. This is a user-resubmit
+  // situation ONLY when step 1 itself is pending with a comment.
+  const firstStep = steps.find((st) => (st.order ?? st.stepOrder) === 1);
+  if (firstStep) {
+    const firstStatus = String(firstStep.status || '').toLowerCase().trim();
+    const hasComment =
+      (firstStep.comments && String(firstStep.comments).trim().length > 0) ||
+      (firstStep.reason && String(firstStep.reason).trim().length > 0);
+
+    if (firstStatus === 'pending' && hasComment) {
+      return 'Modifications requises';
     }
-
+  }
+}
     return 'En cours';
   }, [isResubmittedItem]);
 
   const handleDeclarationSuccess = async (result) => {
     setIsDeclarationModalOpen(false);
     setSelectedDeclarationRequestId(null);
+    setIsDeclarationResubmitMode(false);
     const now = Date.now();
     const newMap = { ...resubmissionMapRef.current };
 
@@ -1283,8 +1363,7 @@ export default function ProfilePage({ user }) {
     }
   };
 
-  // ─── Initial data fetch ──────────────────────────────────────────────────
-
+  // ─── Initial data fetch ───────────────────────────────────────────
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -1304,7 +1383,6 @@ export default function ProfilePage({ user }) {
 
         setDisplayUser(userData || authData.user);
 
-        // --- 1. Viewable fields ---
         const permRes = await fetchWithRefresh(
           `${NEST_API_URL}/permissions/user/${targetUserId}/viewable-fields?model=User`,
           { method: 'GET' },
@@ -1318,7 +1396,6 @@ export default function ProfilePage({ user }) {
         const configs = payload.configs || {};
         setPermissions({ fields, configs });
 
-        // --- 2. Operations on User ---
         const checkOp = async (operation, model) => {
           const res = await fetchWithRefresh(
             `${NEST_API_URL}/permissions/${targetUserId}/check-operation`,
@@ -1350,7 +1427,8 @@ export default function ProfilePage({ user }) {
         setCanUpdateFile(canUpdateF);
         setCanDeleteFile(canDeleteF);
 
-        // --- 3. Fees, payments, credit transactions, validations ---
+        await fetchFiles();
+
         const feesRes = await fetchWithRefresh(
           `${NEST_API_URL}/fees/user/${targetUserId}`,
           { method: 'GET' },
@@ -1394,7 +1472,26 @@ export default function ProfilePage({ user }) {
   }, 0);
 
   const PROFILE_URL = displayUser?.profilePicture || sabAvatar;
-  const files = displayUser?.files || [];
+
+  const nonProfileFiles = useMemo(
+    () => files.filter((f) => f.folder !== 'profile'),
+    [files],
+  );
+
+  const filesByFolder = useMemo(() => {
+    const map = {};
+    nonProfileFiles.forEach((file) => {
+      const folder = file.folder || 'uploads';
+      if (!map[folder]) map[folder] = [];
+      map[folder].push(file);
+    });
+    return map;
+  }, [nonProfileFiles]);
+
+  const folderKeys = useMemo(
+    () => Object.keys(filesByFolder).sort(sortFolders),
+    [filesByFolder],
+  );
 
   const roleColors = {
     admin: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
@@ -1451,8 +1548,6 @@ export default function ProfilePage({ user }) {
     return value || '-';
   };
 
-  // ─── Tabs config ──────────────────────────────────────────────────────────
-
   const tabs = [
     { id: 'info', label: 'Informations', icon: <User className="w-4 h-4" /> },
     { id: 'files', label: 'Fichiers', icon: <FileArchive className="w-4 h-4" /> },
@@ -1463,12 +1558,9 @@ export default function ProfilePage({ user }) {
     { id: 'Demandes', label: 'Demandes', icon: <ClipboardList className="w-4 h-4" /> },
   ];
 
-  // ─── Render ──────────────────────────────────────────────────────────────
-
   return (
     <>
       <div className="min-h-screen bg-[#0A0F1C] relative">
-        {/* ─── Spinner Overlay ───────────────────────────────────────────── */}
         {isUploading && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0A0F1C]/80 backdrop-blur-sm">
             <div className="flex flex-col items-center gap-3">
@@ -1478,11 +1570,9 @@ export default function ProfilePage({ user }) {
           </div>
         )}
 
-        {/* ─── Header: Banking Account Summary ────────────────────────────── */}
         <header className="bg-[#111827] border-b border-white/5 px-6 py-6">
           <div className="max-w-7xl mx-auto flex flex-col lg:flex-row lg:items-center gap-6">
 
-            {/* Left: Avatar + Identity */}
             <div className="flex items-center gap-5">
               <div className="relative shrink-0">
                 <img
@@ -1531,7 +1621,6 @@ export default function ProfilePage({ user }) {
               </div>
             </div>
 
-            {/* Right: Quick financial metrics + actions */}
             <div className="flex flex-col sm:flex-row sm:items-center gap-4 ml-auto w-full lg:w-auto">
               <div className="flex flex-wrap items-center gap-6 bg-[#182233] rounded-xl px-5 py-3 border border-white/5">
                 <div>
@@ -1544,7 +1633,7 @@ export default function ProfilePage({ user }) {
                 </div>
                 <div>
                   <p className="text-xs text-[#64748B] uppercase tracking-wider">Documents</p>
-                  <p className="text-xl font-semibold text-white">{files.filter(f => f.folder !== "profile").length}</p>
+                  <p className="text-xl font-semibold text-white">{nonProfileFiles.length}</p>
                 </div>
                 <div>
                   <p className="text-xs text-[#64748B] uppercase tracking-wider">Cotisations</p>
@@ -1552,10 +1641,7 @@ export default function ProfilePage({ user }) {
                 </div>
               </div>
 
-              {/* ─── Permission‑driven actions ─────────────────────────── */}
-              {/* ─── Permission‑driven actions ─────────────────────────── */}
               <div className="flex flex-wrap items-center gap-2" ref={menuRef}>
-                {/* Only show the menu to admins and super admins */}
                 {(isAdmin) && (
                   <>
                     <button
@@ -1580,18 +1666,6 @@ export default function ProfilePage({ user }) {
                           >
                             <Minus className="w-4 h-4 text-rose-400" /> Retrait
                           </button>
-                          {/* <button
-              onClick={() => { setMenuOpen(false); handlePrintSituation(); }}
-              className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
-            >
-              <FileText className="w-4 h-4 text-sky-400" /> Situation
-            </button>
-            <button
-              onClick={() => { setMenuOpen(false); handlePrintDegree(); }}
-              className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
-            >
-              <Award className="w-4 h-4 text-amber-400" /> Agrément
-            </button> */}
                         </div>
                       </div>
                     )}
@@ -1602,7 +1676,6 @@ export default function ProfilePage({ user }) {
           </div>
         </header>
 
-        {/* ─── Main Layout: Sidebar + Content ────────────────────────────── */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
           <div className="flex flex-col md:flex-row gap-6">
             <aside className="md:w-64 shrink-0">
@@ -1623,7 +1696,6 @@ export default function ProfilePage({ user }) {
             </aside>
 
             <main className="flex-1 min-w-0">
-              {/* ─── Information Tab ────────────────────────────────────── */}
               {activeTab === 'info' && (
                 <div className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-6">
                   <h2 className="text-lg font-semibold text-white mb-6 flex items-center gap-3">
@@ -1633,41 +1705,76 @@ export default function ProfilePage({ user }) {
                 </div>
               )}
 
-              {/* ─── Files Tab ──────────────────────────────────────────── */}
               {activeTab === 'files' && (
                 <div className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-6">
                   <div className="flex items-center justify-between mb-6">
                     <h2 className="text-lg font-semibold text-white flex items-center gap-3">
                       <FileArchive className="w-5 h-5 text-emerald-400" /> Documents
                     </h2>
-                    <span className="text-sm text-[#64748B]">{files.filter(f => f.folder !== "profile").length} fichier(s)</span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm text-[#64748B]">
+                        {nonProfileFiles.length} fichier(s) · {folderKeys.length} dossier(s)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={fetchFiles}
+                        disabled={filesLoading}
+                        className="p-2 rounded-lg bg-[#1F2937] hover:bg-[#2A3A4A] text-[#94A3B8] hover:text-white transition-colors disabled:opacity-50"
+                        title="Rafraîchir les fichiers"
+                      >
+                        <RefreshCw className={`w-4 h-4 ${filesLoading ? 'animate-spin' : ''}`} />
+                      </button>
+                    </div>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                    {files
-                      .filter(file => file.folder !== "profile")
-                      .map((file) => (
-                        <FileCard
-                          key={file.id}
-                          file={file}
-                          handleDelete={handleDelete}
-                          handleReplace={handleReplace}
-                          canReplace={canUpdateFile}
-                          canDelete={canDeleteFile}
-                          canPreview={true}
-                        />
-                      ))}
-                    {/* {canCreateFile && <AddFileCard onUpload={handleUpload} />} */}
-                  </div>
-                  {files.filter(file => file.folder !== "profile").length === 0 && !canCreateFile && (
+
+                  {filesLoading && nonProfileFiles.length === 0 ? (
+                    <div className="flex justify-center py-12">
+                      <Loader2 className="w-8 h-8 text-emerald-400 animate-spin" />
+                    </div>
+                  ) : nonProfileFiles.length === 0 ? (
                     <div className="flex flex-col items-center gap-2 py-8 text-[#64748B]">
                       <FileArchive className="w-8 h-8" />
                       <p className="text-sm">Aucun document disponible</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-8">
+                      {folderKeys.map((folder) => (
+                        <div key={folder}>
+                          <div className="flex items-center justify-between mb-3 pb-2 border-b border-white/5">
+                            <div className="flex items-center gap-2">
+                              <FolderOpen className="w-4 h-4 text-emerald-400" />
+                              <h3 className="text-sm font-semibold text-[#F8FAFC] tracking-tight">
+                                {folderLabel(folder)}
+                              </h3>
+                              <span className="text-xs font-mono text-[#64748B]">
+                                {filesByFolder[folder].length}
+                              </span>
+                            </div>
+                            <span className="text-[10px] uppercase tracking-wider text-[#475569] font-mono">
+                              {folder}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                            {filesByFolder[folder].map((file) => (
+                              <FileCard
+                                key={file.id}
+                                file={file}
+                                handleDelete={handleDelete}
+                                handleReplace={handleReplace}
+                                canReplace={canUpdateFile}
+                                canDelete={canDeleteFile}
+                                canPreview={true}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
               )}
 
-              {/* ─── Fees Tab ───────────────────────────────────────────── */}
               {activeTab === 'fees' && (
                 <div className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-6">
                   <h2 className="text-lg font-semibold text-white mb-6 flex items-center gap-3">
@@ -1693,7 +1800,6 @@ export default function ProfilePage({ user }) {
                 </div>
               )}
 
-              {/* ─── Payments Tab ───────────────────────────────────────── */}
               {activeTab === 'payments' && (
                 <div className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-6">
                   <h2 className="text-lg font-semibold text-white mb-6 flex items-center gap-3">
@@ -1714,7 +1820,6 @@ export default function ProfilePage({ user }) {
                 </div>
               )}
 
-              {/* ─── Credit Transactions Tab ──────────────────────────────── */}
               {activeTab === 'transactions' && (
                 <div className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-6">
                   <h2 className="text-lg font-semibold text-white mb-6 flex items-center gap-3">
@@ -1736,7 +1841,6 @@ export default function ProfilePage({ user }) {
                 </div>
               )}
 
-              {/* ─── Validations Tab ──────────────────────────────── */}
               {activeTab === 'validation' && (
                 <div className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-6">
                   <h2 className="text-lg font-semibold text-white mb-6 flex items-center gap-3">
@@ -1760,7 +1864,6 @@ export default function ProfilePage({ user }) {
 
                         return (
                           <div key={req.id || reqIdx} className="bg-[#0A0F1C] rounded-xl border border-white/10 p-5 transition-all">
-                            {/* Request header with name & collapsible trigger */}
                             <div>
                               <div className="flex items-center justify-between gap-4 mb-3">
                                 <div>
@@ -1779,7 +1882,6 @@ export default function ProfilePage({ user }) {
                                   </p>
                                 </div>
                                 <div className="flex items-center gap-3">
-                                  {/* 🟢 Badge de statut dynamique */}
                                   {(() => {
                                     if (displayStatus === 'Validé') {
                                       return (
@@ -1819,7 +1921,6 @@ export default function ProfilePage({ user }) {
                                 </div>
                               </div>
 
-                              {/* 🟢 Bannière d'alerte et bouton 'Corriger mon dossier' UNIQUEMENT si le statut est 'Modifications requises' */}
                               {(() => {
                                 if (displayStatus !== 'Modifications requises') return null;
 
@@ -1852,6 +1953,7 @@ export default function ProfilePage({ user }) {
                                             );
                                             setSelectedDeclarationRequestId(req.id || null);
                                             setSelectedDeclarationSchema(declSchema || null);
+                                            setIsDeclarationResubmitMode(true);   // ← NEW
                                             setIsDeclarationModalOpen(true);
                                           }}
                                           className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-semibold transition-all flex items-center gap-2 shadow-lg shadow-amber-500/20 cursor-pointer"
@@ -1865,7 +1967,6 @@ export default function ProfilePage({ user }) {
                                 );
                               })()}
 
-                              {/* Progress bar */}
                               <div className="w-full bg-[#1F2937] rounded-full h-2">
                                 <div
                                   className="bg-emerald-500 h-2 rounded-full transition-all duration-500"
@@ -1877,11 +1978,9 @@ export default function ProfilePage({ user }) {
                               </p>
                             </div>
 
-                            {/* Collapsible Steps Timeline */}
                             {isExpanded && (
                               <div className="mt-6 pt-6 border-t border-white/5">
                                 <div className="relative pl-8">
-                                  {/* Vertical line */}
                                   <div className="absolute left-[11px] top-2 bottom-2 w-0.5 bg-[#1F2937]" />
 
                                   {req.steps?.map((step, idx) => {
@@ -1920,7 +2019,6 @@ export default function ProfilePage({ user }) {
 
                                     return (
                                       <div key={idx} className="relative pb-6 last:pb-0">
-                                        {/* Circle icon */}
                                         <div className={`absolute -left-[29px] z-10 flex items-center justify-center w-6 h-6 rounded-full border-2 ${circleBg}`}>
                                           {icon}
                                         </div>
@@ -1999,7 +2097,6 @@ export default function ProfilePage({ user }) {
                 </div>
               )}
 
-              {/* ─── Demandes Tab ──────────────────────────────── */}
               {activeTab === 'Demandes' && (
                 <div className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-6">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
@@ -2015,7 +2112,6 @@ export default function ProfilePage({ user }) {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    {/* Carte Déclaration */}
                     {(() => {
                       const declSchema = availableSchemas.find(s =>
                         (s.name || s.title || '').toLowerCase().includes('déclaration') ||
@@ -2079,6 +2175,7 @@ export default function ProfilePage({ user }) {
                                   onClick={() => {
                                     setSelectedDeclarationRequestId(existingDecl?.id || null);
                                     setSelectedDeclarationSchema(declSchema || null);
+                                    setIsDeclarationResubmitMode(!!isNeedsCorrection);   // ← NEW
                                     setIsDeclarationModalOpen(true);
                                   }}
                                   className={`w-full py-2.5 px-4 text-white text-xs font-semibold rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer ${isNeedsCorrection
@@ -2105,92 +2202,6 @@ export default function ProfilePage({ user }) {
                       );
                     })()}
 
-                    {/* 🟢 NEW: Carte Changement d'adresse */}
-                    {/* {(() => {
-                      const addrSchema = availableSchemas.find(s =>
-                        (s.name || s.title || '').toLowerCase().includes('adresse') ||
-                        (s.name || s.title || '').toLowerCase().includes('address')
-                      );
-                      return (
-                        <div className="bg-[#0A0F1C] rounded-2xl border border-sky-500/30 p-6 flex flex-col justify-between relative overflow-hidden shadow-lg shadow-sky-950/20 group hover:border-sky-500/50 transition-all duration-300">
-                          <div className="absolute top-0 right-0 w-32 h-32 bg-sky-500/5 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none" />
-
-                          <div>
-                            <div className="flex items-start justify-between gap-3 mb-4">
-                              <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-500/20 text-sky-400 group-hover:scale-110 transition-transform">
-                                <MapPinned className="w-6 h-6" />
-                              </div>
-                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                                Optionnel
-                              </span>
-                            </div>
-
-                            <h3 className="text-base font-bold text-white tracking-tight">
-                              {addrSchema?.name || "Changement d'adresse"}
-                            </h3>
-                            <p className="text-xs text-[#94A3B8] mt-1.5 leading-relaxed">
-                              {addrSchema?.description || "Déclarez votre changement d'adresse en renseignant votre adresse professionnelle et personnelle."}
-                            </p>
-
-                            <div className="mt-4 pt-4 border-t border-white/5 space-y-2">
-                              <p className="text-[11px] font-semibold uppercase tracking-wider text-[#64748B]">
-                                Éléments obligatoires :
-                              </p>
-                              <div className="flex flex-wrap gap-1.5 text-xs text-[#94A3B8]">
-                                <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[#CBD5E1]">
-                                  • Adresse professionnelle
-                                </span>
-                                <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[#CBD5E1]">
-                                  • Adresse personnelle
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="mt-6 pt-4 border-t border-white/5">
-                            {(() => {
-                              const existingAddr = validationRequests.find(r =>
-                                ((r.schemaName || r.schema?.name || '').toLowerCase().includes('adresse') ||
-                                  (r.schemaName || r.schema?.name || '').toLowerCase().includes('address')) &&
-                                !['rejected', 'cancelled'].includes(r.status?.toLowerCase())
-                              );
-
-                              const isNeedsCorrection = existingAddr && mapApiStatusToDisplay(existingAddr) === 'Modifications requises';
-
-                              return (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedAddressRequestId(existingAddr?.id || null);
-                                    setSelectedAddressSchema(addrSchema || null);
-                                    setIsAddressModalOpen(true);
-                                  }}
-                                  className={`w-full py-2.5 px-4 text-white text-xs font-semibold rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                                    isNeedsCorrection
-                                      ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20'
-                                      : 'bg-sky-500 hover:bg-sky-600 shadow-sky-500/20'
-                                  }`}
-                                >
-                                  {isNeedsCorrection ? (
-                                    <>
-                                      <Edit className="w-4 h-4" />
-                                      Corriger / Compléter mon dossier
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Plus className="w-4 h-4" />
-                                      Faire la demande
-                                    </>
-                                  )}
-                                </button>
-                              );
-                            })()}
-                          </div>
-                        </div>
-                      );
-                    })()} */}
-
-                    {/* Autres schémas dynamiques */}
                     {availableSchemas
                       .filter(s => {
                         const name = (s.name || s.title || '').toLowerCase();
@@ -2246,7 +2257,6 @@ export default function ProfilePage({ user }) {
         </div>
       </div>
 
-      {/* ─── Transaction Modal ────────────────────────────────────────────── */}
       {showTransactionModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0A0F1C]/80 backdrop-blur-sm p-4">
           <div className="bg-[#182233] rounded-2xl p-6 md:p-8 w-full max-w-md border border-white/10 shadow-2xl animate-in zoom-in-95">
@@ -2324,17 +2334,17 @@ export default function ProfilePage({ user }) {
         </div>
       )}
 
-      {/* ─── Declaration Request Modal ─────────────────────────────────────── */}
       <DeclarationModal
         isOpen={isDeclarationModalOpen}
         onClose={() => {
           setIsDeclarationModalOpen(false);
           setSelectedDeclarationRequestId(null);
+          setIsDeclarationResubmitMode(false);
         }}
-        // 🟢 [MODIFICATION] Permet de basculer directement sur l'onglet 'Validation' depuis le modal en cas de doublon
         onGoToValidations={() => {
           setIsDeclarationModalOpen(false);
           setSelectedDeclarationRequestId(null);
+          setIsDeclarationResubmitMode(false);
           setActiveTab('validation');
         }}
         targetUserId={targetUserId}
@@ -2342,13 +2352,12 @@ export default function ProfilePage({ user }) {
         onSuccess={handleDeclarationSuccess}
         schema={selectedDeclarationSchema}
         existingRequestId={selectedDeclarationRequestId}
+        resubmitMode={isDeclarationResubmitMode}
         user={displayUser}
         initialNin={displayUser?.nin}
-        // 🟢 [MODIFICATION] Fournit la liste des demandes pour détecter les démarches déjà en cours
         validationRequests={validationRequests}
       />
 
-      {/* ─── Address Change Request Modal ─────────────────────────────────── */}
       <AddressChangeModal
         isOpen={isAddressModalOpen}
         onClose={() => {
@@ -2369,7 +2378,6 @@ export default function ProfilePage({ user }) {
         validationRequests={validationRequests}
       />
 
-      {/* ─── PDF Preview Modal ────────────────────────────────────────────── */}
       {pdfPreview.isOpen && pdfPreview.data?.blobUrl && (
         <PDFPreviewModal
           type={pdfPreview.type}

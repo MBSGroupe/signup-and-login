@@ -46,6 +46,7 @@ export default function GetCotisations() {
         setAuthData
       );
       const data = await res.json();
+      console.log(data)
       const definitionsData = data.data || data;
       setDefinitions(Array.isArray(definitionsData) ? definitionsData : []);
     } catch (error) {

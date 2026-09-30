@@ -1,3 +1,4 @@
+// src/Components/Modals/DeclarationModal.jsx
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -19,6 +20,27 @@ import { useError } from '../../Context/ErrorContext';
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
+// Unwrap the ResponseInterceptor envelope
+const unwrap = (body) =>
+  body && typeof body === 'object' && 'data' in body && 'success' in body
+    ? body.data
+    : body;
+
+// Derive a stable, human-friendly folder name from the schema name.
+//   "Déclaration" → "declaration"
+//   "Changement d'adresse" → "changement-d-adresse"
+const getSchemaFolder = (sch) => {
+  const raw = (sch?.name || sch?.title || 'declaration').toString();
+  return (
+    raw
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '') || 'declaration'
+  );
+};
+
 export default function DeclarationModal({
   isOpen,
   onClose,
@@ -28,14 +50,13 @@ export default function DeclarationModal({
   onSuccess,
   schema = null,
   existingRequestId = null,
-  // 🟢 [MODIFICATION] Récupération du NIN initial pour pré-remplir le formulaire
+  resubmitMode = false,          // ← NEW: true when correcting an existing request
   initialNin = '',
   user = null,
   validationRequests = []
 }) {
   const { showSuccess } = useError();
 
-  // State
   const [nin, setNin] = useState('');
   const [documents, setDocuments] = useState({
     cnrc: null,
@@ -49,7 +70,6 @@ export default function DeclarationModal({
   const [errorMessage, setErrorMessage] = useState(null);
   const [alreadyExists, setAlreadyExists] = useState(false);
   const [successRef, setSuccessRef] = useState(null);
-  // 🟢 [MODIFICATION] Données de la demande créée pour transmission lors de la fermeture
   const [successData, setSuccessData] = useState(null);
 
   const fileInputRefs = {
@@ -58,7 +78,6 @@ export default function DeclarationModal({
     cnas: useRef(null)
   };
 
-  // 🟢 [MODIFICATION] Pré-remplissage automatique du NIN à l'ouverture du modal si disponible
   useEffect(() => {
     if (isOpen) {
       if (initialNin) {
@@ -71,7 +90,6 @@ export default function DeclarationModal({
 
   if (!isOpen) return null;
 
-  // Reset form
   const resetForm = () => {
     setNin('');
     setDocuments({ cnrc: null, paiement: null, cnas: null });
@@ -89,30 +107,20 @@ export default function DeclarationModal({
     onClose();
   };
 
-  // 🟢 [MODIFICATION] Fermeture après succès et transmission du callback parent
   const handleSuccessClose = () => {
     const dataToPass = successData;
     handleClose();
-    if (onSuccess && dataToPass) {
-      onSuccess(dataToPass);
-    }
+    if (onSuccess && dataToPass) onSuccess(dataToPass);
   };
 
-  // 🟢 [MODIFICATION] Bascule vers les validations après affichage du message de succès
   const handleSuccessGoToValidations = () => {
     const dataToPass = successData;
     resetForm();
-    if (onGoToValidations) {
-      onGoToValidations();
-    } else {
-      onClose();
-    }
-    if (onSuccess && dataToPass) {
-      onSuccess(dataToPass);
-    }
+    if (onGoToValidations) onGoToValidations();
+    else onClose();
+    if (onSuccess && dataToPass) onSuccess(dataToPass);
   };
 
-  // File handlers
   const handleFileChange = (docKey, file) => {
     if (!file) return;
     if (file.size > 10 * 1024 * 1024) {
@@ -125,9 +133,7 @@ export default function DeclarationModal({
 
   const removeFile = (docKey) => {
     setDocuments(prev => ({ ...prev, [docKey]: null }));
-    if (fileInputRefs[docKey]?.current) {
-      fileInputRefs[docKey].current.value = '';
-    }
+    if (fileInputRefs[docKey]?.current) fileInputRefs[docKey].current.value = '';
   };
 
   const formatFileSize = (bytes) => {
@@ -138,12 +144,11 @@ export default function DeclarationModal({
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
 
-  // Upload single file with documentType
   const uploadSingleFile = async (file, docType) => {
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('folder', 'declaration');
-    formData.append('documentType', docType); // ✅ Added
+    formData.append('folder', getSchemaFolder(schema));
+    formData.append('documentType', docType);
 
     const uploadUrl = targetUserId
       ? `${NEST_API_URL}/files/${targetUserId}`
@@ -152,17 +157,19 @@ export default function DeclarationModal({
     const res = await fetch(uploadUrl, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${authToken}`
+        Authorization: `Bearer ${authToken}`,
+        'X-Client-Type': 'app',
       },
       body: formData
     });
 
-    const data = await res.json();
+    const raw = await res.json();
+    const data = unwrap(raw);
     if (!res.ok) {
-      throw new Error(data.message || `Échec du téléversement du document ${docType}`);
+      throw new Error(data?.message || `Échec du téléversement du document ${docType}`);
     }
 
-    const uploaded = data.data?.file || data.data || data;
+    const uploaded = data?.file || data;
     return {
       fileId: uploaded.id || uploaded._id || uploaded.fileId,
       name: file.name,
@@ -173,7 +180,6 @@ export default function DeclarationModal({
     };
   };
 
-  // 🟢 [FONCTION DE VÉRIFICATION] : Détecte si une demande de déclaration est déjà active
   const isDeclarationRequestActive = (req) => {
     if (!req) return false;
     const name = (
@@ -189,17 +195,13 @@ export default function DeclarationModal({
       ''
     ).toLowerCase();
 
-    const isDecl =
-      name.includes('déclaration') ||
-      name.includes('declaration');
-
+    const isDecl = name.includes('déclaration') || name.includes('declaration');
     const status = String(req.status || '').toLowerCase();
     const isInactive = ['rejected', 'cancelled', 'rejete', 'rejetee', 'annule', 'annulee', 'refused'].includes(status);
 
     return isDecl && !isInactive;
   };
 
-  // Pre-submit validation (shows confirmation modal)
   const handlePreSubmit = (e) => {
     if (e) e.preventDefault();
     const cleanNin = nin.replace(/[^0-9]/g, '');
@@ -220,14 +222,20 @@ export default function DeclarationModal({
       return;
     }
     if (!documents.cnas) {
-      setErrorMessage("Veuillez joindre le document CNRC CNAS (Attestation d'affiliation).");
+      setErrorMessage("Veuillez joindre le document CNAS (Attestation d'affiliation).");
       return;
     }
     setErrorMessage(null);
     setShowConfirmModal(true);
   };
 
-  // Final submission after confirmation
+  // ─────────────────────────────────────────────────────────────────
+  // Submission — aligned with the ValidationService contract.
+  //   - Fresh request : POST  /validation/requests
+  //   - Resubmission  : PATCH /validation/requests/:id/resubmit
+  //   In both cases the 3 files are uploaded first, then the bare fileIds
+  //   are sent in the payload. The backend resolves them on read.
+  // ─────────────────────────────────────────────────────────────────
   const handleConfirmSubmit = async () => {
     setShowConfirmModal(false);
     setErrorMessage(null);
@@ -236,147 +244,179 @@ export default function DeclarationModal({
 
     try {
       const schemaName = schema?.name || schema?.title || 'Déclaration';
-
-      // ─────────────────────────────────────────────────────────────────────────
-      // 🟢 ÉTAPE 1 : VÉRIFICATION PRÉALABLE D'UNE DEMANDE DÉJÀ EXISTANTE
-      // On s'assure qu'AUCUN fichier n'est téléversé et que le NIN n'est JAMAIS modifié
-      // si une demande existe déjà dans l'état local ou distant.
-      // ─────────────────────────────────────────────────────────────────────────
-
-      // 1.1. Vérification via existingRequestId
-      if (existingRequestId) {
-        setAlreadyExists(true);
-        setIsLoading(false);
-        setUploadMessage('');
-        return;
-      }
-
-      // 1.2. Vérification via la liste validationRequests transmise en props
-      if (Array.isArray(validationRequests) && validationRequests.some(isDeclarationRequestActive)) {
-        setAlreadyExists(true);
-        setIsLoading(false);
-        setUploadMessage('');
-        return;
-      }
-
-      // 1.3. Vérification directe en temps réel auprès de l'API utilisateur
-      setUploadMessage('Vérification de votre dossier...');
-      try {
-        const checkRes = await fetch(`${NEST_API_URL}/validation/requests/user/${targetUserId}`, {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${authToken}`
-          }
-        });
-
-        if (checkRes.ok) {
-          const userRequestsData = await checkRes.json();
-          const userRequestsList = Array.isArray(userRequestsData)
-            ? userRequestsData
-            : (userRequestsData?.data || userRequestsData?.requests || []);
-
-          if (Array.isArray(userRequestsList) && userRequestsList.some(isDeclarationRequestActive)) {
-            // 🛑 [DEMANDE DÉJÀ EXISTANTE DANS LA BDD]
-            setAlreadyExists(true);
-            setIsLoading(false);
-            setUploadMessage('');
-            return;
-          }
-        }
-      } catch (errCheck) {
-        console.warn('[DeclarationModal] Contrôle préventif silencieux:', errCheck);
-      }
-
-      // ─────────────────────────────────────────────────────────────────────────
-      // 🟢 ÉTAPE 2 : ENREGISTREMENT DE LA NOUVELLE DEMANDE AUPRÈS DU BACKEND
-      // On envoie le payload standard (targetId, targetType, schemaName).
-      // Si le backend refuse ou signale un doublon, on affiche l'écran dédié.
-      // ─────────────────────────────────────────────────────────────────────────
-      setUploadMessage('Enregistrement de la nouvelle demande...');
-      const requestPayload = {
-        targetId: targetUserId,
-        targetType: schema?.targetType || 'User',
-        schemaName: schemaName,
-      };
-
-      const res = await fetch(`${NEST_API_URL}/validation/requests`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`
-        },
-        body: JSON.stringify(requestPayload)
-      });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        // 🛑 [REFUS DU BACKEND / DEMANDE DÉJÀ EXISTANTE]
-        // On affiche immédiatement l'écran "Demande déjà existante !"
-        // SANS afficher de bandeau d'erreur rouge et SANS toucher au NIN ni aux fichiers !
-        setAlreadyExists(true);
-        setIsLoading(false);
-        setUploadMessage('');
-        return;
-      }
-
-      const createdReqId = data?.data?.id || data?.id || data?.data?._id || data?._id;
-      const generatedRef =
-        data?.data?.reference ||
-        data?.reference ||
-        `DEC-2026-${Math.floor(1000 + Math.random() * 9000)}`;
-
-      // ─────────────────────────────────────────────────────────────────────────
-      // 🟢 ÉTAPE 3 : LA NOUVELLE DEMANDE EST CONFIRMÉE ET ACCEPTÉE
-      // Maintenant et UNIQUEMENT maintenant que la demande est créée avec succès :
-      // 3.1. On met à jour le NIN
-      // 3.2. On téléverse les 3 fichiers justificatifs
-      // ─────────────────────────────────────────────────────────────────────────
-      // 3.1. Mise à jour du NIN de l'utilisateur
-      setUploadMessage('Mise à jour du NIN...');
       const cleanNin = nin.replace(/[^0-9]/g, '');
-      const updateUserRes = await fetch(`${NEST_API_URL}/users/${targetUserId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`
-        },
-        body: JSON.stringify({ nin: cleanNin })
-      });
 
-      if (!updateUserRes.ok) {
-        const errorData = await updateUserRes.json().catch(() => ({}));
-        throw new Error(errorData.message || 'Échec de la mise à jour du NIN');
+      // ── ÉTAPE 1 : Guards (skipped entirely on resubmit) ───────────
+      if (!resubmitMode) {
+        if (existingRequestId) {
+          setAlreadyExists(true);
+          setIsLoading(false);
+          setUploadMessage('');
+          return;
+        }
+
+        if (Array.isArray(validationRequests) && validationRequests.some(isDeclarationRequestActive)) {
+          setAlreadyExists(true);
+          setIsLoading(false);
+          setUploadMessage('');
+          return;
+        }
+
+        setUploadMessage('Vérification de votre dossier...');
+        try {
+          const checkRes = await fetch(
+            `${NEST_API_URL}/validation/requests/user/${targetUserId}`,
+            {
+              method: 'GET',
+              headers: {
+                Authorization: `Bearer ${authToken}`,
+                'X-Client-Type': 'app',
+              },
+            },
+          );
+
+          if (checkRes.ok) {
+            const raw = await checkRes.json();
+            const data = unwrap(raw);
+            const userRequestsList = Array.isArray(data)
+              ? data
+              : data?.requests || data?.data || [];
+
+            if (
+              Array.isArray(userRequestsList) &&
+              userRequestsList.some(isDeclarationRequestActive)
+            ) {
+              setAlreadyExists(true);
+              setIsLoading(false);
+              setUploadMessage('');
+              return;
+            }
+          }
+        } catch (errCheck) {
+          console.warn('[DeclarationModal] Contrôle préventif silencieux:', errCheck);
+        }
+      } else if (!existingRequestId) {
+        // Resubmit mode but no request ID — impossible state; bail out safely.
+        setErrorMessage(
+          "Impossible de retrouver la demande à corriger. Veuillez recharger la page.",
+        );
+        setIsLoading(false);
+        return;
       }
 
-      // 3.2. Téléversement des 3 documents justificatifs
+      // ── ÉTAPE 2 : Upload des 3 fichiers ───────────────────────────
       setUploadMessage('Téléversement des 3 documents justificatifs...');
-      await Promise.all([
+      const [cnrcFile, paiementFile, cnasFile] = await Promise.all([
         uploadSingleFile(documents.cnrc, 'CNRC'),
         uploadSingleFile(documents.paiement, 'PAIEMENT'),
-        uploadSingleFile(documents.cnas, 'CNAS')
+        uploadSingleFile(documents.cnas, 'CNAS'),
       ]);
 
-      // 3.3. Confirmation de succès
+      // ── ÉTAPE 3 : Construction du payload ─────────────────────────
+      const payload = {
+        nin: cleanNin,
+        cnrc: cnrcFile.fileId,
+        paiement: paiementFile.fileId,
+        cnas: cnasFile.fileId,
+      };
+
+      // ── ÉTAPE 4 : POST (fresh) ou PATCH (resubmit) ────────────────
+      setUploadMessage(
+        resubmitMode
+          ? 'Mise à jour de votre demande...'
+          : 'Enregistrement de la nouvelle demande...',
+      );
+
+      let url;
+      let method;
+      let requestPayload;
+
+      if (resubmitMode) {
+        url = `${NEST_API_URL}/validation/requests/${existingRequestId}/resubmit`;
+        method = 'PATCH';
+        requestPayload = {
+          payload,
+          comments: 'Corrections apportées par le membre',
+        };
+      } else {
+        url = `${NEST_API_URL}/validation/requests`;
+        method = 'POST';
+        requestPayload = {
+          targetId: targetUserId,
+          targetType: schema?.targetType || 'User',
+          schemaName: schemaName,
+          payload,
+        };
+      }
+
+      const res = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`,
+          'X-Client-Type': 'app',
+        },
+        body: JSON.stringify(requestPayload),
+      });
+
+      const raw = await res.json().catch(() => null);
+      console.log('[DeclarationModal] request response', res.status, raw);
+      const data = unwrap(raw);
+
+      if (!res.ok) {
+        // On resubmit, surface the real error instead of the "already exists" screen.
+        if (resubmitMode) {
+          throw new Error(
+            data?.message ||
+              'Impossible de mettre à jour votre demande. Veuillez réessayer.',
+          );
+        }
+        setAlreadyExists(true);
+        setIsLoading(false);
+        setUploadMessage('');
+        return;
+      }
+
+      const createdReqId =
+        data?.id || data?._id || raw?.id || raw?.data?.id || existingRequestId;
+      const generatedRef =
+        data?.reference ||
+        raw?.reference ||
+        `DEC-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+
+      // ── Succès ────────────────────────────────────────────────────
       setSuccessRef(generatedRef);
       setSuccessData({
-        id: createdReqId || existingRequestId || `doc-${Date.now()}`,
+        id: createdReqId || `doc-${Date.now()}`,
         title: schemaName,
         reference: generatedRef,
         nin: cleanNin,
         status: 'En cours',
         type: 'Déclaration',
         schemaName: schemaName,
+        resubmitted: resubmitMode,
       });
-      showSuccess('Votre demande de déclaration a été transmise avec succès !');
+      showSuccess(
+        resubmitMode
+          ? 'Votre dossier a été mis à jour et renvoyé pour validation !'
+          : 'Votre demande de déclaration a été transmise avec succès !',
+      );
     } catch (err) {
       console.warn('[DeclarationModal] Erreur soumission déclaration:', err);
-      // 🛑 En cas d'erreur de duplication, afficher l'écran dédié, sinon afficher le message d'erreur
       const msg = (err?.message || '').toLowerCase();
-      if (msg.includes('already') || msg.includes('exist') || msg.includes('déjà') || msg.includes('en cours')) {
+      if (
+        !resubmitMode &&
+        (msg.includes('already') ||
+          msg.includes('exist') ||
+          msg.includes('déjà') ||
+          msg.includes('en cours'))
+      ) {
         setAlreadyExists(true);
       } else {
-        setErrorMessage(err?.message || "Une erreur est survenue lors de l'enregistrement de votre dossier.");
+        setErrorMessage(
+          err?.message ||
+            "Une erreur est survenue lors de l'enregistrement de votre dossier.",
+        );
       }
     } finally {
       setIsLoading(false);
@@ -384,7 +424,6 @@ export default function DeclarationModal({
     }
   };
 
-  // ─── Main Modal ──────────────────────────────────────────────────────────
   const mainModal = (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0A0F1C]/80 backdrop-blur-md p-4 overflow-y-auto">
       <div className="bg-[#111827] border border-white/10 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
@@ -398,9 +437,16 @@ export default function DeclarationModal({
             <div>
               <h2 className="text-xl font-bold text-white tracking-tight">
                 {schema?.name || 'Formulaire de Déclaration'}
+                {resubmitMode && (
+                  <span className="ml-2 text-xs font-semibold uppercase tracking-wider text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">
+                    Correction
+                  </span>
+                )}
               </h2>
               <p className="text-xs text-[#94A3B8] mt-0.5">
-                Remplissez votre NIN et téléversez les 3 documents obligatoires
+                {resubmitMode
+                  ? 'Mettez à jour vos informations puis renvoyez votre dossier.'
+                  : 'Remplissez votre NIN et téléversez les 3 documents obligatoires'}
               </p>
             </div>
           </div>
@@ -417,24 +463,23 @@ export default function DeclarationModal({
         {/* Body */}
         <div className="p-6 overflow-y-auto space-y-6 flex-1">
           {successRef ? (
-            /* 🟢 [MODIFICATION] Écran dédié : Demande bien transmise avec succès */
             <div className="py-8 flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
               <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 mb-4 shadow-lg shadow-emerald-500/10">
                 <CheckCircle className="w-10 h-10" />
               </div>
               <h3 className="text-2xl font-bold text-white tracking-tight">
-                Demande bien transmise !
+                {resubmitMode ? 'Dossier mis à jour !' : 'Demande bien transmise !'}
               </h3>
               <p className="text-sm text-[#94A3B8] mt-2 max-w-md leading-relaxed">
-                Votre dossier de déclaration a été transmis avec succès pour vérification.
+                {resubmitMode
+                  ? 'Votre dossier a été renvoyé pour validation. Il repasse par le circuit depuis la première étape.'
+                  : 'Votre dossier de déclaration a été transmis avec succès pour vérification.'}
               </p>
-
               <p className="text-xs text-[#64748B] mt-4 max-w-md">
                 Vous pouvez suivre son état d'avancement et sa validation directement dans l'onglet "Validations".
               </p>
             </div>
           ) : alreadyExists ? (
-            /* 🟢 [MODIFICATION] Écran dédié : Demande déjà existante */
             <div className="py-8 flex flex-col items-center text-center">
               <div className="w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 mb-4 animate-in zoom-in">
                 <AlertCircle className="w-10 h-10" />
@@ -447,9 +492,7 @@ export default function DeclarationModal({
               </p>
             </div>
           ) : (
-            /* Form */
             <form className="space-y-6" onSubmit={handlePreSubmit}>
-              {/* Error message */}
               {errorMessage && (
                 <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-start gap-3 animate-in fade-in">
                   <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
@@ -457,7 +500,17 @@ export default function DeclarationModal({
                 </div>
               )}
 
-              {/* Info note */}
+              {resubmitMode && (
+                <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-start gap-3">
+                  <Info className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                  <div className="text-xs text-amber-200 leading-relaxed">
+                    Vous corrigez une demande existante. Remplacez les documents ou le NIN
+                    concernés puis envoyez à nouveau le dossier. Le traitement reprendra
+                    depuis la première étape.
+                  </div>
+                </div>
+              )}
+
               <div className="p-3.5 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-start gap-3">
                 <Info className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
                 <div className="text-xs text-blue-200 leading-relaxed">
@@ -465,7 +518,6 @@ export default function DeclarationModal({
                 </div>
               </div>
 
-              {/* NIN field */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="block text-xs font-semibold uppercase tracking-wider text-[#94A3B8]">
@@ -481,15 +533,13 @@ export default function DeclarationModal({
                   onChange={(e) => setNin(e.target.value.replace(/[^0-9]/g, '').slice(0, 18))}
                   placeholder="18 chiffres"
                   disabled={isLoading}
-                  className={`w-full px-4 py-3 bg-[#0A0F1C] border rounded-xl text-white placeholder-[#64748B] outline-none transition-all font-mono ${nin.length === 18 ? 'border-emerald-500/50' : 'border-white/10'
-                    }`}
+                  className={`w-full px-4 py-3 bg-[#0A0F1C] border rounded-xl text-white placeholder-[#64748B] outline-none transition-all font-mono ${nin.length === 18 ? 'border-emerald-500/50' : 'border-white/10'}`}
                 />
                 <p className="text-[11px] text-[#64748B] mt-1">
                   Votre identifiant unique figurant sur votre pièce d'identité biométrique.
                 </p>
               </div>
 
-              {/* Documents */}
               <div className="space-y-4">
                 <h3 className="text-xs font-semibold uppercase tracking-wider text-[#94A3B8]">
                   Documents obligatoires <span className="text-rose-400">*</span>
@@ -534,7 +584,6 @@ export default function DeclarationModal({
                 </div>
               </div>
 
-              {/* Loading indicator */}
               {isLoading && (
                 <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-3">
                   <Loader2 className="w-5 h-5 text-emerald-400 animate-spin" />
@@ -551,7 +600,6 @@ export default function DeclarationModal({
         {/* Footer */}
         <div className="p-6 border-t border-white/10 bg-[#182233]/40 flex items-center justify-end gap-3">
           {successRef ? (
-            /* 🟢 [MODIFICATION] Boutons de confirmation sur l'écran de succès */
             <div className="flex items-center gap-3">
               <button
                 type="button"
@@ -569,19 +617,15 @@ export default function DeclarationModal({
               </button>
             </div>
           ) : alreadyExists ? (
-            /* 🟢 [MODIFICATION] Bouton permettant de basculer immédiatement vers l'onglet Validations */
             <button
               type="button"
               onClick={() => {
-                if (onGoToValidations) {
-                  onGoToValidations();
-                } else {
-                  handleClose();
-                }
+                if (onGoToValidations) onGoToValidations();
+                else handleClose();
               }}
               className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-emerald-500 hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-2 cursor-pointer"
             >
-              Suivre dans Validations 
+              Suivre dans Validations
             </button>
           ) : (
             <>
@@ -607,7 +651,7 @@ export default function DeclarationModal({
                 ) : (
                   <>
                     <CheckCircle className="w-4 h-4" />
-                    Envoyer la demande
+                    {resubmitMode ? 'Renvoyer mon dossier' : 'Envoyer la demande'}
                   </>
                 )}
               </button>
@@ -618,7 +662,6 @@ export default function DeclarationModal({
     </div>
   );
 
-  // ─── Confirmation Modal (Portal) ──────────────────────────────────────
   const confirmationModal = showConfirmModal && createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#0A0F1C]/90 backdrop-blur-md p-4 animate-in fade-in duration-150">
       <div className="bg-[#111827] border border-white/10 rounded-2xl w-full max-w-md p-6 shadow-2xl animate-in zoom-in-95 duration-150">
@@ -627,14 +670,15 @@ export default function DeclarationModal({
             <HelpCircle className="w-8 h-8" />
           </div>
           <h4 className="text-lg font-bold text-white tracking-tight">
-            Confirmation de la demande
+            {resubmitMode ? 'Confirmer la mise à jour' : 'Confirmation de la demande'}
           </h4>
           <p className="text-xs text-[#94A3B8] mt-1">
-            Êtes-vous sûr de vouloir envoyer cette demande de déclaration ?
+            {resubmitMode
+              ? 'Êtes-vous sûr de vouloir renvoyer votre dossier corrigé ?'
+              : 'Êtes-vous sûr de vouloir envoyer cette demande de déclaration ?'}
           </p>
         </div>
 
-        {/* Récapitulatif */}
         <div className="mt-5 p-4 rounded-xl bg-[#0A0F1C] border border-white/10 space-y-2.5 text-xs">
           <div className="flex items-center justify-between text-[#94A3B8]">
             <span className="flex items-center gap-1.5"><Shield className="w-3.5 h-3.5 text-emerald-400" /> Démarche :</span>
@@ -663,7 +707,7 @@ export default function DeclarationModal({
             onClick={handleConfirmSubmit}
             className="flex-1 py-2.5 rounded-xl text-xs font-semibold text-white bg-emerald-500 hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 transition-all cursor-pointer"
           >
-            Confirmer et envoyer
+            {resubmitMode ? 'Confirmer et renvoyer' : 'Confirmer et envoyer'}
           </button>
         </div>
       </div>
@@ -697,9 +741,9 @@ function DocumentUploadSlot({
   return (
     <div
       className={`p-3.5 rounded-xl border transition-all ${file
-          ? 'bg-emerald-500/5 border-emerald-500/30'
-          : 'bg-[#0A0F1C] border-white/10 hover:border-white/20'
-        }`}
+        ? 'bg-emerald-500/5 border-emerald-500/30'
+        : 'bg-[#0A0F1C] border-white/10 hover:border-white/20'
+      }`}
     >
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
@@ -747,8 +791,7 @@ function DocumentUploadSlot({
           ) : (
             <label
               htmlFor={id}
-              className={`px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-white text-xs font-medium transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer select-none active:scale-95 ${isLoading ? 'opacity-50 pointer-events-none' : ''
-                }`}
+              className={`px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-white text-xs font-medium transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer select-none active:scale-95 ${isLoading ? 'opacity-50 pointer-events-none' : ''}`}
             >
               <Upload className="w-3.5 h-3.5" />
               Choisir
