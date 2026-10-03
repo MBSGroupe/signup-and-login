@@ -1,8 +1,6 @@
 [
   {
-    "code": "01",
-    "name": "Adrar",
-    "name_ar": "أدرار",
+    "code": "1", "name": "Adrar", "name_ar": "أدرار",
     "communes": [
       { "code": "0101", "name": "Adrar", "name_ar": "أدرار" },
       { "code": "0102", "name": "Reggane", "name_ar": "رقان" },
@@ -23,9 +21,7 @@
     ]
   },
   {
-    "code": "02",
-    "name": "Chlef",
-    "name_ar": "الشلف",
+    "code": "2", "name": "Chlef", "name_ar": "الشلف",
     "communes": [
       { "code": "0201", "name": "Chlef", "name_ar": "الشلف" },
       { "code": "0202", "name": "Ténès", "name_ar": "تنس" },
@@ -48,26 +44,20 @@
       { "code": "0219", "name": "Talassa", "name_ar": "تلعصة" },
       { "code": "0220", "name": "Taougrit", "name_ar": "تاوقريت" },
       { "code": "0221", "name": "Aïn El Hadid", "name_ar": "عين الحديد" },
-      { "code": "0222", "name": "Ouled Abbes", "name_ar": "أولاد عباس" },
-      { "code": "0223", "name": "Ouled Benabdelkader", "name_ar": "أولاد بن عبد القادر" },
       { "code": "0224", "name": "Boukhalfa", "name_ar": "بوخالفة" },
       { "code": "0225", "name": "Benaïria", "name_ar": "بنايرية" },
       { "code": "0226", "name": "Aïn Oulmane", "name_ar": "عين أولمان" },
       { "code": "0227", "name": "Oued Sly", "name_ar": "وادي سلي" },
       { "code": "0228", "name": "El Karimia", "name_ar": "الكريمية" },
-      { "code": "0229", "name": "Ouled Fares", "name_ar": "أولاد فارس" },
       { "code": "0230", "name": "Beni Bouattab", "name_ar": "بني بوعتاب" },
       { "code": "0231", "name": "Beni Rached", "name_ar": "بني راشد" },
       { "code": "0232", "name": "Bouzeghaia", "name_ar": "بوزغاية" },
       { "code": "0233", "name": "Oued Goussine", "name_ar": "وادي قوسين" },
-      { "code": "0234", "name": "El Hadjadj", "name_ar": "الحجاج" },
       { "code": "0235", "name": "Breira", "name_ar": "بريرة" }
     ]
   },
   {
-    "code": "03",
-    "name": "Laghouat",
-    "name_ar": "الأغواط",
+    "code": "3", "name": "Laghouat", "name_ar": "الأغواط",
     "communes": [
       { "code": "0301", "name": "Laghouat", "name_ar": "الأغواط" },
       { "code": "0302", "name": "Aflou", "name_ar": "أفلو" },
@@ -96,9 +86,7 @@
     ]
   },
   {
-    "code": "04",
-    "name": "Oum El Bouaghi",
-    "name_ar": "أم البواقي",
+    "code": "4", "name": "Oum El Bouaghi", "name_ar": "أم البواقي",
     "communes": [
       { "code": "0401", "name": "Oum El Bouaghi", "name_ar": "أم البواقي" },
       { "code": "0402", "name": "Aïn Beïda", "name_ar": "عين البيضاء" },
@@ -129,9 +117,7 @@
     ]
   },
   {
-    "code": "05",
-    "name": "Batna",
-    "name_ar": "باتنة",
+    "code": "5", "name": "Batna", "name_ar": "باتنة",
     "communes": [
       { "code": "0501", "name": "Batna", "name_ar": "باتنة" },
       { "code": "0502", "name": "Tazoult", "name_ar": "تازولت" },
@@ -158,37 +144,20 @@
       { "code": "0523", "name": "Ouled Fadel", "name_ar": "أولاد فاضل" },
       { "code": "0524", "name": "Ouled Aouf", "name_ar": "أولاد عوف" },
       { "code": "0525", "name": "Aïn Yagout", "name_ar": "عين ياقوت" },
-      { "code": "0526", "name": "Boumagueur", "name_ar": "بومقر" },
       { "code": "0527", "name": "Djerma", "name_ar": "جرمة" },
       { "code": "0528", "name": "Hidoussa", "name_ar": "حيدوسة" },
       { "code": "0529", "name": "Kimmel", "name_ar": "كيمل" },
       { "code": "0530", "name": "Larbaâ", "name_ar": "الأربعاء" },
       { "code": "0531", "name": "Oued Chaaba", "name_ar": "وادي الشعبة" },
-      { "code": "0532", "name": "Ouled Aouf", "name_ar": "أولاد عوف" },
       { "code": "0533", "name": "Ouled Sellem", "name_ar": "أولاد سلام" },
       { "code": "0534", "name": "Taxlent", "name_ar": "تاكسلانت" },
-      { "code": "0535", "name": "Tigharghar", "name_ar": "تغرغار" },
-      { "code": "0536", "name": "Timgad", "name_ar": "تيمقاد" },
-      { "code": "0537", "name": "Zanet El Beida", "name_ar": "زانت البيضاء" },
-      { "code": "0538", "name": "Aïn Touta", "name_ar": "عين التوتة" },
       { "code": "0539", "name": "Beni Foudhala El Hakania", "name_ar": "بني فضالة الحقانية" },
-      { "code": "0540", "name": "Oued El Ma", "name_ar": "وادي الماء" },
-      { "code": "0541", "name": "Ouled Fadel", "name_ar": "أولاد فاضل" },
-      { "code": "0542", "name": "Ouled Aouf", "name_ar": "أولاد عوف" },
-      { "code": "0543", "name": "Ras El Aioun", "name_ar": "رأس العيون" },
-      { "code": "0544", "name": "Seggana", "name_ar": "سقانة" },
-      { "code": "0545", "name": "Seriana", "name_ar": "سريانة" },
-      { "code": "0546", "name": "Tazoult", "name_ar": "تازولت" },
       { "code": "0547", "name": "Teniet El Abed", "name_ar": "ثنية العابد" },
-      { "code": "0548", "name": "Tighanimine", "name_ar": "تغانمين" },
-      { "code": "0549", "name": "Tilatou", "name_ar": "تيلاطو" },
-      { "code": "0550", "name": "Zanet El Beida", "name_ar": "زانت البيضاء" }
+      { "code": "0548", "name": "Tighanimine", "name_ar": "تغانمين" }
     ]
   },
   {
-    "code": "06",
-    "name": "Béjaïa",
-    "name_ar": "بجاية",
+    "code": "6", "name": "Béjaïa", "name_ar": "بجاية",
     "communes": [
       { "code": "0601", "name": "Béjaïa", "name_ar": "بجاية" },
       { "code": "0602", "name": "Akbou", "name_ar": "أكبو" },
@@ -232,9 +201,7 @@
     ]
   },
   {
-    "code": "07",
-    "name": "Biskra",
-    "name_ar": "بسكرة",
+    "code": "7", "name": "Biskra", "name_ar": "بسكرة",
     "communes": [
       { "code": "0701", "name": "Biskra", "name_ar": "بسكرة" },
       { "code": "0702", "name": "Tolga", "name_ar": "طولقة" },
@@ -264,9 +231,7 @@
     ]
   },
   {
-    "code": "08",
-    "name": "Béchar",
-    "name_ar": "بشار",
+    "code": "8", "name": "Béchar", "name_ar": "بشار",
     "communes": [
       { "code": "0801", "name": "Béchar", "name_ar": "بشار" },
       { "code": "0802", "name": "Abadla", "name_ar": "العبادلة" },
@@ -289,9 +254,7 @@
     ]
   },
   {
-    "code": "09",
-    "name": "Blida",
-    "name_ar": "البليدة",
+    "code": "9", "name": "Blida", "name_ar": "البليدة",
     "communes": [
       { "code": "0901", "name": "Blida", "name_ar": "البليدة" },
       { "code": "0902", "name": "Boufarik", "name_ar": "بوفاريك" },
@@ -306,14 +269,12 @@
       { "code": "0911", "name": "Beni Tamou", "name_ar": "بني تامو" },
       { "code": "0912", "name": "Boughrara", "name_ar": "بوغرارة" },
       { "code": "0913", "name": "Bouarfa", "name_ar": "بوعرفة" },
-      { "code": "0914", "name": "Bouinan", "name_ar": "بوينان" },
       { "code": "0915", "name": "Chebli", "name_ar": "الشبلي" },
       { "code": "0916", "name": "Chiffa", "name_ar": "الشفة" },
       { "code": "0917", "name": "Chrea", "name_ar": "الشريعة" },
       { "code": "0918", "name": "Djebabra", "name_ar": "الجبابرة" },
       { "code": "0919", "name": "Guerrouaou", "name_ar": "قرواو" },
       { "code": "0920", "name": "Hammam Elouane", "name_ar": "حمام ملوان" },
-      { "code": "0921", "name": "Larbaâ", "name_ar": "الأربعاء" },
       { "code": "0922", "name": "Oued Alleug", "name_ar": "وادي العلايق" },
       { "code": "0923", "name": "Ouled Selama", "name_ar": "أولاد سلامة" },
       { "code": "0924", "name": "Ouled Yaïch", "name_ar": "أولاد يعيش" },
@@ -321,9 +282,7 @@
     ]
   },
   {
-    "code": "10",
-    "name": "Bouira",
-    "name_ar": "البويرة",
+    "code": "10", "name": "Bouira", "name_ar": "البويرة",
     "communes": [
       { "code": "1001", "name": "Bouira", "name_ar": "البويرة" },
       { "code": "1002", "name": "Lakhdaria", "name_ar": "الأخضرية" },
@@ -337,8 +296,6 @@
       { "code": "1010", "name": "Aïn Turk", "name_ar": "عين الترك" },
       { "code": "1011", "name": "Aïn Zaouia", "name_ar": "عين الزاوية" },
       { "code": "1012", "name": "Aomar", "name_ar": "عمر" },
-      { "code": "1013", "name": "Bechloul", "name_ar": "بشلول" },
-      { "code": "1014", "name": "Bechloul", "name_ar": "بشلول" },
       { "code": "1015", "name": "Bir Ghbalou", "name_ar": "بئر غبالو" },
       { "code": "1016", "name": "Bordj Okhriss", "name_ar": "برج أوخريص" },
       { "code": "1017", "name": "Bouderbala", "name_ar": "بودربالة" },
@@ -357,7 +314,6 @@
       { "code": "1030", "name": "Haizer", "name_ar": "حيزر" },
       { "code": "1031", "name": "Hanif", "name_ar": "حنيف" },
       { "code": "1032", "name": "Kadiria", "name_ar": "قادرية" },
-      { "code": "1033", "name": "Lakhdaria", "name_ar": "الأخضرية" },
       { "code": "1034", "name": "M'Chedallah", "name_ar": "مشدالة" },
       { "code": "1035", "name": "Maala", "name_ar": "معلة" },
       { "code": "1036", "name": "Maamora", "name_ar": "المعمورة" },
@@ -373,9 +329,7 @@
     ]
   },
   {
-    "code": "11",
-    "name": "Tamanrasset",
-    "name_ar": "تمنراست",
+    "code": "11", "name": "Tamanrasset", "name_ar": "تمنراست",
     "communes": [
       { "code": "1101", "name": "Tamanrasset", "name_ar": "تمنراست" },
       { "code": "1102", "name": "Abalessa", "name_ar": "أبالسة" },
@@ -387,9 +341,7 @@
     ]
   },
   {
-    "code": "12",
-    "name": "Tébessa",
-    "name_ar": "تبسة",
+    "code": "12", "name": "Tébessa", "name_ar": "تبسة",
     "communes": [
       { "code": "1201", "name": "Tébessa", "name_ar": "تبسة" },
       { "code": "1202", "name": "Cheria", "name_ar": "الشريعة" },
@@ -403,7 +355,6 @@
       { "code": "1210", "name": "El Houidjbet", "name_ar": "الحويجبات" },
       { "code": "1211", "name": "El Kouif", "name_ar": "الكويف" },
       { "code": "1212", "name": "El Ma Labiodh", "name_ar": "الماء الأبيض" },
-      { "code": "1213", "name": "El Malabiod", "name_ar": "الماء الأبيض" },
       { "code": "1214", "name": "El Meridj", "name_ar": "المريج" },
       { "code": "1215", "name": "El Ogla", "name_ar": "العقلة" },
       { "code": "1216", "name": "El Ogla El Malha", "name_ar": "العقلة المالحة" },
@@ -420,9 +371,7 @@
     ]
   },
   {
-    "code": "13",
-    "name": "Tlemcen",
-    "name_ar": "تلمسان",
+    "code": "13", "name": "Tlemcen", "name_ar": "تلمسان",
     "communes": [
       { "code": "1301", "name": "Tlemcen", "name_ar": "تلمسان" },
       { "code": "1302", "name": "Maghnia", "name_ar": "مغنية" },
@@ -457,7 +406,6 @@
       { "code": "1331", "name": "Hammam Boughrara", "name_ar": "حمام بوغرارة" },
       { "code": "1332", "name": "Hennaya", "name_ar": "الحناية" },
       { "code": "1333", "name": "Honaine", "name_ar": "هنين" },
-      { "code": "1334", "name": "Maghnia", "name_ar": "مغنية" },
       { "code": "1335", "name": "Mansourah", "name_ar": "منصورة" },
       { "code": "1336", "name": "Marsa Ben M'Hidi", "name_ar": "مرسى بن مهيدي" },
       { "code": "1337", "name": "MSirda Fouaga", "name_ar": "مسيردة الفواقة" },
@@ -477,9 +425,7 @@
     ]
   },
   {
-    "code": "14",
-    "name": "Tiaret",
-    "name_ar": "تيارت",
+    "code": "14", "name": "Tiaret", "name_ar": "تيارت",
     "communes": [
       { "code": "1401", "name": "Tiaret", "name_ar": "تيارت" },
       { "code": "1402", "name": "Frenda", "name_ar": "فرندة" },
@@ -517,7 +463,6 @@
       { "code": "1434", "name": "Sidi Ali Mellal", "name_ar": "سيدي علي ملال" },
       { "code": "1435", "name": "Sidi Bakhti", "name_ar": "سيدي بختي" },
       { "code": "1436", "name": "Sidi Hosni", "name_ar": "سيدي حسني" },
-      { "code": "1437", "name": "Sougueur", "name_ar": "السوقر" },
       { "code": "1438", "name": "Tagdempt", "name_ar": "تاقدمت" },
       { "code": "1439", "name": "Takhemaret", "name_ar": "تاخمرت" },
       { "code": "1440", "name": "Tidda", "name_ar": "تيدة" },
@@ -526,9 +471,7 @@
     ]
   },
   {
-    "code": "15",
-    "name": "Tizi Ouzou",
-    "name_ar": "تيزي وزو",
+    "code": "15", "name": "Tizi Ouzou", "name_ar": "تيزي وزو",
     "communes": [
       { "code": "1501", "name": "Tizi Ouzou", "name_ar": "تيزي وزو" },
       { "code": "1502", "name": "Azazga", "name_ar": "عزازقة" },
@@ -550,17 +493,14 @@
       { "code": "1518", "name": "Akbil", "name_ar": "أكبل" },
       { "code": "1519", "name": "Akerrou", "name_ar": "أقرو" },
       { "code": "1520", "name": "Assi Youcef", "name_ar": "آسي يوسف" },
-      { "code": "1521", "name": "Azazga", "name_ar": "عزازقة" },
       { "code": "1522", "name": "Azeffoun", "name_ar": "أزفون" },
       { "code": "1523", "name": "Beni Aïssi", "name_ar": "بني عيسي" },
       { "code": "1524", "name": "Beni Douala", "name_ar": "بني دوالة" },
       { "code": "1525", "name": "Beni Yenni", "name_ar": "بني يني" },
-      { "code": "1526", "name": "Boghni", "name_ar": "بوغني" },
       { "code": "1527", "name": "Boudjima", "name_ar": "بوجيمة" },
       { "code": "1528", "name": "Bounouh", "name_ar": "بونوح" },
       { "code": "1529", "name": "Bouzeguene", "name_ar": "بوزقن" },
       { "code": "1530", "name": "Draâ Ben Khedda", "name_ar": "ذراع بن خدة" },
-      { "code": "1531", "name": "Draâ El Mizan", "name_ar": "ذراع الميزان" },
       { "code": "1532", "name": "Freha", "name_ar": "فريحة" },
       { "code": "1533", "name": "Frikat", "name_ar": "فريقات" },
       { "code": "1534", "name": "Iboudraren", "name_ar": "إبودرارن" },
@@ -572,28 +512,23 @@
       { "code": "1540", "name": "Illoula Oumalou", "name_ar": "إيلولة أومالو" },
       { "code": "1541", "name": "Imsouhel", "name_ar": "إمسوحل" },
       { "code": "1542", "name": "Irdjen", "name_ar": "إرجن" },
-      { "code": "1543", "name": "Larbaâ Nath Irathen", "name_ar": "الأربعاء نايث إيراثن" },
       { "code": "1544", "name": "Mâatkas", "name_ar": "معاتقة" },
       { "code": "1545", "name": "Mekla", "name_ar": "مكلة" },
-      { "code": "1546", "name": "Mekla", "name_ar": "مكلة" },
       { "code": "1547", "name": "Mizrana", "name_ar": "ميزرانة" },
       { "code": "1548", "name": "M'Kira", "name_ar": "مقيرة" },
       { "code": "1549", "name": "Ouaguenoun", "name_ar": "واقنون" },
       { "code": "1550", "name": "Ouadhias", "name_ar": "واضية" },
-      { "code": "1551", "name": "Ouadhia", "name_ar": "واضية" },
       { "code": "1552", "name": "Ouled Bouamama", "name_ar": "أولاد بوعمامة" },
       { "code": "1553", "name": "Redjaouna", "name_ar": "رجاونة" },
       { "code": "1554", "name": "Sidi Namane", "name_ar": "سيدي نعمان" },
       { "code": "1555", "name": "Souk El Ténine", "name_ar": "سوق الإثنين" },
       { "code": "1556", "name": "Souama", "name_ar": "السوامع" },
-      { "code": "1557", "name": "Souama", "name_ar": "السوامع" },
       { "code": "1558", "name": "Tadmaït", "name_ar": "تادمايت" },
       { "code": "1559", "name": "Tigzirt", "name_ar": "تيقزيرت" },
       { "code": "1560", "name": "Timizart", "name_ar": "تيميزار" },
       { "code": "1561", "name": "Tirmitine", "name_ar": "تيرمتين" },
       { "code": "1562", "name": "Tizi Gheniff", "name_ar": "تيزي غنيف" },
       { "code": "1563", "name": "Tizi N'Tleta", "name_ar": "تيزي نثلاثة" },
-      { "code": "1564", "name": "Tizi Ouzou", "name_ar": "تيزي وزو" },
       { "code": "1565", "name": "Tizi Rached", "name_ar": "تيزي راشد" },
       { "code": "1566", "name": "Yakouren", "name_ar": "يكورن" },
       { "code": "1567", "name": "Yattafène", "name_ar": "يطافن" },
@@ -601,9 +536,7 @@
     ]
   },
   {
-    "code": "16",
-    "name": "Alger",
-    "name_ar": "الجزائر",
+    "code": "16", "name": "Alger", "name_ar": "الجزائر",
     "communes": [
       { "code": "1601", "name": "Alger Centre", "name_ar": "الجزائر الوسطى" },
       { "code": "1602", "name": "Bab El Oued", "name_ar": "باب الوادي" },
@@ -641,7 +574,6 @@
       { "code": "1634", "name": "Douera", "name_ar": "دويرة" },
       { "code": "1635", "name": "Khraicia", "name_ar": "الخرايسية" },
       { "code": "1636", "name": "Baba Hassen", "name_ar": "بابا حسن" },
-      { "code": "1637", "name": "Dely Ibrahim", "name_ar": "دالي إبراهيم" },
       { "code": "1638", "name": "El Hammamet", "name_ar": "الحمامات" },
       { "code": "1639", "name": "Mahelma", "name_ar": "ماحلمة" },
       { "code": "1640", "name": "Rahmania", "name_ar": "الرحمانية" },
@@ -653,9 +585,7 @@
     ]
   },
   {
-    "code": "17",
-    "name": "Djelfa",
-    "name_ar": "الجلفة",
+    "code": "17", "name": "Djelfa", "name_ar": "الجلفة",
     "communes": [
       { "code": "1701", "name": "Djelfa", "name_ar": "الجلفة" },
       { "code": "1702", "name": "Aïn Oussera", "name_ar": "عين وسارة" },
@@ -664,7 +594,6 @@
       { "code": "1705", "name": "Aïn El Ibel", "name_ar": "عين الإبل" },
       { "code": "1706", "name": "Aïn Feka", "name_ar": "عين فقه" },
       { "code": "1707", "name": "Aïn Maabed", "name_ar": "عين معبد" },
-      { "code": "1708", "name": "Aïn Oussera", "name_ar": "عين وسارة" },
       { "code": "1709", "name": "Amourah", "name_ar": "عمورة" },
       { "code": "1710", "name": "Baata", "name_ar": "بعطة" },
       { "code": "1711", "name": "Beni Yagoub", "name_ar": "بني يعقوب" },
@@ -673,7 +602,6 @@
       { "code": "1714", "name": "Charef", "name_ar": "الشارف" },
       { "code": "1715", "name": "Dar Chouikh", "name_ar": "دار الشيوخ" },
       { "code": "1716", "name": "Deldoul", "name_ar": "دلدول" },
-      { "code": "1717", "name": "Djelfa", "name_ar": "الجلفة" },
       { "code": "1718", "name": "Douis", "name_ar": "دويس" },
       { "code": "1719", "name": "El Guedid", "name_ar": "القديد" },
       { "code": "1720", "name": "El Idrissia", "name_ar": "الإدريسية" },
@@ -686,7 +614,6 @@
       { "code": "1727", "name": "Hassi El Euch", "name_ar": "حاسي العش" },
       { "code": "1728", "name": "Hassi Fedoul", "name_ar": "حاسي فدول" },
       { "code": "1729", "name": "M'Liliha", "name_ar": "مليليحة" },
-      { "code": "1730", "name": "Messaâd", "name_ar": "مسعد" },
       { "code": "1731", "name": "Moudjebara", "name_ar": "مجبارة" },
       { "code": "1732", "name": "Oum Laadham", "name_ar": "أم العظام" },
       { "code": "1733", "name": "Sed Rahal", "name_ar": "سد الرحال" },
@@ -699,9 +626,7 @@
     ]
   },
   {
-    "code": "18",
-    "name": "Jijel",
-    "name_ar": "جيجل",
+    "code": "18", "name": "Jijel", "name_ar": "جيجل",
     "communes": [
       { "code": "1801", "name": "Jijel", "name_ar": "جيجل" },
       { "code": "1802", "name": "El Milia", "name_ar": "الميلية" },
@@ -720,22 +645,16 @@
       { "code": "1815", "name": "Settara", "name_ar": "السطارة" },
       { "code": "1816", "name": "Sidi Abdelaziz", "name_ar": "سيدي عبد العزيز" },
       { "code": "1817", "name": "Sidi Maarouf", "name_ar": "سيدي معروف" },
-      { "code": "1818", "name": "Taher", "name_ar": "الطاهير" },
       { "code": "1819", "name": "Texenna", "name_ar": "تاكسنة" },
       { "code": "1820", "name": "Ziama Mansouriah", "name_ar": "زيامة منصورية" },
       { "code": "1821", "name": "Bouraoui Belhadef", "name_ar": "بوراوي بلهادف" },
       { "code": "1822", "name": "Djimla", "name_ar": "جيملة" },
       { "code": "1823", "name": "El Ancer", "name_ar": "العنصر" },
-      { "code": "1824", "name": "El Milia", "name_ar": "الميلية" },
-      { "code": "1825", "name": "Ghebala", "name_ar": "غبالة" },
-      { "code": "1826", "name": "Khiri Oued Adjoul", "name_ar": "خيري وادي العجول" },
-      { "code": "1827", "name": "Ouled Yahia Khedrouche", "name_ar": "أولاد يحيى خدروش" }
+      { "code": "1825", "name": "Ghebala", "name_ar": "غبالة" }
     ]
   },
   {
-    "code": "19",
-    "name": "Sétif",
-    "name_ar": "سطيف",
+    "code": "19", "name": "Sétif", "name_ar": "سطيف",
     "communes": [
       { "code": "1901", "name": "Sétif", "name_ar": "سطيف" },
       { "code": "1902", "name": "El Eulma", "name_ar": "العلمة" },
@@ -765,7 +684,6 @@
       { "code": "1926", "name": "Bir Haddada", "name_ar": "بئر حدادة" },
       { "code": "1927", "name": "Bir El Arch", "name_ar": "بئر العرش" },
       { "code": "1928", "name": "Bouandas", "name_ar": "بوعداس" },
-      { "code": "1929", "name": "Bougaa", "name_ar": "بوقاعة" },
       { "code": "1930", "name": "Bousselam", "name_ar": "بوسلام" },
       { "code": "1931", "name": "Boutaleb", "name_ar": "بوطالب" },
       { "code": "1932", "name": "Djemila", "name_ar": "جميلة" },
@@ -799,9 +717,7 @@
     ]
   },
   {
-    "code": "20",
-    "name": "Saïda",
-    "name_ar": "سعيدة",
+    "code": "20", "name": "Saïda", "name_ar": "سعيدة",
     "communes": [
       { "code": "2001", "name": "Saïda", "name_ar": "سعيدة" },
       { "code": "2002", "name": "Aïn El Hadjar", "name_ar": "عين الحجر" },
@@ -821,9 +737,7 @@
     ]
   },
   {
-    "code": "21",
-    "name": "Skikda",
-    "name_ar": "سكيكدة",
+    "code": "21", "name": "Skikda", "name_ar": "سكيكدة",
     "communes": [
       { "code": "2101", "name": "Skikda", "name_ar": "سكيكدة" },
       { "code": "2102", "name": "Azzaba", "name_ar": "عزابة" },
@@ -843,7 +757,6 @@
       { "code": "2116", "name": "Cheraia", "name_ar": "الشرايع" },
       { "code": "2117", "name": "Collo", "name_ar": "القل" },
       { "code": "2118", "name": "Djendel Saadi Mohamed", "name_ar": "جندل سعدي محمد" },
-      { "code": "2119", "name": "El Arrouch", "name_ar": "الحروش" },
       { "code": "2120", "name": "El Ghedir", "name_ar": "الغدير" },
       { "code": "2121", "name": "El Hadaiek", "name_ar": "الحدائق" },
       { "code": "2122", "name": "El Marsa", "name_ar": "المرسى" },
@@ -865,9 +778,7 @@
     ]
   },
   {
-    "code": "22",
-    "name": "Sidi Bel Abbès",
-    "name_ar": "سيدي بلعباس",
+    "code": "22", "name": "Sidi Bel Abbès", "name_ar": "سيدي بلعباس",
     "communes": [
       { "code": "2201", "name": "Sidi Bel Abbès", "name_ar": "سيدي بلعباس" },
       { "code": "2202", "name": "Télagh", "name_ar": "تلاغ" },
@@ -889,12 +800,11 @@
       { "code": "2218", "name": "Dhaya", "name_ar": "الضاية" },
       { "code": "2219", "name": "El Haçaiba", "name_ar": "الحصيبة" },
       { "code": "2220", "name": "Hassi Dahou", "name_ar": "حاسي دحو" },
-      { "code": "2221", "name": "Hassi Zahana", "name_ar": "حاسي زھانة" },
+      { "code": "2221", "name": "Hassi Zahana", "name_ar": "حاسي زهانة" },
       { "code": "2222", "name": "Lamtar", "name_ar": "لمطار" },
       { "code": "2223", "name": "Makedra", "name_ar": "ماقضة" },
       { "code": "2224", "name": "Marhoum", "name_ar": "مرحوم" },
       { "code": "2225", "name": "M'Cid", "name_ar": "مسيد" },
-      { "code": "2226", "name": "Merine", "name_ar": "مرين" },
       { "code": "2227", "name": "Mezaourou", "name_ar": "مزاورو" },
       { "code": "2228", "name": "Mostefa Ben Brahim", "name_ar": "مصطفى بن إبراهيم" },
       { "code": "2229", "name": "Moulay Slissen", "name_ar": "مولاي سليسن" },
@@ -917,7 +827,6 @@
       { "code": "2246", "name": "Tafissour", "name_ar": "تفسور" },
       { "code": "2247", "name": "Taoudmout", "name_ar": "تاودموت" },
       { "code": "2248", "name": "Teghalimet", "name_ar": "تغاليمت" },
-      { "code": "2249", "name": "Telagh", "name_ar": "تلاغ" },
       { "code": "2250", "name": "Tenira", "name_ar": "تنيرة" },
       { "code": "2251", "name": "Tessala", "name_ar": "تسالة" },
       { "code": "2252", "name": "Tilmouni", "name_ar": "تلموني" },
@@ -925,9 +834,7 @@
     ]
   },
   {
-    "code": "23",
-    "name": "Annaba",
-    "name_ar": "عنابة",
+    "code": "23", "name": "Annaba", "name_ar": "عنابة",
     "communes": [
       { "code": "2301", "name": "Annaba", "name_ar": "عنابة" },
       { "code": "2302", "name": "El Bouni", "name_ar": "البوني" },
@@ -942,9 +849,7 @@
     ]
   },
   {
-    "code": "24",
-    "name": "Guelma",
-    "name_ar": "قالمة",
+    "code": "24", "name": "Guelma", "name_ar": "قالمة",
     "communes": [
       { "code": "2401", "name": "Guelma", "name_ar": "قالمة" },
       { "code": "2402", "name": "Bouchegouf", "name_ar": "بوشقوف" },
@@ -958,7 +863,6 @@
       { "code": "2410", "name": "Beni Mezline", "name_ar": "بني مزلين" },
       { "code": "2411", "name": "Bordj Sabath", "name_ar": "برج صباط" },
       { "code": "2412", "name": "Bouati Mahmoud", "name_ar": "بوعاتي محمود" },
-      { "code": "2413", "name": "Bouchegouf", "name_ar": "بوشقوف" },
       { "code": "2414", "name": "Bouhamdane", "name_ar": "بوحمدان" },
       { "code": "2415", "name": "Bouhachana", "name_ar": "بوهاشنة" },
       { "code": "2416", "name": "Boumaiza", "name_ar": "بومعيزة" },
@@ -984,9 +888,7 @@
     ]
   },
   {
-    "code": "25",
-    "name": "Constantine",
-    "name_ar": "قسنطينة",
+    "code": "25", "name": "Constantine", "name_ar": "قسنطينة",
     "communes": [
       { "code": "2501", "name": "Constantine", "name_ar": "قسنطينة" },
       { "code": "2502", "name": "El Khroub", "name_ar": "الخروب" },
@@ -1002,9 +904,7 @@
     ]
   },
   {
-    "code": "26",
-    "name": "Médéa",
-    "name_ar": "المدية",
+    "code": "26", "name": "Médéa", "name_ar": "المدية",
     "communes": [
       { "code": "2601", "name": "Médéa", "name_ar": "المدية" },
       { "code": "2602", "name": "Berrouaghia", "name_ar": "البرواقية" },
@@ -1016,7 +916,6 @@
       { "code": "2608", "name": "Baata", "name_ar": "بعطة" },
       { "code": "2609", "name": "Ben Chicao", "name_ar": "بن شكاو" },
       { "code": "2610", "name": "Beni Slimane", "name_ar": "بني سليمان" },
-      { "code": "2611", "name": "Berrouaghia", "name_ar": "البرواقية" },
       { "code": "2612", "name": "Boghar", "name_ar": "بوغار" },
       { "code": "2613", "name": "Bouaichoune", "name_ar": "بوعيشون" },
       { "code": "2614", "name": "Bouchrahil", "name_ar": "بوشراحيل" },
@@ -1064,7 +963,6 @@
       { "code": "2656", "name": "Sidi Zahar", "name_ar": "سيدي زهار" },
       { "code": "2657", "name": "Sidi Ziane", "name_ar": "سيدي زيان" },
       { "code": "2658", "name": "Souagui", "name_ar": "السواقي" },
-      { "code": "2659", "name": "Tablat", "name_ar": "تابلاط" },
       { "code": "2660", "name": "Tafraout", "name_ar": "تافراوت" },
       { "code": "2661", "name": "Tamesguida", "name_ar": "تامسقيدة" },
       { "code": "2662", "name": "Tizi Mahdi", "name_ar": "تيزي المهدي" },
@@ -1073,9 +971,7 @@
     ]
   },
   {
-    "code": "27",
-    "name": "Mostaganem",
-    "name_ar": "مستغانم",
+    "code": "27", "name": "Mostaganem", "name_ar": "مستغانم",
     "communes": [
       { "code": "2701", "name": "Mostaganem", "name_ar": "مستغانم" },
       { "code": "2702", "name": "Aïn Nouïssy", "name_ar": "عين نويسي" },
@@ -1109,9 +1005,7 @@
     ]
   },
   {
-    "code": "28",
-    "name": "M'Sila",
-    "name_ar": "المسيلة",
+    "code": "28", "name": "M'Sila", "name_ar": "المسيلة",
     "communes": [
       { "code": "2801", "name": "M'Sila", "name_ar": "المسيلة" },
       { "code": "2802", "name": "Bou Saâda", "name_ar": "بوسعادة" },
@@ -1126,14 +1020,13 @@
       { "code": "2811", "name": "Benzouh", "name_ar": "بن زوه" },
       { "code": "2812", "name": "Berhoum", "name_ar": "برهوم" },
       { "code": "2813", "name": "Bir Foda", "name_ar": "بئر الفضة" },
-      { "code": "2814", "name": "Bou Saâda", "name_ar": "بوسعادة" },
       { "code": "2815", "name": "Bouti Sayah", "name_ar": "بوطي السايح" },
       { "code": "2816", "name": "Chellal", "name_ar": "شلال" },
-      { "code": "2817", "name": "Dehahna", "name_ar": "دھاھنة" },
+      { "code": "2817", "name": "Dehahna", "name_ar": "دهاهنة" },
       { "code": "2818", "name": "Djebel Messaâd", "name_ar": "جبل مساعد" },
-      { "code": "2819", "name": "El Hamel", "name_ar": "الھامل" },
+      { "code": "2819", "name": "El Hamel", "name_ar": "الهامل" },
       { "code": "2820", "name": "El Houamed", "name_ar": "الحوامد" },
-      { "code": "2821", "name": "Houari", "name_ar": "ھواري" },
+      { "code": "2821", "name": "Houari", "name_ar": "هواري" },
       { "code": "2822", "name": "Ighil", "name_ar": "إغيل" },
       { "code": "2823", "name": "Khettouti Sed El Djir", "name_ar": "خطوطي سد الجير" },
       { "code": "2824", "name": "Khoubana", "name_ar": "خبانة" },
@@ -1154,7 +1047,7 @@
       { "code": "2839", "name": "Ouled Sidi Brahim", "name_ar": "أولاد سيدي إبراهيم" },
       { "code": "2840", "name": "Oultene", "name_ar": "أولتان" },
       { "code": "2841", "name": "Sidi Aïssa", "name_ar": "سيدي عيسى" },
-      { "code": "2842", "name": "Sidi Hadjeres", "name_ar": "سيدي ھجرس" },
+      { "code": "2842", "name": "Sidi Hadjeres", "name_ar": "سيدي هجرس" },
       { "code": "2843", "name": "Sidi M'hamed", "name_ar": "سيدي امحمد" },
       { "code": "2844", "name": "Slim", "name_ar": "سليم" },
       { "code": "2845", "name": "Souamaa", "name_ar": "السوامع" },
@@ -1164,9 +1057,7 @@
     ]
   },
   {
-    "code": "29",
-    "name": "Mascara",
-    "name_ar": "معسكر",
+    "code": "29", "name": "Mascara", "name_ar": "معسكر",
     "communes": [
       { "code": "2901", "name": "Mascara", "name_ar": "معسكر" },
       { "code": "2902", "name": "Sig", "name_ar": "سيق" },
@@ -1197,7 +1088,6 @@
       { "code": "2927", "name": "Makhda", "name_ar": "ماقضة" },
       { "code": "2928", "name": "Mamounia", "name_ar": "المأمونية" },
       { "code": "2929", "name": "Maoussa", "name_ar": "ماوسة" },
-      { "code": "2930", "name": "Mascara", "name_ar": "معسكر" },
       { "code": "2931", "name": "Matemore", "name_ar": "مطمور" },
       { "code": "2932", "name": "Mocta Douz", "name_ar": "مقطع الدوز" },
       { "code": "2933", "name": "Mohammadia", "name_ar": "المحمدية" },
@@ -1214,17 +1104,14 @@
       { "code": "2944", "name": "Sidi Abdelmoumen", "name_ar": "سيدي عبد المومن" },
       { "code": "2945", "name": "Sidi Boussaid", "name_ar": "سيدي بوسعيد" },
       { "code": "2946", "name": "Sidi Kada", "name_ar": "سيدي قادة" },
-      { "code": "2947", "name": "Sig", "name_ar": "سيق" },
       { "code": "2948", "name": "Tighennif", "name_ar": "تيغنيف" },
       { "code": "2949", "name": "Tizi", "name_ar": "تيزي" },
-      { "code": "2950", "name": "Zahana", "name_ar": "زھانة" },
-      { "code": "2951", "name": "Zelamta", "name_ar": "زﻻمطة" }
+      { "code": "2950", "name": "Zahana", "name_ar": "زهانة" },
+      { "code": "2951", "name": "Zelamta", "name_ar": "زلامطة" }
     ]
   },
   {
-    "code": "30",
-    "name": "Ouargla",
-    "name_ar": "ورقلة",
+    "code": "30", "name": "Ouargla", "name_ar": "ورقلة",
     "communes": [
       { "code": "3001", "name": "Ouargla", "name_ar": "ورقلة" },
       { "code": "3002", "name": "Touggourt", "name_ar": "تقرت" },
@@ -1246,14 +1133,11 @@
       { "code": "3018", "name": "Sidi Slimane", "name_ar": "سيدي سليمان" },
       { "code": "3019", "name": "Taibet", "name_ar": "الطيبات" },
       { "code": "3020", "name": "Temacine", "name_ar": "تماسين" },
-      { "code": "3021", "name": "Touggourt", "name_ar": "تقرت" },
       { "code": "3022", "name": "Zaouia El Abidia", "name_ar": "الزاوية العابدية" }
     ]
   },
   {
-    "code": "31",
-    "name": "Oran",
-    "name_ar": "وهران",
+    "code": "31", "name": "Oran", "name_ar": "وهران",
     "communes": [
       { "code": "3101", "name": "Oran", "name_ar": "وهران" },
       { "code": "3102", "name": "Es Senia", "name_ar": "السانية" },
@@ -1263,25 +1147,20 @@
       { "code": "3106", "name": "Aïn El Bia", "name_ar": "عين البية" },
       { "code": "3107", "name": "Aïn El Kerma", "name_ar": "عين الكرمة" },
       { "code": "3108", "name": "Aïn El Turk", "name_ar": "عين الترك" },
-      { "code": "3109", "name": "Arzew", "name_ar": "أرزيو" },
       { "code": "3110", "name": "Ben Freha", "name_ar": "بن فريحة" },
       { "code": "3111", "name": "Bethioua", "name_ar": "بطيوة" },
-      { "code": "3112", "name": "Bir El Djir", "name_ar": "بئر الجير" },
       { "code": "3113", "name": "Boufatis", "name_ar": "بوفاطيس" },
       { "code": "3114", "name": "Bousfer", "name_ar": "بوسفر" },
       { "code": "3115", "name": "Boutlélis", "name_ar": "بطليلس" },
       { "code": "3116", "name": "El Ançor", "name_ar": "العنصر" },
       { "code": "3117", "name": "El Braya", "name_ar": "البراية" },
       { "code": "3118", "name": "El Kerma", "name_ar": "الكرمة" },
-      { "code": "3119", "name": "Es Senia", "name_ar": "السانية" },
-      { "code": "3120", "name": "Gdyel", "name_ar": "قديل" },
       { "code": "3121", "name": "Hassi Bounif", "name_ar": "حاسي بونيف" },
       { "code": "3122", "name": "Hassi Ben Okba", "name_ar": "حاسي بن عقبة" },
       { "code": "3123", "name": "Hassi Mefsoukh", "name_ar": "حاسي مفسوخ" },
       { "code": "3124", "name": "Marsat El Hadjadj", "name_ar": "مرسى الحجاج" },
       { "code": "3125", "name": "Mers El Kébir", "name_ar": "المرسى الكبير" },
       { "code": "3126", "name": "Misserghin", "name_ar": "مسرغين" },
-      { "code": "3127", "name": "Oran", "name_ar": "وهران" },
       { "code": "3128", "name": "Oued Tlelat", "name_ar": "وادي تليلات" },
       { "code": "3129", "name": "Sidi Benyebka", "name_ar": "سيدي بن يبقى" },
       { "code": "3130", "name": "Sidi Chami", "name_ar": "سيدي الشحمي" },
@@ -1289,9 +1168,7 @@
     ]
   },
   {
-    "code": "32",
-    "name": "El Bayadh",
-    "name_ar": "البيض",
+    "code": "32", "name": "El Bayadh", "name_ar": "البيض",
     "communes": [
       { "code": "3201", "name": "El Bayadh", "name_ar": "البيض" },
       { "code": "3202", "name": "Bougtoub", "name_ar": "بوڤطوب" },
@@ -1312,9 +1189,7 @@
     ]
   },
   {
-    "code": "33",
-    "name": "Illizi",
-    "name_ar": "إليزي",
+    "code": "33", "name": "Illizi", "name_ar": "إليزي",
     "communes": [
       { "code": "3301", "name": "Illizi", "name_ar": "إليزي" },
       { "code": "3302", "name": "Djanet", "name_ar": "جانت" },
@@ -1324,9 +1199,7 @@
     ]
   },
   {
-    "code": "34",
-    "name": "Bordj Bou Arreridj",
-    "name_ar": "برج بوعريريج",
+    "code": "34", "name": "Bordj Bou Arreridj", "name_ar": "برج بوعريريج",
     "communes": [
       { "code": "3401", "name": "Bordj Bou Arreridj", "name_ar": "برج بوعريريج" },
       { "code": "3402", "name": "El Achir", "name_ar": "العشير" },
@@ -1351,9 +1224,9 @@
       { "code": "3421", "name": "Ksour", "name_ar": "القصور" },
       { "code": "3422", "name": "Mansoura", "name_ar": "المنصورة" },
       { "code": "3423", "name": "Medjana", "name_ar": "مجانة" },
-      { "code": "3424", "name": "Ouled Brahem", "name_ar": "أولاد إبراھيم" },
+      { "code": "3424", "name": "Ouled Brahem", "name_ar": "أولاد إبراهيم" },
       { "code": "3425", "name": "Ouled Dahmane", "name_ar": "أولاد دحمان" },
-      { "code": "3426", "name": "Ouled Sidi Brahim", "name_ar": "أولاد سيدي إبراھيم" },
+      { "code": "3426", "name": "Ouled Sidi Brahim", "name_ar": "أولاد سيدي إبراهيم" },
       { "code": "3427", "name": "Rabta", "name_ar": "الربطة" },
       { "code": "3428", "name": "Ras El Oued", "name_ar": "رأس الوادي" },
       { "code": "3429", "name": "Sidi Embarek", "name_ar": "سيدي أمبارك" },
@@ -1364,9 +1237,7 @@
     ]
   },
   {
-    "code": "35",
-    "name": "Boumerdès",
-    "name_ar": "بومرداس",
+    "code": "35", "name": "Boumerdès", "name_ar": "بومرداس",
     "communes": [
       { "code": "3501", "name": "Boumerdès", "name_ar": "بومرداس" },
       { "code": "3502", "name": "Boudouaou", "name_ar": "بودواو" },
@@ -1391,7 +1262,7 @@
       { "code": "3521", "name": "Machtaa", "name_ar": "مشطة" },
       { "code": "3522", "name": "Naciria", "name_ar": "الناصرية" },
       { "code": "3523", "name": "Ouled Aïssa", "name_ar": "أولاد عيسى" },
-      { "code": "3524", "name": "Ouled Hedadj", "name_ar": "أولاد ھداج" },
+      { "code": "3524", "name": "Ouled Hedadj", "name_ar": "أولاد هداج" },
       { "code": "3525", "name": "Ouled Moussa", "name_ar": "أولاد موسى" },
       { "code": "3526", "name": "Sidi Daoud", "name_ar": "سيدي داود" },
       { "code": "3527", "name": "Souakria", "name_ar": "السواكرية" },
@@ -1403,9 +1274,7 @@
     ]
   },
   {
-    "code": "36",
-    "name": "El Tarf",
-    "name_ar": "الطارف",
+    "code": "36", "name": "El Tarf", "name_ar": "الطارف",
     "communes": [
       { "code": "3601", "name": "El Tarf", "name_ar": "الطارف" },
       { "code": "3602", "name": "Besbes", "name_ar": "بسباس" },
@@ -1414,7 +1283,6 @@
       { "code": "3605", "name": "Asfour", "name_ar": "عصفور" },
       { "code": "3606", "name": "Ben M'Hidi", "name_ar": "بن مهيدي" },
       { "code": "3607", "name": "Berrihane", "name_ar": "بريحان" },
-      { "code": "3608", "name": "Besbes", "name_ar": "بسباس" },
       { "code": "3609", "name": "Bougous", "name_ar": "بوقوس" },
       { "code": "3610", "name": "Bouhadjar", "name_ar": "بوحجار" },
       { "code": "3611", "name": "Bouteldja", "name_ar": "بوثلجة" },
@@ -1425,28 +1293,22 @@
       { "code": "3616", "name": "Echatt", "name_ar": "الشط" },
       { "code": "3617", "name": "El Aioun", "name_ar": "العيون" },
       { "code": "3618", "name": "El Kala", "name_ar": "القالة" },
-      { "code": "3619", "name": "El Tarf", "name_ar": "الطارف" },
       { "code": "3620", "name": "Hammam Beni Salah", "name_ar": "حمام بني صالح" },
       { "code": "3621", "name": "Lac des Oiseaux", "name_ar": "بحيرة الطيور" },
       { "code": "3622", "name": "Oued Zitoun", "name_ar": "وادي الزيتون" },
       { "code": "3623", "name": "Raml Souk", "name_ar": "رمل السوق" },
-      { "code": "3624", "name": "Souk Ahras", "name_ar": "سوق أهراس" },
       { "code": "3625", "name": "Zitouna", "name_ar": "الزيتونة" }
     ]
   },
   {
-    "code": "37",
-    "name": "Tindouf",
-    "name_ar": "تندوف",
+    "code": "37", "name": "Tindouf", "name_ar": "تندوف",
     "communes": [
       { "code": "3701", "name": "Tindouf", "name_ar": "تندوف" },
       { "code": "3702", "name": "Oum El Assel", "name_ar": "أم العسل" }
     ]
   },
   {
-    "code": "38",
-    "name": "Tissemsilt",
-    "name_ar": "تيسمسيلت",
+    "code": "38", "name": "Tissemsilt", "name_ar": "تيسمسيلت",
     "communes": [
       { "code": "3801", "name": "Tissemsilt", "name_ar": "تيسمسيلت" },
       { "code": "3802", "name": "Bordj Bou Naama", "name_ar": "برج بونعامة" },
@@ -1454,7 +1316,6 @@
       { "code": "3804", "name": "Beni Chaib", "name_ar": "بني شعيب" },
       { "code": "3805", "name": "Beni Lahcene", "name_ar": "بني لحسن" },
       { "code": "3806", "name": "Boucaid", "name_ar": "بوقايد" },
-      { "code": "3807", "name": "Larbaâ", "name_ar": "الأربعاء" },
       { "code": "3808", "name": "Lardjem", "name_ar": "لرجام" },
       { "code": "3809", "name": "Layoune", "name_ar": "العيون" },
       { "code": "3810", "name": "Maacem", "name_ar": "المعاصم" },
@@ -1465,14 +1326,11 @@
       { "code": "3815", "name": "Sidi Slimane", "name_ar": "سيدي سليمان" },
       { "code": "3816", "name": "Tamalaht", "name_ar": "تملاحت" },
       { "code": "3817", "name": "Theniet El Had", "name_ar": "الثنية" },
-      { "code": "3818", "name": "Tissemsilt", "name_ar": "تيسمسيلت" },
       { "code": "3819", "name": "Youssoufia", "name_ar": "اليوسفية" }
     ]
   },
   {
-    "code": "39",
-    "name": "El Oued",
-    "name_ar": "الوادي",
+    "code": "39", "name": "El Oued", "name_ar": "الوادي",
     "communes": [
       { "code": "3901", "name": "El Oued", "name_ar": "الوادي" },
       { "code": "3902", "name": "Guelma", "name_ar": "قمار" },
@@ -1500,9 +1358,7 @@
     ]
   },
   {
-    "code": "40",
-    "name": "Khenchela",
-    "name_ar": "خنشلة",
+    "code": "40", "name": "Khenchela", "name_ar": "خنشلة",
     "communes": [
       { "code": "4001", "name": "Khenchela", "name_ar": "خنشلة" },
       { "code": "4002", "name": "Aïn Touila", "name_ar": "عين الطويلة" },
@@ -1516,7 +1372,6 @@
       { "code": "4010", "name": "Ensigha", "name_ar": "انسيغة" },
       { "code": "4011", "name": "Fais", "name_ar": "فيس" },
       { "code": "4012", "name": "Kais", "name_ar": "قايس" },
-      { "code": "4013", "name": "Khenchela", "name_ar": "خنشلة" },
       { "code": "4014", "name": "Khirane", "name_ar": "خيران" },
       { "code": "4015", "name": "M'Sara", "name_ar": "مصارة" },
       { "code": "4016", "name": "M'Toussa", "name_ar": "متوسة" },
@@ -1528,9 +1383,7 @@
     ]
   },
   {
-    "code": "41",
-    "name": "Souk Ahras",
-    "name_ar": "سوق أهراس",
+    "code": "41", "name": "Souk Ahras", "name_ar": "سوق أهراس",
     "communes": [
       { "code": "4101", "name": "Souk Ahras", "name_ar": "سوق أهراس" },
       { "code": "4102", "name": "Sedrata", "name_ar": "سدراتة" },
@@ -1551,21 +1404,17 @@
       { "code": "4117", "name": "Ragouba", "name_ar": "الرڨوبة" },
       { "code": "4118", "name": "Safel El Ouiden", "name_ar": "سافل الويدان" },
       { "code": "4119", "name": "Sidi Fredj", "name_ar": "سيدي فرج" },
-      { "code": "4120", "name": "Souk Ahras", "name_ar": "سوق أهراس" },
       { "code": "4121", "name": "Taoura", "name_ar": "تاورة" },
       { "code": "4122", "name": "Tiffech", "name_ar": "تيفاش" },
       { "code": "4123", "name": "Zaarouria", "name_ar": "الزعرورية" },
-      { "code": "4124", "name": "Zouabi", "name_ar": "الزوابي" }
+      { "code": "4124", "name": "Zouabi", "name_ar": "الزوabي" }
     ]
   },
   {
-    "code": "42",
-    "name": "Tipaza",
-    "name_ar": "تيبازة",
+    "code": "42", "name": "Tipaza", "name_ar": "تيبازة",
     "communes": [
       { "code": "4201", "name": "Tipaza", "name_ar": "تيبازة" },
       { "code": "4202", "name": "Cherchell", "name_ar": "شرشال" },
-      { "code": "4203", "name": "Hadout", "name_ar": "حطوط" },
       { "code": "4204", "name": "Aghbal", "name_ar": "أغبال" },
       { "code": "4205", "name": "Ahmer El Aïn", "name_ar": "أحمر العين" },
       { "code": "4206", "name": "Aïn Tagourait", "name_ar": "عين تاقورايت" },
@@ -1575,7 +1424,6 @@
       { "code": "4210", "name": "Bou Ismaïl", "name_ar": "بو إسماعيل" },
       { "code": "4211", "name": "Bourkika", "name_ar": "بورقيقة" },
       { "code": "4212", "name": "Chaiba", "name_ar": "الشعيبة" },
-      { "code": "4213", "name": "Cherchell", "name_ar": "شرشال" },
       { "code": "4214", "name": "Damous", "name_ar": "الداموس" },
       { "code": "4215", "name": "Douaouda", "name_ar": "دواودة" },
       { "code": "4216", "name": "Fouka", "name_ar": "فوكة" },
@@ -1596,9 +1444,7 @@
     ]
   },
   {
-    "code": "43",
-    "name": "Mila",
-    "name_ar": "ميلة",
+    "code": "43", "name": "Mila", "name_ar": "ميلة",
     "communes": [
       { "code": "4301", "name": "Mila", "name_ar": "ميلة" },
       { "code": "4302", "name": "Téléghma", "name_ar": "التلاغمة" },
@@ -1615,7 +1461,6 @@
       { "code": "4313", "name": "Ferdjioua", "name_ar": "فرجيوة" },
       { "code": "4314", "name": "Grarem Gouga", "name_ar": "قرارم قوقة" },
       { "code": "4315", "name": "Hamala", "name_ar": "حمالة" },
-      { "code": "4316", "name": "Mila", "name_ar": "ميلة" },
       { "code": "4317", "name": "Minar Zarza", "name_ar": "مينار زارزة" },
       { "code": "4318", "name": "Oued Athmania", "name_ar": "وادي العثمانية" },
       { "code": "4319", "name": "Oued Endja", "name_ar": "وادي النجاء" },
@@ -1634,9 +1479,7 @@
     ]
   },
   {
-    "code": "44",
-    "name": "Aïn Defla",
-    "name_ar": "عين الدفلى",
+    "code": "44", "name": "Aïn Defla", "name_ar": "عين الدفلى",
     "communes": [
       { "code": "4401", "name": "Aïn Defla", "name_ar": "عين الدفلى" },
       { "code": "4402", "name": "Khemis Miliana", "name_ar": "خميس مليانة" },
@@ -1646,7 +1489,7 @@
       { "code": "4406", "name": "Aïn Soltane", "name_ar": "عين سلطان" },
       { "code": "4407", "name": "Aïn Torki", "name_ar": "عين التركي" },
       { "code": "4408", "name": "Arib", "name_ar": "عريب" },
-      { "code": "4409", "name": "Bathia", "name_ar": "باتھة" },
+      { "code": "4409", "name": "Bathia", "name_ar": "باتهة" },
       { "code": "4410", "name": "Belaas", "name_ar": "بلعاص" },
       { "code": "4411", "name": "Ben Allal", "name_ar": "بن علال" },
       { "code": "4412", "name": "Birbouche", "name_ar": "بريبوش" },
@@ -1663,7 +1506,6 @@
       { "code": "4423", "name": "El Maine", "name_ar": "الماين" },
       { "code": "4424", "name": "Hammam Righa", "name_ar": "حمام ريغة" },
       { "code": "4425", "name": "Hoceinia", "name_ar": "الحسينية" },
-      { "code": "4426", "name": "Khemis Miliana", "name_ar": "خميس مليانة" },
       { "code": "4427", "name": "Mekhatria", "name_ar": "المخاطرية" },
       { "code": "4428", "name": "Miliana", "name_ar": "مليانة" },
       { "code": "4429", "name": "Oued Chorfa", "name_ar": "وادي الشرفاء" },
@@ -1677,9 +1519,7 @@
     ]
   },
   {
-    "code": "45",
-    "name": "Naâma",
-    "name_ar": "النعامة",
+    "code": "45", "name": "Naâma", "name_ar": "النعامة",
     "communes": [
       { "code": "4501", "name": "Naâma", "name_ar": "النعامة" },
       { "code": "4502", "name": "Mécheria", "name_ar": "المشرية" },
@@ -1690,17 +1530,13 @@
       { "code": "4507", "name": "El Biodh", "name_ar": "البيوض" },
       { "code": "4508", "name": "Kasdir", "name_ar": "القصدير" },
       { "code": "4509", "name": "Makman Ben Amer", "name_ar": "مكمن بن عمار" },
-      { "code": "4510", "name": "Mécheria", "name_ar": "المشرية" },
       { "code": "4511", "name": "Moghrar", "name_ar": "مغرار" },
-      { "code": "4512", "name": "Naâma", "name_ar": "النعامة" },
       { "code": "4513", "name": "Sfissifa", "name_ar": "سفيسيفة" },
       { "code": "4514", "name": "Tiout", "name_ar": "تيوت" }
     ]
   },
   {
-    "code": "46",
-    "name": "Aïn Témouchent",
-    "name_ar": "عين تموشنت",
+    "code": "46", "name": "Aïn Témouchent", "name_ar": "عين تموشنت",
     "communes": [
       { "code": "4601", "name": "Aïn Témouchent", "name_ar": "عين تموشنت" },
       { "code": "4602", "name": "Béni Saf", "name_ar": "بني صاف" },
@@ -1709,7 +1545,6 @@
       { "code": "4605", "name": "Aïn Kihal", "name_ar": "عين الكيحل" },
       { "code": "4606", "name": "Aïn Tolba", "name_ar": "عين الطلبة" },
       { "code": "4607", "name": "Aoubellil", "name_ar": "عقب الليل" },
-      { "code": "4608", "name": "Beni Saf", "name_ar": "بني صاف" },
       { "code": "4609", "name": "Bouzedjar", "name_ar": "بوزجار" },
       { "code": "4610", "name": "Chaabat El Ham", "name_ar": "الشعبة" },
       { "code": "4611", "name": "Chentouf", "name_ar": "شنتوف" },
@@ -1720,12 +1555,12 @@
       { "code": "4616", "name": "Hammam Bou Hadjar", "name_ar": "حمام بوحجر" },
       { "code": "4617", "name": "Hassasna", "name_ar": "الحساسنة" },
       { "code": "4618", "name": "Hassi El Ghella", "name_ar": "حاسي الغلة" },
-      { "code": "4619", "name": "Lahlaf", "name_ar": "لھلاف" },
+      { "code": "4619", "name": "Lahlaf", "name_ar": "لهلاف" },
       { "code": "4620", "name": "Oued Berkeche", "name_ar": "وادي برقش" },
       { "code": "4621", "name": "Oued Sebbah", "name_ar": "وادي الصباح" },
       { "code": "4622", "name": "Ouled Boudjemaa", "name_ar": "أولاد بوجمعة" },
       { "code": "4623", "name": "Ouled Kihal", "name_ar": "أولاد الكيحل" },
-      { "code": "4624", "name": "Oulhaca El Gheraba", "name_ar": "ولھاسة الغربية" },
+      { "code": "4624", "name": "Oulhaca El Gheraba", "name_ar": "ولهاسة الغربية" },
       { "code": "4625", "name": "Sidi Ben Adda", "name_ar": "سيدي بن عدة" },
       { "code": "4626", "name": "Sidi Boumedienne", "name_ar": "سيدي بومدين" },
       { "code": "4627", "name": "Sidi Ouriache", "name_ar": "سيدي ورياش" },
@@ -1734,16 +1569,14 @@
     ]
   },
   {
-    "code": "47",
-    "name": "Ghardaïa",
-    "name_ar": "غرداية",
+    "code": "47", "name": "Ghardaïa", "name_ar": "غرداية",
     "communes": [
       { "code": "4701", "name": "Ghardaïa", "name_ar": "غرداية" },
       { "code": "4702", "name": "El Menia", "name_ar": "المنيعة" },
       { "code": "4703", "name": "Bounoura", "name_ar": "بونورة" },
       { "code": "4704", "name": "Dhayet Bendhahoua", "name_ar": "ضاية بن ضحو" },
       { "code": "4705", "name": "El Atteuf", "name_ar": "العطف" },
-      { "code": "4706", "name": "El Guerrara", "name_ar": "الڨرارة" },
+      { "code": "4706", "name": "El Guerrara", "name_ar": "القرارة" },
       { "code": "4707", "name": "Hassi Fehal", "name_ar": "حاسي الفحل" },
       { "code": "4708", "name": "Hassi Gara", "name_ar": "حاسي القارة" },
       { "code": "4709", "name": "Mansoura", "name_ar": "منصورة" },
@@ -1753,9 +1586,7 @@
     ]
   },
   {
-    "code": "48",
-    "name": "Relizane",
-    "name_ar": "غليزان",
+    "code": "48", "name": "Relizane", "name_ar": "غليزان",
     "communes": [
       { "code": "4801", "name": "Relizane", "name_ar": "غليزان" },
       { "code": "4802", "name": "Mazouna", "name_ar": "مازونة" },
@@ -1776,8 +1607,7 @@
       { "code": "4817", "name": "Had Echkalla", "name_ar": "حد الشقالة" },
       { "code": "4818", "name": "Hamri", "name_ar": "حمري" },
       { "code": "4819", "name": "Kalaa", "name_ar": "القلعة" },
-      { "code": "4820", "name": "Lahlef", "name_ar": "لھلاف" },
-      { "code": "4821", "name": "Mazouna", "name_ar": "مازونة" },
+      { "code": "4820", "name": "Lahlef", "name_ar": "لهلاف" },
       { "code": "4822", "name": "Mediouna", "name_ar": "مديونة" },
       { "code": "4823", "name": "Mendes", "name_ar": "منداس" },
       { "code": "4824", "name": "Merdja Sidi Abed", "name_ar": "مرجة سيدي عابد" },
@@ -1787,7 +1617,6 @@
       { "code": "4828", "name": "Ouled Aiche", "name_ar": "أولاد يعيش" },
       { "code": "4829", "name": "Ouled Sidi Mihoub", "name_ar": "أولاد سيدي الميهوب" },
       { "code": "4830", "name": "Ramka", "name_ar": "الرمكة" },
-      { "code": "4831", "name": "Relizane", "name_ar": "غليزان" },
       { "code": "4832", "name": "Sidi Khettab", "name_ar": "سيدي خطاب" },
       { "code": "4833", "name": "Sidi Lazreg", "name_ar": "سيدي لزرق" },
       { "code": "4834", "name": "Sidi M'Hamed Ben Ali", "name_ar": "سيدي امحمد بن علي" },
@@ -1798,9 +1627,7 @@
     ]
   },
   {
-    "code": "49",
-    "name": "Timimoun",
-    "name_ar": "تيميمون",
+    "code": "49", "name": "Timimoun", "name_ar": "تيميمون",
     "communes": [
       { "code": "4901", "name": "Timimoun", "name_ar": "تيميمون" },
       { "code": "4902", "name": "Ouled Saïd", "name_ar": "أولاد سعيد" },
@@ -1815,18 +1642,14 @@
     ]
   },
   {
-    "code": "50",
-    "name": "Bordj Badji Mokhtar",
-    "name_ar": "برج باجي مختار",
+    "code": "50", "name": "Bordj Badji Mokhtar", "name_ar": "برج باجي مختار",
     "communes": [
       { "code": "5001", "name": "Bordj Badji Mokhtar", "name_ar": "برج باجي مختار" },
       { "code": "5002", "name": "Timiaouine", "name_ar": "تيمياوين" }
     ]
   },
   {
-    "code": "51",
-    "name": "Ouled Djellal",
-    "name_ar": "أولاد جلال",
+    "code": "51", "name": "Ouled Djellal", "name_ar": "أولاد جلال",
     "communes": [
       { "code": "5101", "name": "Ouled Djellal", "name_ar": "أولاد جلال" },
       { "code": "5102", "name": "Chaïba", "name_ar": "الشعيبة" },
@@ -1837,9 +1660,7 @@
     ]
   },
   {
-    "code": "52",
-    "name": "Béni Abbès",
-    "name_ar": "بني عباس",
+    "code": "52", "name": "Béni Abbès", "name_ar": "بني عباس",
     "communes": [
       { "code": "5201", "name": "Béni Abbès", "name_ar": "بني عباس" },
       { "code": "5202", "name": "Tamtert", "name_ar": "تامترت" },
@@ -1854,9 +1675,7 @@
     ]
   },
   {
-    "code": "53",
-    "name": "In Salah",
-    "name_ar": "عين صالح",
+    "code": "53", "name": "In Salah", "name_ar": "عين صالح",
     "communes": [
       { "code": "5301", "name": "In Salah", "name_ar": "عين صالح" },
       { "code": "5302", "name": "Foggaret Ezzouaoua", "name_ar": "فقارة الزوى" },
@@ -1864,24 +1683,20 @@
     ]
   },
   {
-    "code": "54",
-    "name": "In Guezzam",
-    "name_ar": "عين قزام",
+    "code": "54", "name": "In Guezzam", "name_ar": "عين قزام",
     "communes": [
       { "code": "5401", "name": "In Guezzam", "name_ar": "عين قزام" },
       { "code": "5402", "name": "Tin Zaouatine", "name_ar": "تين زاوتين" }
     ]
   },
   {
-    "code": "55",
-    "name": "Touggourt",
-    "name_ar": "تقرت",
+    "code": "55", "name": "Touggourt", "name_ar": "تقرت",
     "communes": [
       { "code": "5501", "name": "Touggourt", "name_ar": "تقرت" },
       { "code": "5502", "name": "Nezla", "name_ar": "النزلة" },
       { "code": "5503", "name": "Tebesbest", "name_ar": "تبسبست" },
       { "code": "5504", "name": "Zaouia El Abidia", "name_ar": "الزاوية العابدية" },
-      { "code": "5505", "name": "Temacine", "name_ar": "تماسين" },
+      { "code": "5505", "name": "Temacine", "name_ar": "تاماسين" },
       { "code": "5506", "name": "Blidet Amor", "name_ar": "بليدة عمر" },
       { "code": "5507", "name": "Sidi Slimane", "name_ar": "سيدي سليمان" },
       { "code": "5508", "name": "Megarine", "name_ar": "المقارين" },
@@ -1891,18 +1706,14 @@
     ]
   },
   {
-    "code": "56",
-    "name": "Djanet",
-    "name_ar": "جانت",
+    "code": "56", "name": "Djanet", "name_ar": "جانت",
     "communes": [
       { "code": "5601", "name": "Djanet", "name_ar": "جانت" },
       { "code": "5602", "name": "Bordj El Houasse", "name_ar": "برج الحواس" }
     ]
   },
   {
-    "code": "57",
-    "name": "El M'Ghair",
-    "name_ar": "المغير",
+    "code": "57", "name": "El M'Ghair", "name_ar": "المغير",
     "communes": [
       { "code": "5701", "name": "El M'Ghair", "name_ar": "المغير" },
       { "code": "5702", "name": "Djamaa", "name_ar": "جامعة" },
@@ -1915,9 +1726,7 @@
     ]
   },
   {
-    "code": "58",
-    "name": "El Meniaa",
-    "name_ar": "المنيعة",
+    "code": "58", "name": "El Meniaa", "name_ar": "المنيعة",
     "communes": [
       { "code": "5801", "name": "El Meniaa", "name_ar": "المنيعة" },
       { "code": "5802", "name": "Hassi Gara", "name_ar": "حاسي القارة" },

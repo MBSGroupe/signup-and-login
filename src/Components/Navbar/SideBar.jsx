@@ -427,18 +427,14 @@ export default function SideBar() {
                     onClick={() => handleNavigation("/dash/roles")}
                     active={isActive("/dash/roles")}
                   />
+                  
                   <SubItem
-                    label="Ajouter un rôle"
-                    onClick={() => handleNavigation("/dash/roles/create")}
-                    active={isActive("/dash/roles/create")}
-                  />
-                  <SubItem
-                    label="Schémas de validation"
+                    label="Validations"
                     onClick={() => handleNavigation("/dash/validation/schemas")}
                     active={isActive("/dash/validation/schemas")}
                   />
                   <SubItem
-                    label="Templates"
+                    label="PDF Templates"
                     onClick={() => handleNavigation("/dash/template/background")}
                     active={isActive("/dash/template/background")}
                   />
@@ -450,8 +446,10 @@ export default function SideBar() {
           <NavItem
             icon={UserCog}
             label="Mon profil"
-            onClick={() => handleNavigation("/auth/profile")}
-            active={isActive("/auth/profile")}
+            onClick={() =>
+              handleNavigation(`/dash/admins/${authData?.user?.id}`)
+            }
+            active={isActive(`/dash/admins/${authData?.user?.id}`)}
           />
         </div>
       </div>

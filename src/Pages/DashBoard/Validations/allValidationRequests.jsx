@@ -1,5 +1,5 @@
 // AllValidationRequests.jsx
-import { useContext, useEffect, useState, useMemo } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { UserContext } from '../../../Context/dataCont';
 import { fetchWithRefresh } from '../../../Components/api';
 import { useNavigate } from 'react-router-dom';
@@ -29,13 +29,13 @@ const PAGE_SIZE = 20;
 
 // ─── Period presets ──────────────────────────────────────────────
 const PERIOD_OPTIONS = [
-  { value: 'all',     label: 'Toutes les périodes' },
-  { value: 'today',   label: "Aujourd'hui" },
-  { value: '7days',   label: '7 derniers jours' },
-  { value: '30days',  label: '30 derniers jours' },
-  { value: '3months', label: '3 derniers mois' },
-  { value: 'thisYear',label: 'Cette année' },
-  { value: 'custom',  label: 'Période personnalisée' },
+  { value: 'all',      label: 'Toutes les périodes' },
+  { value: 'today',    label: "Aujourd'hui" },
+  { value: '7days',    label: '7 derniers jours' },
+  { value: '30days',   label: '30 derniers jours' },
+  { value: '3months',  label: '3 derniers mois' },
+  { value: 'thisYear', label: 'Cette année' },
+  { value: 'custom',   label: 'Période personnalisée' },
 ];
 
 // Compute { from, to } Date objects from the selected preset.
@@ -85,18 +85,11 @@ function computeDateRange(period, customFrom, customTo) {
 }
 
 // Build a compact list of page numbers with ellipsis markers.
-// e.g. [1, '...', 4, 5, 6, '...', 42]
 function getPageNumbers(current, total) {
   if (total <= 7) {
     return Array.from({ length: total }, (_, i) => i + 1);
   }
-  const pages = new Set([
-    1,
-    total,
-    current,
-    current - 1,
-    current + 1,
-  ]);
+  const pages = new Set([1, total, current, current - 1, current + 1]);
   const sorted = Array.from(pages)
     .filter((p) => p >= 1 && p <= total)
     .sort((a, b) => a - b);
@@ -109,6 +102,49 @@ function getPageNumbers(current, total) {
     prev = p;
   }
   return result;
+}
+
+// ─── Target display ──────────────────────────────────────────────
+function getTargetDisplayFor(req) {
+  if (!req) return 'Demande';
+
+  if (req.payload?.title || req.data?.title) {
+    return req.payload?.title || req.data?.title;
+  }
+
+  const target = req.targetId;
+  const targetType = req.targetType;
+
+  if (!target) {
+    return req.validationSchema?.name || req.schemaName || 'Demande';
+  }
+
+  if (typeof target === 'string') {
+    return `Utilisateur #${target.slice(-6)}`;
+  }
+
+  switch (targetType) {
+    case 'User':
+      return (
+        target.fullName ||
+        `${target.name || ''} ${target.lastname || ''}`.trim() ||
+        target.email ||
+        target.id
+      );
+    case 'File':
+      return target.fileName || target.name || `Document (${target.folder || 'unknown'})`;
+    case 'Cotisation':
+      return target.type || target.feeType || `Cotisation ${target.year || ''}` || target.id;
+    default:
+      return (
+        target.name ||
+        target.title ||
+        target.fullName ||
+        target.id ||
+        req.validationSchema?.name ||
+        'Demande'
+      );
+  }
 }
 
 export default function AllValidationRequests() {
@@ -181,7 +217,6 @@ export default function AllValidationRequests() {
         );
         const body = await res.json();
 
-        // Unwrap the ResponseInterceptor envelope if present
         const data = body?.data ?? body;
 
         const list =
@@ -239,34 +274,6 @@ export default function AllValidationRequests() {
     }
   };
 
-  const getTargetDisplay = (req) => {
-    if (req.payload?.title) return req.payload.title;
-    if (req.data?.title) return req.data.title;
-
-    const target = req.targetId;
-
-    if (!target) {
-      return req.validationSchema?.name || req.schemaName || 'Demande';
-    }
-
-    if (typeof target === 'string') {
-      return `Utilisateur #${target.slice(-6)}`;
-    }
-
-    if (target.fullName) return target.fullName;
-    const nameParts = [target.name, target.lastname].filter(Boolean).join(' ').trim();
-    if (nameParts) return nameParts;
-    if (target.email) return target.email;
-    if (target.fileName) return target.fileName;
-    if (target.title) return target.title;
-    if (target.type) return target.type;
-
-    const id = target.id || target._id;
-    if (id) return `Utilisateur #${String(id).slice(-6)}`;
-
-    return req.validationSchema?.name || req.schemaName || 'Demande';
-  };
-
   const getTargetIcon = (type) => {
     switch (type) {
       case 'User':       return <User className="w-4 h-4" />;
@@ -277,13 +284,11 @@ export default function AllValidationRequests() {
   };
 
   // ─── Active filter count & reset ─────────────────────────────
-  const activeFilterCount = useMemo(() => {
-    let n = 0;
-    if (statusFilter !== 'all') n++;
-    if (schemaFilter !== 'all') n++;
-    if (periodFilter !== 'all') n++;
-    return n;
-  }, [statusFilter, schemaFilter, periodFilter]);
+  const activeFilterCount = [
+    statusFilter !== 'all',
+    schemaFilter !== 'all',
+    periodFilter !== 'all',
+  ].filter(Boolean).length;
 
   const resetFilters = () => {
     setStatusFilter('all');
@@ -293,7 +298,7 @@ export default function AllValidationRequests() {
     setCustomTo('');
   };
 
-  // ─── Loading screen (only first load, not on page change) ────
+  // ─── Loading screen (only first load) ────────────────────────
   if (loading && requests.length === 0) {
     return (
       <div className="min-h-screen bg-[#0A0F1C] flex items-center justify-center ml-[30px] mt-16">
@@ -331,7 +336,7 @@ export default function AllValidationRequests() {
         </div>
 
         {/* ─── Filters panel ──────────────────────────────────── */}
-        <div className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] p-4 mb-6 shadow-lg">
+        <div className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] p-5 mb-6 shadow-lg">
           <div className="flex flex-wrap items-center gap-3 mb-4">
             <div className="flex items-center gap-2 text-[#94A3B8]">
               <Filter className="w-4 h-4" />
@@ -345,10 +350,23 @@ export default function AllValidationRequests() {
             <span className="text-xs text-[#64748B] ml-auto">
               {total} demande{total > 1 ? 's' : ''}
             </span>
+            <button
+              type="button"
+              onClick={resetFilters}
+              disabled={activeFilterCount === 0}
+              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                activeFilterCount === 0
+                  ? 'bg-white/5 text-[#64748B] cursor-not-allowed'
+                  : 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20'
+              }`}
+            >
+              <X className="w-3.5 h-3.5" />
+              Réinitialiser
+            </button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {/* ── Statut ── */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {/* Statut */}
             <div>
               <label className="block text-[11px] uppercase tracking-wider text-[#64748B] mb-1.5">
                 Statut
@@ -368,7 +386,7 @@ export default function AllValidationRequests() {
               </select>
             </div>
 
-            {/* ── Type de schéma ── */}
+            {/* Type de schéma */}
             <div>
               <label className="block text-[11px] uppercase tracking-wider text-[#64748B] mb-1.5">
                 Type de demande
@@ -387,7 +405,7 @@ export default function AllValidationRequests() {
               </select>
             </div>
 
-            {/* ── Période ── */}
+            {/* Période */}
             <div>
               <label className="block text-[11px] uppercase tracking-wider text-[#64748B] mb-1.5">
                 Période
@@ -404,26 +422,9 @@ export default function AllValidationRequests() {
                 ))}
               </select>
             </div>
-
-            {/* ── Reset ── */}
-            <div className="flex items-end">
-              <button
-                type="button"
-                onClick={resetFilters}
-                disabled={activeFilterCount === 0}
-                className={`w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-                  activeFilterCount === 0
-                    ? 'bg-white/5 text-[#64748B] cursor-not-allowed'
-                    : 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20'
-                }`}
-              >
-                <X className="w-4 h-4" />
-                Réinitialiser
-              </button>
-            </div>
           </div>
 
-          {/* ── Custom date range ── */}
+          {/* Custom date range */}
           {periodFilter === 'custom' && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3 pt-3 border-t border-[rgba(255,255,255,0.06)]">
               <div>
@@ -481,17 +482,17 @@ export default function AllValidationRequests() {
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     <div className="flex-1 min-w-0">
 
-                      {/* ── Row 1: name (primary) ───────────────────────────────── */}
+                      {/* Row 1: name */}
                       <div className="flex items-center gap-3">
                         <span className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
                           {getTargetIcon(req.targetType)}
                         </span>
                         <h3 className="text-lg font-semibold text-[#F8FAFC] truncate">
-                          {getTargetDisplay(req)}
+                          {getTargetDisplayFor(req)}
                         </h3>
                       </div>
 
-                      {/* ── Row 2: request type + meta ──────────────────────────── */}
+                      {/* Row 2: schema + meta */}
                       <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 ml-12">
                         <span className="text-xs font-medium text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
                           {req.validationSchema?.name || req.schemaName || `${req.targetType}`}
@@ -508,7 +509,7 @@ export default function AllValidationRequests() {
                         </span>
                       </div>
 
-                      {/* ── Row 3: status ───────────────────────────────────────── */}
+                      {/* Row 3: status */}
                       <div className="mt-2 flex items-center gap-3 ml-12">
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadge(req.status)}`}>
                           {getStatusIcon(req.status)}

@@ -1,79 +1,83 @@
-import { React, useState, useEffect, useContext } from "react";
+// pages/Auth/UserLogin.jsx
+import { useState, useEffect, useContext } from "react";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { UserContext } from "../Context/dataCont";
-import { Mail, Lock, LogIn, Shield, AlertCircle, User as UserIcon, Building2 } from "lucide-react";
-import CNOALOGO from '../assets/LOGOCLOA.png';
+import {
+  Mail,
+  Lock,
+  LogIn,
+  AlertCircle,
+  User as UserIcon,
+} from "lucide-react";
+import CNOALOGO from "../assets/LOGOCLOA.png";
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
+const LOCK_STORAGE_KEY = "loginLockUntil";
+
+const VERIFIED_MESSAGE =
+  "✅ Votre email a été vérifié avec succès ! Veuillez vous connecter à votre compte.";
+
+const REASON_MESSAGES = {
+  // Password flows
+  "password-changed":
+    "Votre mot de passe a été modifié. Veuillez vous reconnecter avec vos nouveaux identifiants.",
+  "password-reset":
+    "Votre mot de passe a été réinitialisé. Veuillez vous reconnecter.",
+  "logged-out": "Vous avez été déconnecté. À bientôt !",
+
+  // Session failures
+  "session-expired": "Votre session a expiré. Veuillez vous reconnecter.",
+  "session-revoked": "Votre session a été révoquée. Veuillez vous reconnecter.",
+  "session-not-found": "Session introuvable. Veuillez vous reconnecter.",
+  "session-invalid": "Session invalide. Veuillez vous reconnecter.",
+
+  // Recovery
+  "reset-link-sent":
+    "Un lien de réinitialisation a été envoyé à votre adresse email.",
+  "reset-link-expired":
+    "Le lien de réinitialisation a expiré. Veuillez en demander un nouveau.",
+  "reset-link-invalid": "Lien de réinitialisation invalide.",
+
+  // Account state
+  "account-inactive":
+    "Votre compte n'est pas actif. Veuillez contacter un administrateur.",
+  "account-locked":
+    "Votre compte est temporairement bloqué. Veuillez réessayer plus tard.",
+
+  // Signup
+  "email-verified": VERIFIED_MESSAGE,
+  "verify-email-resent": "Un nouvel email de vérification a été envoyé.",
+};
 
 const LoginForm = () => {
-  const { authData, setAuthData } = useContext(UserContext);
+  const { setAuthData } = useContext(UserContext);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const isVerified = searchParams.get("verified") === "true";
-
-  const [loginType, setLoginType] = useState('user'); // 'user' | 'admin'
-
-  const VERIFIED_MESSAGE = "✅ Votre email a été vérifié avec succès ! Veuillez vous connecter à votre compte.";
-
-  const REASON_MESSAGES = {
-    // User actions that require re-authentication
-    'password-changed': "Votre mot de passe a été modifié. Veuillez vous reconnecter avec vos nouveaux identifiants.",
-    'password-reset': "Votre mot de passe a été réinitialisé. Veuillez vous reconnecter.",
-    'logged-out': "Vous avez été déconnecté. À bientôt !",
-
-    // Session/auth failures that land the user back on login
-    'session-expired': "Votre session a expiré. Veuillez vous reconnecter.",
-    'session-revoked': "Votre session a été révoquée. Veuillez vous reconnecter.",
-    'session-not-found': "Session introuvable. Veuillez vous reconnecter.",
-    'session-invalid': "Session invalide. Veuillez vous reconnecter.",
-
-    // Password recovery flows
-    'reset-link-sent': "Un lien de réinitialisation a été envoyé à votre adresse email.",
-    'reset-link-expired': "Le lien de réinitialisation a expiré. Veuillez en demander un nouveau.",
-    'reset-link-invalid': "Lien de réinitialisation invalide.",
-
-    // Account state
-    'account-inactive': "Votre compte n'est pas actif. Veuillez contacter un administrateur.",
-    'account-locked': "Votre compte est temporairement bloqué. Veuillez réessayer plus tard.",
-
-    // Signup / verification
-    'email-verified': VERIFIED_MESSAGE,
-    'verify-email-resent': "Un nouvel email de vérification a été envoyé.",
-  };
 
   const [message, setMessage] = useState(() => {
-    // Prefer explicit `reason`, fall back to legacy `?verified=true`
     const reason = searchParams.get("reason");
-    if (reason && REASON_MESSAGES[reason]) {
-      return REASON_MESSAGES[reason];
-    }
-    if (searchParams.get("verified") === "true") {
-      return VERIFIED_MESSAGE;
-    }
+    if (reason && REASON_MESSAGES[reason]) return REASON_MESSAGES[reason];
+    if (searchParams.get("verified") === "true") return VERIFIED_MESSAGE;
     return "";
   });
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-  });
-  const [lockTime, setLockTime] = useState(null);
-  const LOCK_STORAGE_KEY = "loginLockUntil";
 
+  const [formData, setFormData] = useState({ email: "", password: "" });
+  const [lockTime, setLockTime] = useState(null);
+
+  // Restore a persisted lock on mount
   useEffect(() => {
-    const storedLockUntil = localStorage.getItem(LOCK_STORAGE_KEY);
-    if (storedLockUntil) {
-      const lockUntil = parseInt(storedLockUntil, 10);
-      const now = Date.now();
-      if (lockUntil > now) {
-        const remaining = Math.ceil((lockUntil - now) / 1000);
-        setLockTime(remaining);
-      } else {
-        localStorage.removeItem(LOCK_STORAGE_KEY);
-      }
+    const stored = localStorage.getItem(LOCK_STORAGE_KEY);
+    if (!stored) return;
+    const lockUntil = parseInt(stored, 10);
+    const now = Date.now();
+    if (lockUntil > now) {
+      setLockTime(Math.ceil((lockUntil - now) / 1000));
+    } else {
+      localStorage.removeItem(LOCK_STORAGE_KEY);
     }
   }, []);
 
+  // Countdown
   useEffect(() => {
     let interval;
     if (lockTime > 0) {
@@ -91,10 +95,7 @@ const LoginForm = () => {
   }, [lockTime]);
 
   const handleChange = (e) => {
-    setFormData((prev) => ({
-      ...prev,
-      [e.target.name]: e.target.value,
-    }));
+    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
   const handleSubmit = async (e) => {
@@ -102,53 +103,65 @@ const LoginForm = () => {
     setMessage("");
     setFormData((prev) => ({ ...prev, password: "" }));
 
-    const endpoint = loginType === 'admin' 
-      ? `${NEST_API_URL}/auth/admin/login` 
-      : `${NEST_API_URL}/auth/login`;
-
     try {
-      const response = await fetch(endpoint, {
+      const response = await fetch(`${NEST_API_URL}/auth/login`, {
         method: "POST",
-        credentials: 'include',
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
       });
 
       const respData = await response.json();
+
       if (response.ok && respData.success) {
         const innerData = respData.data?.data || respData.data;
         const user = innerData?.user || respData.user;
         const accessToken = innerData?.accessToken || respData.accessToken;
         setAuthData({ user, token: accessToken });
 
-        if (user.grade === 'admin' || user.grade === 'super_admin') {
-          navigate('/dash');
-        } else if (user.grade === 'user') {
-          navigate('/auth/profile');
+        if (user.grade === "user") {
+          navigate("/auth/profile");
+        } else if (user.grade === "admin" || user.grade === "super_admin") {
+          navigate("/dash");
         } else {
-          navigate('/');
+          navigate("/");
         }
-      } else if (response.status === 429) {
+        return;
+      }
+
+      if (response.status === 429) {
         const remaining = respData.data?.remainingTime || 60;
         const lockUntil = Date.now() + remaining * 1000;
         localStorage.setItem(LOCK_STORAGE_KEY, lockUntil);
         setLockTime(remaining);
-        setMessage(respData.message || respData.data?.message || "Trop de tentatives. Veuillez patienter.");
-      } else if (response.status === 401) {
-        const backendMessage = respData.message || respData.data?.message || "";
-        let lockMatch = backendMessage.match(/locked for (\d+)\s*(s|second|seconds|minute|minutes)/i);
+        setMessage(
+          respData.message ||
+            respData.data?.message ||
+            "Trop de tentatives. Veuillez patienter.",
+        );
+        return;
+      }
+
+      if (response.status === 401) {
+        const backendMessage =
+          respData.message || respData.data?.message || "";
         let remaining = 0;
 
+        let lockMatch = backendMessage.match(
+          /locked for (\d+)\s*(s|second|seconds|minute|minutes)/i,
+        );
         if (lockMatch) {
           const value = parseInt(lockMatch[1], 10);
           const unit = lockMatch[2].toLowerCase();
-          remaining = unit.includes('minute') ? value * 60 : value;
+          remaining = unit.includes("minute") ? value * 60 : value;
         } else {
-          lockMatch = backendMessage.match(/(\d+)\s*(seconde|secondes|minute|minutes)/i);
+          lockMatch = backendMessage.match(
+            /(\d+)\s*(seconde|secondes|minute|minutes)/i,
+          );
           if (lockMatch) {
             const value = parseInt(lockMatch[1], 10);
             const unit = lockMatch[2].toLowerCase();
-            remaining = unit.includes('minute') ? value * 60 : value;
+            remaining = unit.includes("minute") ? value * 60 : value;
           }
         }
 
@@ -156,13 +169,21 @@ const LoginForm = () => {
           const lockUntil = Date.now() + remaining * 1000;
           localStorage.setItem(LOCK_STORAGE_KEY, lockUntil);
           setLockTime(remaining);
-          setMessage(backendMessage || "Compte bloqué temporairement. Veuillez patienter.");
+          setMessage(
+            backendMessage ||
+              "Compte bloqué temporairement. Veuillez patienter.",
+          );
         } else {
           setMessage(backendMessage || "Erreur de connexion.");
         }
-      } else {
-        setMessage(respData.message || respData.data?.message || "Erreur de connexion.");
+        return;
       }
+
+      setMessage(
+        respData.message ||
+          respData.data?.message ||
+          "Erreur de connexion.",
+      );
     } catch (err) {
       console.error("Network error:", err);
       setMessage("⚠️ Erreur réseau. Veuillez réessayer.");
@@ -172,13 +193,20 @@ const LoginForm = () => {
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+    return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
   };
+
+  const isError =
+    message.includes("Trop de tentatives") ||
+    message.includes("Erreur") ||
+    message.includes("réseau") ||
+    message.includes("invalide") ||
+    message.includes("incorrect");
 
   return (
     <div className="min-h-screen bg-[#0A0F1C] flex flex-col items-center justify-center p-6 font-sans antialiased">
       <div className="w-full max-w-md">
-        {/* ─── Header with logo and title ─── */}
+        {/* Header */}
         <div className="flex flex-col items-center mb-8">
           <img
             src={CNOALOGO}
@@ -188,51 +216,23 @@ const LoginForm = () => {
           <h1 className="text-3xl font-bold text-[#F8FAFC] tracking-tight text-center">
             Ordre National des Architectes
           </h1>
-          <p className="text-[#94A3B8] text-sm mt-1">
-            {loginType === 'admin' ? 'Espace Administration' : 'Espace Membre'}
-          </p>
+          <p className="text-[#94A3B8] text-sm mt-1">Espace Membre</p>
         </div>
 
         <div className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] shadow-2xl shadow-black/50 p-8">
-          {/* ─── Toggle: User / Admin ─── */}
-          <div className="flex gap-2 mb-6 p-1 bg-[#0A0F1C] rounded-xl border border-[rgba(255,255,255,0.06)]">
-            <button
-              type="button"
-              onClick={() => { setLoginType('user'); setMessage(''); }}
-              className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 ${
-                loginType === 'user'
-                  ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
-                  : 'text-[#94A3B8] hover:text-white hover:bg-[#1a2332]'
-              }`}
-            >
-              <UserIcon className="w-4 h-4" />
-              Membre
-            </button>
-            <button
-              type="button"
-              onClick={() => { setLoginType('admin'); setMessage(''); }}
-              className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 ${
-                loginType === 'admin'
-                  ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
-                  : 'text-[#94A3B8] hover:text-white hover:bg-[#1a2332]'
-              }`}
-            >
-              <Shield className="w-4 h-4" />
-              Admin
-            </button>
-          </div>
+
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-1.5">
               <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">
-                {loginType === 'admin' ? 'Email administratif' : 'Email professionnel'}
+                Email professionnel
               </label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748B]" />
                 <input
                   type="email"
                   name="email"
-                  placeholder={loginType === 'admin' ? 'admin@cnoa.dz' : 'nom.prenom@elmi3mari.dz'}
+                  placeholder="nom.prenom@elmi3mari.dz"
                   value={formData.email}
                   onChange={handleChange}
                   disabled={lockTime > 0}
@@ -272,45 +272,46 @@ const LoginForm = () => {
               ) : (
                 <>
                   <LogIn className="w-4 h-4" />
-                  {loginType === 'admin' ? 'Connexion Admin' : 'Se connecter'}
+                  Se connecter
                 </>
               )}
             </button>
           </form>
 
           {message && (
-            <div className={`mt-5 p-3 rounded-xl text-sm font-medium flex items-center gap-2 ${
-              message.includes('Trop de tentatives') || message.includes('Erreur')
-                ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-                : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-            }`}>
+            <div
+              className={`mt-5 p-3 rounded-xl text-sm font-medium flex items-center gap-2 ${
+                isError
+                  ? "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                  : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+              }`}
+            >
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
               {message}
             </div>
           )}
         </div>
 
-        {loginType === 'user' && (
-          <>
-            <div className="mt-4 text-center">
-              <Link
-                to="/forgot-password"
-                className="text-sm text-emerald-400 hover:underline font-medium"
-              >
-                Mot de Passe Oublié ?
-              </Link>
-            </div>
+        <div className="mt-4 text-center">
+          <Link
+            to="/forgot-password"
+            className="text-sm text-emerald-400 hover:underline font-medium"
+          >
+            Mot de Passe Oublié ?
+          </Link>
+        </div>
 
-            <div className="mt-8 text-center text-[#64748B] text-m">
-              <p>
-                Vous n'êtes pas inscrit ? Créez un compte{" "}
-                <Link to="/signup" className="text-emerald-400 hover:underline font-medium">
-                  S'inscrire
-                </Link>
-              </p>
-            </div>
-          </>
-        )}
+        <div className="mt-8 text-center text-[#64748B] text-sm">
+          <p>
+            Vous n'êtes pas inscrit ? Créez un compte{" "}
+            <Link
+              to="/signup"
+              className="text-emerald-400 hover:underline font-medium"
+            >
+              S'inscrire
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   );

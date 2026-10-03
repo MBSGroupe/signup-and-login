@@ -41,7 +41,8 @@ import ValidationSchemaDetails from './Pages/DashBoard/Validations/ValidationSch
 import ValidationRequestProgress from './Pages/DashBoard/Validations/ValidationRequestsProgress';
 import AdminsPanel from "./Pages/DashBoard/Admins/AdminsPanel";
 import AdminForm from "./Pages/DashBoard/Admins/AdminForm";
-
+import AdminProfile from "./Pages/DashBoard/Admins/AdminsProfile";
+import AdminLogin from "./Pages/adminLogin";
 import RoleDetails from "./Pages/DashBoard/Roles/RoleDetails";
 import RolesPanel from "./Pages/DashBoard/Roles/RolesPanel";
 import RoleForm from "./Pages/DashBoard/Roles/RoleForm";
@@ -59,6 +60,8 @@ export default function App() {
       <Route path="/" element={<MainLayout />}>
         <Route index element={<LoginForm />} />
         <Route path="signup" element={<FormulaireCNOA />} />
+        <Route path="adminlogin" element={<AdminLogin />} />
+
         
         <Route path="forgot-password" element={<ForgotPassword />} />
         <Route path="reset-password" element={<ResetPassword />} />
@@ -112,6 +115,8 @@ export default function App() {
         <Route path="admins" element={<AdminsPanel />} />
         <Route path="/dash/admins/create"   element={<AdminForm mode="create" />} />
         <Route path="/dash/admins/edit/:id" element={<AdminForm mode="edit" />} />
+        <Route path="/dash/admins/:id" element={<AdminProfile mode="edit" />} />
+
 
         <Route path="/dash/roles"           element={<RolesPanel />} />
         <Route path="/dash/roles/create"    element={<RoleForm mode="create" />} />

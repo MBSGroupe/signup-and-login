@@ -10,6 +10,7 @@ import {
   Clock,
   CheckCircle,
   ChevronRight,
+  ChevronLeft,
   XCircle,
   AlertCircle,
   AlertTriangle,
@@ -119,6 +120,10 @@ export default function ValidationRequestsList() {
   const [serviceNationalFilter, setServiceNationalFilter] = useState('all');
   const [userStatusFilter, setUserStatusFilter] = useState('all');
 
+  // ─── Pagination ─────────────────────────────────────────────────
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+
   // ─── Mass selection ─────────────────────────────────────────────
   const [selectedRequests, setSelectedRequests] = useState([]);
   const [massApproving, setMassApproving] = useState(false);
@@ -133,6 +138,29 @@ export default function ValidationRequestsList() {
       ])
     );
   }, [requests]);
+
+  // ─── Helpers (declared early so they can be used in the filter memo) ───
+  const getTargetDisplay = (targetType, target, fullReq = null) => {
+    if (fullReq?.payload?.title || fullReq?.data?.title) {
+      return fullReq.payload?.title || fullReq.data?.title;
+    }
+    if (!target) {
+      return fullReq?.validationSchema?.name || fullReq?.schemaName || 'Demande';
+    }
+    switch (targetType) {
+      case 'User':
+        return target.fullName || `${target.name || ''} ${target.lastname || ''}`.trim() || target.id;
+      case 'File':
+        return target.fileName || target.name || `Document (${target.folder || 'unknown'})`;
+      case 'Cotisation':
+        return target.type || target.feeType || `Cotisation ${target.year || ''}` || target.id;
+      default:
+        if (typeof target === 'object') {
+          return target.name || target.title || target.fullName || target.id || fullReq?.validationSchema?.name || 'Demande';
+        }
+        return target;
+    }
+  };
 
   // ─── Client-side filter logic ───────────────────────────────────
   const filteredRequests = useMemo(() => {
@@ -205,6 +233,55 @@ export default function ValidationRequestsList() {
     userStatusFilter,
   ]);
 
+  // ─── Pagination slice ───────────────────────────────────────────
+  const totalPages = Math.max(1, Math.ceil(filteredRequests.length / pageSize));
+
+  const paginatedRequests = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredRequests.slice(start, start + pageSize);
+  }, [filteredRequests, currentPage, pageSize]);
+
+  // Reset to page 1 when any filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    searchTerm,
+    statusFilter,
+    targetTypeFilter,
+    periodFilter,
+    customFrom,
+    customTo,
+    wilayaFilter,
+    sexeFilter,
+    civilityFilter,
+    maritalStatusFilter,
+    diplomaTypeFilter,
+    registrationStatusFilter,
+    professionalModeFilter,
+    serviceNationalFilter,
+    userStatusFilter,
+    pageSize,
+  ]);
+
+  // Clamp page if total shrinks (e.g. filter reduces results)
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [totalPages, currentPage]);
+
+  const goToPage = (p) => {
+    if (p >= 1 && p <= totalPages) setCurrentPage(p);
+  };
+
+  const pageNumbers = useMemo(() => {
+    const max = 5;
+    let start = Math.max(1, currentPage - Math.floor(max / 2));
+    const end = Math.min(totalPages, start + max - 1);
+    if (end - start < max - 1) start = Math.max(1, end - max + 1);
+    const arr = [];
+    for (let i = start; i <= end; i++) arr.push(i);
+    return arr;
+  }, [currentPage, totalPages]);
+
   const activeFilterCount = useMemo(() => {
     let n = 0;
     if (searchTerm) n++;
@@ -227,29 +304,6 @@ export default function ValidationRequestsList() {
     diplomaTypeFilter, registrationStatusFilter, professionalModeFilter,
     serviceNationalFilter, userStatusFilter
   ]);
-
-  // ─── Helpers ────────────────────────────────────────────────────
-  const getTargetDisplay = (targetType, target, fullReq = null) => {
-    if (fullReq?.payload?.title || fullReq?.data?.title) {
-      return fullReq.payload?.title || fullReq.data?.title;
-    }
-    if (!target) {
-      return fullReq?.validationSchema?.name || fullReq?.schemaName || 'Demande';
-    }
-    switch (targetType) {
-      case 'User':
-        return target.fullName || `${target.name || ''} ${target.lastname || ''}`.trim() || target.id;
-      case 'File':
-        return target.fileName || target.name || `Document (${target.folder || 'unknown'})`;
-      case 'Cotisation':
-        return target.type || target.feeType || `Cotisation ${target.year || ''}` || target.id;
-      default:
-        if (typeof target === 'object') {
-          return target.name || target.title || target.fullName || target.id || fullReq?.validationSchema?.name || 'Demande';
-        }
-        return target;
-    }
-  };
 
   const getTargetIcon = (type) => {
     switch (type) {
@@ -322,6 +376,7 @@ export default function ValidationRequestsList() {
   };
 
   const handleSelectAll = () => {
+    // Select all mass-validation-eligible requests across the FULL filtered list
     const eligibleIds = filteredRequests
       .filter(req => {
         const firstPendingStep = req.steps
@@ -453,7 +508,7 @@ export default function ValidationRequestsList() {
           </div>
         )}
 
-        {/* SEARCH */}
+        {/* SEARCH + PAGE SIZE */}
         <div className="mb-6 flex flex-col md:flex-row md:items-center gap-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748B]" />
@@ -465,6 +520,16 @@ export default function ValidationRequestsList() {
               className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-[#111827] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] placeholder-[#64748B] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
             />
           </div>
+          <select
+            value={pageSize}
+            onChange={(e) => setPageSize(Number(e.target.value))}
+            className="px-4 py-2.5 rounded-xl bg-[#111827] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+          >
+            <option value="10">10 / page</option>
+            <option value="20">20 / page</option>
+            <option value="50">50 / page</option>
+            <option value="100">100 / page</option>
+          </select>
         </div>
 
         {/* QUICK ACTIONS */}
@@ -705,93 +770,145 @@ export default function ValidationRequestsList() {
             </p>
           </div>
         ) : (
-          <div className="space-y-4">
-            {filteredRequests.map((req, idx) => {
-              const firstPendingStep = req.steps
-                ?.filter(s => s.status === 'pending')
-                .sort((a, b) => a.order - b.order)[0];
+          <>
+            <div className="space-y-4">
+              {paginatedRequests.map((req, idx) => {
+                const firstPendingStep = req.steps
+                  ?.filter(s => s.status === 'pending')
+                  .sort((a, b) => a.order - b.order)[0];
 
-              const canMassValidate =
-                firstPendingStep &&
-                firstPendingStep.massValidation &&
-                firstPendingStep.allowedUserIds?.some(u => (u.id || u) === authData.user?.id);
+                const canMassValidate =
+                  firstPendingStep &&
+                  firstPendingStep.massValidation &&
+                  firstPendingStep.allowedUserIds?.some(u => (u.id || u) === authData.user?.id);
 
-              const isSelected = selectedRequests.includes(req.id);
+                const isSelected = selectedRequests.includes(req.id);
 
-              return (
-                <div
-                  key={req.id || idx}
-                  className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] p-5 hover:border-[rgba(255,255,255,0.12)] hover:bg-[#182233] transition-all duration-200 shadow-lg group"
-                >
-                  <div className="flex items-center gap-4">
-                    {canMassValidate && (
-                      <div className="flex-shrink-0">
-                        <div
-                          onClick={() => toggleRequestSelection(req.id)}
-                          className={`w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer transition-all ${
-                            isSelected
-                              ? 'bg-emerald-500 border-emerald-500'
-                              : 'bg-[#0A0F1C] border-[#64748B] hover:border-[#94A3B8]'
-                          }`}
-                        >
-                          {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="flex-1 min-w-0 cursor-pointer" onClick={() => navigate(`/dash/validation/requests/${req.id}`)}>
-                      <div className="flex items-center gap-3">
-                        <span className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 flex-shrink-0">
-                          {getTargetIcon(req.targetType)}
-                        </span>
-                        <div className="min-w-0">
-                          <h3 className="text-lg font-semibold text-[#F8FAFC] truncate">
-                            {req.validationSchema?.name || req.schemaName || `${req.targetType} – ${getTargetDisplay(req.targetType, req.targetId)}`}
-                          </h3>
-                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5">
-                            <span className="text-xs text-[#64748B] bg-[#0A0F1C] px-2 py-0.5 rounded border border-[rgba(255,255,255,0.06)]">
-                              {getTargetDisplay(req.targetType, req.targetId)}
-                            </span>
-                            <span className="text-xs text-[#64748B] flex items-center gap-1">
-                              <Calendar className="w-3 h-3" />
-                              {new Date(req.createdAt).toLocaleDateString('fr-FR')}
-                            </span>
-                            <span className="text-xs text-[#64748B] flex items-center gap-1">
-                              <User className="w-3 h-3" />
-                              {typeof req.createdBy === 'object' && req.createdBy !== null
-                                ? `${req.createdBy.name || ''} ${req.createdBy.lastname || ''}`.trim() || req.createdBy.name || req.createdBy.email || 'Inconnu'
-                                : (req.createdBy || 'Inconnu')}
-                            </span>
+                return (
+                  <div
+                    key={req.id || idx}
+                    className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] p-5 hover:border-[rgba(255,255,255,0.12)] hover:bg-[#182233] transition-all duration-200 shadow-lg group"
+                  >
+                    <div className="flex items-center gap-4">
+                      {canMassValidate && (
+                        <div className="flex-shrink-0">
+                          <div
+                            onClick={() => toggleRequestSelection(req.id)}
+                            className={`w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer transition-all ${
+                              isSelected
+                                ? 'bg-emerald-500 border-emerald-500'
+                                : 'bg-[#0A0F1C] border-[#64748B] hover:border-[#94A3B8]'
+                            }`}
+                          >
+                            {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
                           </div>
                         </div>
-                      </div>
+                      )}
 
-                      <div className="mt-2 flex flex-wrap items-center gap-3 ml-12">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadge(req.status)}`}>
-                          {getStatusIcon(req.status)}
-                          {req.status}
-                        </span>
-                        {canMassValidate && (
-                          <span className="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                            Validation en masse
+                      <div className="flex-1 min-w-0 cursor-pointer" onClick={() => navigate(`/dash/validation/requests/${req.id}`)}>
+                        <div className="flex items-center gap-3">
+                          <span className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 flex-shrink-0">
+                            {getTargetIcon(req.targetType)}
                           </span>
-                        )}
-                      </div>
-                    </div>
+                          <div className="min-w-0">
+                            <h3 className="text-lg font-semibold text-[#F8FAFC] truncate">
+                              {req.validationSchema?.name || req.schemaName || `${req.targetType} – ${getTargetDisplay(req.targetType, req.targetId)}`}
+                            </h3>
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5">
+                              <span className="text-xs text-[#64748B] bg-[#0A0F1C] px-2 py-0.5 rounded border border-[rgba(255,255,255,0.06)]">
+                                {getTargetDisplay(req.targetType, req.targetId)}
+                              </span>
+                              <span className="text-xs text-[#64748B] flex items-center gap-1">
+                                <Calendar className="w-3 h-3" />
+                                {new Date(req.createdAt).toLocaleDateString('fr-FR')}
+                              </span>
+                              <span className="text-xs text-[#64748B] flex items-center gap-1">
+                                <User className="w-3 h-3" />
+                                {typeof req.createdBy === 'object' && req.createdBy !== null
+                                  ? `${req.createdBy.name || ''} ${req.createdBy.lastname || ''}`.trim() || req.createdBy.name || req.createdBy.email || 'Inconnu'
+                                  : (req.createdBy || 'Inconnu')}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
 
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); navigate(`/dash/validation/requests/${req.id}`); }}
-                        className="text-[#64748B] hover:text-emerald-400 transition-colors p-1"
-                      >
-                        <ChevronRight className="w-5 h-5" />
-                      </button>
+                        <div className="mt-2 flex flex-wrap items-center gap-3 ml-12">
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadge(req.status)}`}>
+                            {getStatusIcon(req.status)}
+                            {req.status}
+                          </span>
+                          {canMassValidate && (
+                            <span className="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                              Validation en masse
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); navigate(`/dash/validation/requests/${req.id}`); }}
+                          className="text-[#64748B] hover:text-emerald-400 transition-colors p-1"
+                        >
+                          <ChevronRight className="w-5 h-5" />
+                        </button>
+                      </div>
                     </div>
                   </div>
+                );
+              })}
+            </div>
+
+            {/* PAGINATION */}
+            {totalPages > 1 && (
+              <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="text-sm text-[#64748B]">
+                  Affichage de {(currentPage - 1) * pageSize + 1} à{" "}
+                  {Math.min(currentPage * pageSize, filteredRequests.length)} sur{" "}
+                  {filteredRequests.length} demande{filteredRequests.length > 1 ? 's' : ''}
                 </div>
-              );
-            })}
-          </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => goToPage(currentPage - 1)}
+                    disabled={currentPage === 1}
+                    className={`p-2 rounded-lg transition ${
+                      currentPage === 1
+                        ? 'bg-[#111827] text-[#64748B] cursor-not-allowed opacity-50'
+                        : 'bg-[#111827] text-[#F8FAFC] hover:bg-[#1F2937] border border-[rgba(255,255,255,0.06)]'
+                    }`}
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+
+                  {pageNumbers.map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => goToPage(page)}
+                      className={`px-4 py-2 rounded-lg transition ${
+                        currentPage === page
+                          ? 'bg-emerald-500 text-white font-semibold shadow-lg shadow-emerald-500/20'
+                          : 'bg-[#111827] text-[#F8FAFC] hover:bg-[#1F2937] border border-[rgba(255,255,255,0.06)]'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+
+                  <button
+                    onClick={() => goToPage(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                    className={`p-2 rounded-lg transition ${
+                      currentPage === totalPages
+                        ? 'bg-[#111827] text-[#64748B] cursor-not-allowed opacity-50'
+                        : 'bg-[#111827] text-[#F8FAFC] hover:bg-[#1F2937] border border-[rgba(255,255,255,0.06)]'
+                    }`}
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

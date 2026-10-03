@@ -94,11 +94,33 @@ const unwrap = (body) => (body && typeof body === 'object' && 'data' in body && 
 const isFileField = (f) =>
   f?.ui?.widget === 'file' || f?.ui?.widget === 'image' || f?.type === 'file';
 
+// ─── Helper: extract a human-readable message from an error response ────
+const extractErrorMessage = (payload, resBody, fallbackStatus) => {
+  const baseMessage =
+    (payload && typeof payload === 'object' && payload.message) ||
+    (resBody && typeof resBody === 'object' && resBody.message) ||
+    (resBody && typeof resBody === 'string' && resBody) ||
+    `Erreur ${fallbackStatus}`;
+
+  const details =
+    (Array.isArray(payload?.errors) && payload.errors) ||
+    (Array.isArray(resBody?.errors) && resBody.errors) ||
+    null;
+
+  const joined = Array.isArray(baseMessage)
+    ? baseMessage.join(' • ')
+    : String(baseMessage);
+
+  return details && details.length > 0
+    ? `${joined} : ${details.join(' • ')}`
+    : joined;
+};
+
 export default function ValidationRequestDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { authData, setAuthData } = useContext(UserContext);
-  const { showWarning } = useError();
+  const { showWarning, showError } = useError();
 
   const [request, setRequest] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -116,7 +138,7 @@ export default function ValidationRequestDetail() {
   const [currentDocIndex, setCurrentDocIndex] = useState(0);
   const [imageErrors, setImageErrors] = useState({});
 
-  // ── NEW: blob URL state for authenticated document previews ─────────
+  // ── blob URL state for authenticated document previews ─────────
   const [blobUrl, setBlobUrl] = useState(null);
   const [blobLoading, setBlobLoading] = useState(false);
   const [blobError, setBlobError] = useState(null);
@@ -279,7 +301,7 @@ export default function ValidationRequestDetail() {
   const isPdf = currentFile ? isFilePdf(currentFile) : false;
   const hasError = fileUrl ? imageErrors[fileUrl] : false;
 
-  // ── NEW: fetch the current document with the JWT and expose a blob URL ──
+  // ── Fetch the current document with the JWT and expose a blob URL ──
   // Browsers can't attach Authorization headers to <iframe>/<img>/<a>, and
   // /storage/* is protected. So we fetch here, wrap in a Blob, and hand the
   // browser a same-origin blob: URL — no CSP, no 401.
@@ -349,14 +371,38 @@ export default function ValidationRequestDetail() {
     if (currentDocIndex < totalDocs - 1) setCurrentDocIndex(currentDocIndex + 1);
   };
 
+  // ─── Refetch helper — used to refresh after an error / conflict ─────
+  const refetchRequest = async () => {
+    try {
+      const refetchRes = await fetchWithRefresh(
+        `${API_URL}/validation/request/${id}`,
+        { method: 'GET' },
+        authData.token,
+        setAuthData,
+      );
+      const refetchBody = await refetchRes.json();
+      setRequest(unwrap(refetchBody));
+    } catch (err) {
+      console.error('Failed to refetch request:', err);
+    }
+  };
+
+  // ─── Handle a single step action (approve / reject) ─────────────────
+  // Reads backend errors (already-treated step, permission failure,
+  // validation failure) and surfaces them to the user, then refetches
+  // so the UI reflects the true state.
   const handleStepAction = async (stepOrder, action) => {
     const comment = comments[stepOrder] || '';
     if (!comment && action !== 'skip') {
       showWarning('Veuillez ajouter un commentaire');
       return;
     }
+
     setActionLoading(true);
-    const body = action === 'approve' ? { comments: comment } : { reason: comment };
+    const body = action === 'approve'
+      ? { comments: comment }
+      : { reason: comment };
+
     try {
       const res = await fetchWithRefresh(
         `${API_URL}/validation/requests/${id}/${action}/${stepOrder}`,
@@ -366,29 +412,41 @@ export default function ValidationRequestDetail() {
           body: JSON.stringify(body),
         },
         authData.token,
-        setAuthData
+        setAuthData,
       );
-      const resBody = await res.json();
-      const updated = unwrap(resBody);
-      const updatedRequest = updated?.request || updated;
+
+      // Always try to parse the JSON body — success AND error responses.
+      const resBody = await res.json().catch(() => null);
+      const payload = unwrap(resBody);
+
+      // ── Error path — surface the backend message ──────────────────
+      if (!res.ok) {
+        const finalMessage = extractErrorMessage(payload, resBody, res.status);
+        showError(finalMessage);
+
+        // The step is probably gone / already treated → pull fresh state
+        // so the UI reflects reality (no stale "Approuver" button).
+        await refetchRequest();
+        return;
+      }
+
+      // ── Success path ─────────────────────────────────────────────
+      const updatedRequest = payload?.request || payload;
 
       if (updatedRequest && updatedRequest.id) {
         setRequest(updatedRequest);
       } else {
-        // Refetch to get fresh state
-        const refetchRes = await fetchWithRefresh(
-          `${API_URL}/validation/request/${id}`,
-          { method: 'GET' },
-          authData.token,
-          setAuthData
-        );
-        const refetchBody = await refetchRes.json();
-        setRequest(unwrap(refetchBody));
+        await refetchRequest();
       }
+
       setComments(prev => ({ ...prev, [stepOrder]: '' }));
       setIsCustomComment(prev => ({ ...prev, [stepOrder]: false }));
     } catch (err) {
       console.error('Error during step action:', err);
+      showError(
+        err?.message ||
+        "Erreur réseau lors du traitement de l'étape. Veuillez réessayer.",
+      );
     } finally {
       setActionLoading(false);
     }
@@ -547,54 +605,54 @@ export default function ValidationRequestDetail() {
     );
   }
 
-const viewerId = String(authData.user?.id ?? '');
-const viewerGrade = authData.user?.grade ?? null;
-const viewerRoleName =
-  authData.user?.roleName ??
-  authData.user?.role?.name ??
-  null;
+  const viewerId = String(authData.user?.id ?? '');
+  const viewerGrade = authData.user?.grade ?? null;
+  const viewerRoleName =
+    authData.user?.roleName ??
+    authData.user?.role?.name ??
+    null;
 
-// Mirrors ValidationService._checkPermission on the backend:
-//   - match by ID first (authoritative for explicit-list steps)
-//   - if assignedByRole !== false, also allow role/grade match
-//   - when assignedByRole === false, strict ID matching only
-const stepMatchesViewer = (step) => {
-  const idList = Array.isArray(step.allowedUserIds) ? step.allowedUserIds : [];
+  // Mirrors ValidationService._checkPermission on the backend:
+  //   - match by ID first (authoritative for explicit-list steps)
+  //   - if assignedByRole !== false, also allow role/grade match
+  //   - when assignedByRole === false, strict ID matching only
+  const stepMatchesViewer = (step) => {
+    const idList = Array.isArray(step.allowedUserIds) ? step.allowedUserIds : [];
 
-  const matchesById = idList.some((entry) => {
-    const id = typeof entry === 'string' ? entry : entry?.id;
-    return id != null && String(id) === viewerId;
-  });
-  if (matchesById) return true;
+    const matchesById = idList.some((entry) => {
+      const id = typeof entry === 'string' ? entry : entry?.id;
+      return id != null && String(id) === viewerId;
+    });
+    if (matchesById) return true;
 
-  const roleBased = step.assignedByRole !== false;
-  if (!roleBased) return false;
+    const roleBased = step.assignedByRole !== false;
+    if (!roleBased) return false;
 
-  if (step.requiredGrade && viewerGrade && step.requiredGrade === viewerGrade) {
-    return true;
-  }
-  if (
-    step.requiredRole &&
-    viewerRoleName &&
-    step.requiredRole === viewerRoleName
-  ) {
-    return true;
-  }
-  // `requiredRole` can also hold a grade name ('admin', 'super_admin')
-  if (
-    step.requiredRole &&
-    viewerGrade &&
-    ['user', 'admin', 'super_admin'].includes(step.requiredRole) &&
-    step.requiredRole === viewerGrade
-  ) {
-    return true;
-  }
-  return false;
-};
+    if (step.requiredGrade && viewerGrade && step.requiredGrade === viewerGrade) {
+      return true;
+    }
+    if (
+      step.requiredRole &&
+      viewerRoleName &&
+      step.requiredRole === viewerRoleName
+    ) {
+      return true;
+    }
+    // `requiredRole` can also hold a grade name ('admin', 'super_admin')
+    if (
+      step.requiredRole &&
+      viewerGrade &&
+      ['user', 'admin', 'super_admin'].includes(step.requiredRole) &&
+      step.requiredRole === viewerGrade
+    ) {
+      return true;
+    }
+    return false;
+  };
 
-const userSteps = (request?.steps || []).filter(
-  (step) => step.isActive === true && stepMatchesViewer(step),
-);
+  const userSteps = (request?.steps || []).filter(
+    (step) => step.isActive === true && stepMatchesViewer(step),
+  );
 
   const visibleFields = allowedFields
     ? USER_FIELDS.filter(f => allowedFields.includes(f.key))
@@ -650,15 +708,6 @@ const userSteps = (request?.steps || []).filter(
               </div>
             )}
           </div>
-          {request.createdBy && (
-            <div className="mt-4 pt-4 border-t border-[rgba(255,255,255,0.06)] flex items-center gap-3">
-              <User className="w-4 h-4 text-[#64748B]" />
-              <p className="text-sm text-[#94A3B8]">
-                Créée par <span className="text-[#F8FAFC]">{request.createdBy.name || 'Inconnu'}</span>
-                {' '}le {new Date(request.createdAt).toLocaleDateString('fr-FR')}
-              </p>
-            </div>
-          )}
         </div>
 
         <h3 className="text-lg font-semibold text-[#F8FAFC] mb-4 flex items-center gap-2">

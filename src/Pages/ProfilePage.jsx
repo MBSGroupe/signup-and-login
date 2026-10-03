@@ -20,11 +20,9 @@ import { fetchWithRefresh } from '../Components/api';
 import {
   User,
   Mail,
-  Phone,
   Eye,
   Calendar,
   MapPin,
-  Briefcase,
   CreditCard,
   FileText,
   MoreVertical,
@@ -35,41 +33,39 @@ import {
   Clock,
   Shield,
   Award,
-  MapPinned,
-  BookOpen,
-  Home,
-  Building,
-  Globe,
-  Users,
-  Crown,
-  BadgeCheck,
   CalendarDays,
   FileArchive,
-  Folder,
   FolderOpen,
   Wallet,
-  TrendingUp,
-  TrendingDown,
   AlertCircle,
-  X,
   ChevronDown,
   ChevronUp,
   Loader2,
   XCircle,
-  HelpCircle,
-  Download,
-  Upload,
   RefreshCw,
-  Search,
-  Filter,
-  Check,
-  Printer,
-  FileCheck,
+  UserCheck,
   SkipForward,
-  ClipboardList
+  ClipboardList,
 } from 'lucide-react';
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
+
+// ─── Permission checks the profile page needs ──────────────────────
+const PERMISSION_CHECKS = [
+  { key: "users.read",                    model: "User",              operation: "read" },
+  { key: "users.update",                  model: "User",              operation: "update" },
+  { key: "users.delete",                  model: "User",              operation: "delete" },
+  { key: "users.validate",                model: "User",              operation: "validate" },
+  { key: "files.read",                    model: "File",              operation: "read_list" },
+  { key: "files.create",                  model: "File",              operation: "create" },
+  { key: "files.update",                  model: "File",              operation: "update" },
+  { key: "files.delete",                  model: "File",              operation: "delete" },
+  { key: "fees.read_list",                model: "Fee",               operation: "read_list" },
+  { key: "fees.create",                   model: "Fee",               operation: "create" },
+  { key: "fees.update",                   model: "Fee",               operation: "update" },
+  { key: "validation.read_user_requests", model: "ValidationRequest", operation: "read_user_requests" },
+  { key: "validation.create_request",     model: "ValidationRequest", operation: "create_request" },
+];
 
 // ─── Folder metadata ────────────────────────────────────────────────
 const FOLDER_LABELS = {
@@ -90,17 +86,7 @@ function folderLabel(folder) {
   return folder.charAt(0).toUpperCase() + folder.slice(1).replace(/_/g, ' ');
 }
 
-const FOLDER_ORDER = [
-  'uploads',
-  'documents',
-  'identity',
-  'diplomas',
-  'cotisations',
-  'invoices',
-  'contracts',
-  'other',
-];
-
+const FOLDER_ORDER = ['uploads', 'documents', 'identity', 'diplomas', 'cotisations', 'invoices', 'contracts', 'other'];
 function sortFolders(a, b) {
   const ia = FOLDER_ORDER.indexOf(a);
   const ib = FOLDER_ORDER.indexOf(b);
@@ -123,9 +109,7 @@ const PROFILE_SECTIONS = [
   },
   {
     key: 'family', label: 'Informations Familiales', fields: [
-      'prenomPere', 'prenomPereArabe',
-      'nomPrenomMere', 'nomPrenomMereArabe',
-      'nationality',
+      'prenomPere', 'prenomPereArabe', 'nomPrenomMere', 'nomPrenomMereArabe', 'nationality'
     ]
   },
   { key: 'contact', label: 'Contact', fields: ['fixe', 'phone', 'email', 'emailPro'] },
@@ -152,13 +136,8 @@ const PROFILE_SECTIONS = [
 ];
 
 const RTL_FIELDS = new Set([
-  'nomArabe',
-  'prenomArabe',
-  'prenomPereArabe',
-  'nomPrenomMereArabe',
-  'adressePersonnelleArabe',
-  'adresseProArabe',
-  'employerAdresseArabe',
+  'nomArabe', 'prenomArabe', 'prenomPereArabe', 'nomPrenomMereArabe',
+  'adressePersonnelleArabe', 'adresseProArabe', 'employerAdresseArabe',
 ]);
 
 const FALLBACK_LABELS = {
@@ -234,11 +213,7 @@ function formatScalar(value) {
     if (/^\d{4}-\d{2}-\d{2}/.test(value)) {
       const d = new Date(value);
       if (!isNaN(d.getTime())) {
-        return d.toLocaleDateString('fr-FR', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-        });
+        return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
       }
     }
     return value;
@@ -309,18 +284,12 @@ function InfoTabContent({ displayUser, permissions }) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {section.visibleFields.map((field) => {
               const isRtl = RTL_FIELDS.has(field.name);
-              const isJsonArray =
-                field.name === 'otherDiplomas' || field.name === 'otherTrainings';
+              const isJsonArray = field.name === 'otherDiplomas' || field.name === 'otherTrainings';
 
               if (isJsonArray) {
                 return (
-                  <div
-                    key={field.name}
-                    className="border-b border-white/5 pb-2 last:border-0 col-span-full"
-                  >
-                    <p className="text-xs text-[#64748B] uppercase tracking-wider">
-                      {field.label}
-                    </p>
+                  <div key={field.name} className="border-b border-white/5 pb-2 last:border-0 col-span-full">
+                    <p className="text-xs text-[#64748B] uppercase tracking-wider">{field.label}</p>
                     <JsonListValue items={field.raw} />
                   </div>
                 );
@@ -330,16 +299,10 @@ function InfoTabContent({ displayUser, permissions }) {
               if (display === null) return null;
 
               return (
-                <div
-                  key={field.name}
-                  className="border-b border-white/5 pb-2 last:border-0"
-                >
-                  <p className="text-xs text-[#64748B] uppercase tracking-wider">
-                    {field.label}
-                  </p>
+                <div key={field.name} className="border-b border-white/5 pb-2 last:border-0">
+                  <p className="text-xs text-[#64748B] uppercase tracking-wider">{field.label}</p>
                   <p
-                    className={`text-[#F8FAFC] font-medium ${isRtl ? 'font-arabic text-right' : ''
-                      }`}
+                    className={`text-[#F8FAFC] font-medium ${isRtl ? 'font-arabic text-right' : ''}`}
                     dir={isRtl ? 'rtl' : 'ltr'}
                   >
                     {display}
@@ -356,14 +319,13 @@ function InfoTabContent({ displayUser, permissions }) {
 
 export default function ProfilePage({ user }) {
   const { authData, setAuthData } = useContext(UserContext);
-  const { showError, showWarning, showSuccess } = useError();
+  const { showError, showSuccess } = useError();
   const { confirm, alert } = useModal();
   const { id } = useParams();
   const navigate = useNavigate();
 
   const [displayUser, setDisplayUser] = useState(user || authData.user);
   const [permissions, setPermissions] = useState({ fields: [], configs: {} });
-  const [perform, setPerform] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -373,17 +335,12 @@ export default function ProfilePage({ user }) {
   const [payments, setPayments] = useState([]);
   const [userFees, setUserFees] = useState([]);
   const [creditTransactions, setCreditTransactions] = useState([]);
-  const [canManageFiles, setCanManageFiles] = useState(false);
   const [showTransactionModal, setShowTransactionModal] = useState(false);
   const [transactionType, setTransactionType] = useState('deposit');
   const [transactionAmount, setTransactionAmount] = useState('');
   const [transactionMethod, setTransactionMethod] = useState('cash');
   const [transactionNotes, setTransactionNotes] = useState('');
-  const [pdfPreview, setPdfPreview] = useState({
-    isOpen: false,
-    type: 'situation',
-    data: null,
-  });
+  const [pdfPreview, setPdfPreview] = useState({ isOpen: false, type: 'situation', data: null });
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
   const [activeTab, setActiveTab] = useState('info');
@@ -391,6 +348,22 @@ export default function ProfilePage({ user }) {
   const targetUserId = user?.id || id || authData.user?.id;
   const isOwner = authData.user?.id === targetUserId;
   const isAdmin = ['admin', 'super_admin'].includes(authData?.user?.grade);
+  const isAdminOrOwner = isAdmin || isOwner;
+
+  // ─── Permission map ──────────────────────────────────────────────
+  const [perms, setPerms] = useState({});
+  const can = useCallback((key, fallback = false) => {
+    if (key in perms) return perms[key] === true;
+    return fallback;
+  }, [perms]);
+
+  // Legacy per-op state used by FileCard/CotisationCard etc.
+  const [canUpdateUser, setCanUpdateUser] = useState(false);
+  const [canDeleteUser, setCanDeleteUser] = useState(false);
+  const [canCreateFile, setCanCreateFile] = useState(false);
+  const [canUpdateFile, setCanUpdateFile] = useState(false);
+  const [canDeleteFile, setCanDeleteFile] = useState(false);
+  const [canValidateUser, setCanValidateUser] = useState(false);
 
   const [validationRequests, setValidationRequests] = useState([]);
   const [validationLoading, setValidationLoading] = useState(false);
@@ -400,7 +373,6 @@ export default function ProfilePage({ user }) {
   const [isDeclarationModalOpen, setIsDeclarationModalOpen] = useState(false);
   const [selectedDeclarationSchema, setSelectedDeclarationSchema] = useState(null);
   const [selectedDeclarationRequestId, setSelectedDeclarationRequestId] = useState(null);
-  // ← NEW: distinguishes a fresh declaration from a correction
   const [isDeclarationResubmitMode, setIsDeclarationResubmitMode] = useState(false);
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [selectedAddressSchema, setSelectedAddressSchema] = useState(null);
@@ -428,13 +400,6 @@ export default function ProfilePage({ user }) {
     }));
   };
 
-  const [canUpdateUser, setCanUpdateUser] = useState(false);
-  const [canDeleteUser, setCanDeleteUser] = useState(false);
-  const [canCreateFile, setCanCreateFile] = useState(false);
-  const [canUpdateFile, setCanUpdateFile] = useState(false);
-  const [canDeleteFile, setCanDeleteFile] = useState(false);
-
-  // ─── Click outside ────────────────────────────────────────────────
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (menuRef.current && !menuRef.current.contains(event.target)) {
@@ -445,7 +410,7 @@ export default function ProfilePage({ user }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // ─── Files fetch ──────────────────────────────────────────────────
+  // ─── Fetch files ──────────────────────────────────────────────────
   const fetchFiles = useCallback(async () => {
     if (!authData?.token || !targetUserId) return;
     setFilesLoading(true);
@@ -480,11 +445,9 @@ export default function ProfilePage({ user }) {
     }
   }, [authData?.token, targetUserId, setAuthData]);
 
-  useEffect(() => {
-    fetchFiles();
-  }, [fetchFiles]);
+  useEffect(() => { fetchFiles(); }, [fetchFiles]);
 
-  // ─── File handlers ────────────────────────────────────────────────
+  // ─── File handlers (unchanged) ────────────────────────────────────
   const handleUpload = async (file) => {
     try {
       setIsUploading(true);
@@ -494,25 +457,14 @@ export default function ProfilePage({ user }) {
 
       const response = await fetchWithRefresh(
         `${NEST_API_URL}/files/${displayUser.id}`,
-        {
-          method: "POST",
-          body: uploadData,
-        },
+        { method: "POST", body: uploadData },
         authData.token,
         setAuthData
       );
 
       const data = await response.json();
-
-      if (response.status === 413) {
-        showError(data.message || "File is too large");
-        return;
-      }
-
-      if (!response.ok) {
-        showError(data.message || "Upload failed");
-        return;
-      }
+      if (response.status === 413) return showError(data.message || "File is too large");
+      if (!response.ok) return showError(data.message || "Upload failed");
 
       if (isOwner) {
         setAuthData(prev => ({
@@ -536,32 +488,20 @@ export default function ProfilePage({ user }) {
   const handleReplace = async (file, newFile) => {
     try {
       setIsUploading(true);
-
       const uploadData = new FormData();
       uploadData.append("file", newFile);
       uploadData.append("folder", file.folder || "uploads");
 
       const response = await fetchWithRefresh(
         `${NEST_API_URL}/files/${file.id}`,
-        {
-          method: "PATCH",
-          body: uploadData,
-        },
+        { method: "PATCH", body: uploadData },
         authData.token,
         setAuthData
       );
 
       const data = await response.json();
-
-      if (response.status === 413) {
-        showError(data.message || "File is too large");
-        return;
-      }
-
-      if (!response.ok) {
-        showError(data.message || "Replace failed");
-        return;
-      }
+      if (response.status === 413) return showError(data.message || "File is too large");
+      if (!response.ok) return showError(data.message || "Replace failed");
 
       if (isOwner) {
         setAuthData(prev => ({
@@ -585,22 +525,15 @@ export default function ProfilePage({ user }) {
   const handleDelete = async (file) => {
     try {
       setIsUploading(true);
-
       const response = await fetchWithRefresh(
         `${NEST_API_URL}/files/${file.id}`,
-        {
-          method: "DELETE",
-        },
+        { method: "DELETE" },
         authData.token,
         setAuthData
       );
 
       const data = await response.json();
-
-      if (!response.ok) {
-        showError(data.message || "Delete failed");
-        return;
-      }
+      if (!response.ok) return showError(data.message || "Delete failed");
 
       if (isOwner) {
         setAuthData(prev => ({
@@ -621,7 +554,7 @@ export default function ProfilePage({ user }) {
     }
   };
 
-  // ─── Refresh functions ─────────────────────────────────────────────
+  // ─── Refresh helpers ──────────────────────────────────────────────
   const refreshUserAndFees = async () => {
     try {
       const userRes = await fetchWithRefresh(
@@ -630,18 +563,12 @@ export default function ProfilePage({ user }) {
         authData.token,
         setAuthData
       );
-
       if (userRes.ok) {
         const userData = await userRes.json();
         const updatedUser = userData.data;
-
         setDisplayUser(updatedUser);
-
-        if (isOwner) {
-          setAuthData(prev => ({ ...prev, user: updatedUser }));
-        }
+        if (isOwner) setAuthData(prev => ({ ...prev, user: updatedUser }));
       }
-
       await refreshUserFees();
       await fetchCreditTransactions();
       await fetchFiles();
@@ -658,12 +585,9 @@ export default function ProfilePage({ user }) {
         authData.token,
         setAuthData
       );
-
       if (feesRes.ok) {
         const feesData = await feesRes.json();
         setUserFees(feesData.data);
-      } else {
-        console.warn("Erreur lors du rafraîchissement des cotisations");
       }
     } catch (error) {
       console.error("Error refreshing fees:", error);
@@ -678,60 +602,39 @@ export default function ProfilePage({ user }) {
         authData.token,
         setAuthData
       );
-
       if (res.ok) {
         const transactionData = await res.json();
-        setCreditTransactions(
-          transactionData.data.transactions || transactionData.data
-        );
-      } else {
-        console.warn("Impossible de charger les transactions de crédit");
+        setCreditTransactions(transactionData.data.transactions || transactionData.data);
       }
     } catch (error) {
       console.error("Error fetching credit transactions:", error);
     }
   };
 
-  // ─── Transaction handler ──────────────────────────────────────────
+  // ─── Transaction ──────────────────────────────────────────────────
   const handleTransaction = async (amount, method, notes, type) => {
-    const finalAmount = type === 'deposit'
-      ? Math.abs(amount)
-      : -Math.abs(amount);
+    const finalAmount = type === 'deposit' ? Math.abs(amount) : -Math.abs(amount);
 
     try {
       const res = await fetchWithRefresh(
         `${NEST_API_URL}/fees/versement`,
         {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            userId: targetUserId,
-            amount: finalAmount,
-            paymentMethod: method,
-            notes
-          })
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: targetUserId, amount: finalAmount, paymentMethod: method, notes })
         },
         authData.token,
         setAuthData
       );
 
       const data = await res.json();
-
       if (res.ok && data.success) {
         if (type === 'deposit') {
-          showSuccess(
-            `${data.data.usedForFees} DA utilisé pour les cotisations, ${data.data.creditAdded} DA ajoutés au crédit.`
-          );
+          showSuccess(`${data.data.usedForFees} DA utilisé pour les cotisations, ${data.data.creditAdded} DA ajoutés au crédit.`);
         } else {
-          showSuccess(
-            `Retrait de ${Math.abs(finalAmount)} DA effectué. Nouveau crédit : ${data.data.newCreditBalance} DA.`
-          );
+          showSuccess(`Retrait de ${Math.abs(finalAmount)} DA effectué. Nouveau crédit : ${data.data.newCreditBalance} DA.`);
         }
-
         await refreshUserAndFees();
-
         setShowTransactionModal(false);
         setTransactionAmount('');
         setTransactionMethod('cash');
@@ -745,24 +648,15 @@ export default function ProfilePage({ user }) {
     }
   };
 
-  // ─── User actions ────────────────────────────────────────────────
-  const handleEditUser = () => {
-    navigate(`/auth/update/${targetUserId}`);
-  };
-
   const handleValidateUser = async () => {
     try {
       const response = await fetchWithRefresh(
         `${NEST_API_URL}/users/${targetUserId}/validate`,
-        {
-          method: 'PATCH',
-        },
+        { method: 'PATCH' },
         authData.token,
         setAuthData
       );
-
       const data = await response.json();
-
       if (response.ok && data.success) {
         showSuccess('Utilisateur validé avec succès');
         await refreshUserAndFees();
@@ -775,16 +669,14 @@ export default function ProfilePage({ user }) {
     }
   };
 
-  // ─── PDF helpers ─────────────────────────────────────────────────
+  // ─── PDF flow (unchanged) ─────────────────────────────────────────
   const waitForPdfJob = async (jobId) => {
     let attempts = 0;
     const maxAttempts = 30;
 
     while (attempts < maxAttempts) {
       await new Promise(resolve => setTimeout(resolve, 2000));
-
       let statusRes;
-
       try {
         statusRes = await fetchWithRefresh(
           `${NEST_API_URL}/pdf/jobs/${jobId}`,
@@ -792,147 +684,76 @@ export default function ProfilePage({ user }) {
           authData.token,
           setAuthData
         );
-      } catch (error) {
-        attempts++;
-        continue;
-      }
-
-      if (!statusRes.ok) {
-        attempts++;
-        continue;
-      }
-
+      } catch { attempts++; continue; }
+      if (!statusRes.ok) { attempts++; continue; }
       const statusData = await statusRes.json();
       const jobData = statusData?.data;
-
-      if (!jobData) {
-        attempts++;
-        continue;
-      }
+      if (!jobData) { attempts++; continue; }
 
       if (jobData.status === 'completed') {
-        const finalPdfUrl =
-          jobData.downloadUrl ||
-          jobData.cloudinaryUrl;
-
-        if (!finalPdfUrl) {
-          throw new Error(
-            'La génération est terminée mais aucun lien PDF n’a été retourné.'
-          );
-        }
-
-        return {
-          finalPdfUrl,
-          cloudinaryUrl: jobData.cloudinaryUrl || null,
-        };
+        const finalPdfUrl = jobData.downloadUrl || jobData.cloudinaryUrl;
+        if (!finalPdfUrl) throw new Error('La génération est terminée mais aucun lien PDF n’a été retourné.');
+        return { finalPdfUrl, cloudinaryUrl: jobData.cloudinaryUrl || null };
       }
-
       if (jobData.status === 'failed') {
-        throw new Error(
-          'La génération a échoué : ' +
-          (jobData.error || 'Erreur inconnue')
-        );
+        throw new Error('La génération a échoué : ' + (jobData.error || 'Erreur inconnue'));
       }
-
       attempts++;
     }
-
-    throw new Error(
-      'Délai dépassé – la génération a pris trop de temps.'
-    );
+    throw new Error('Délai dépassé – la génération a pris trop de temps.');
   };
 
   const fetchPdfBlob = async (finalPdfUrl) => {
     const isAbsolute = finalPdfUrl.startsWith('http://') || finalPdfUrl.startsWith('https://');
     const fullUrl = isAbsolute ? finalPdfUrl : `${NEST_API_URL}${finalPdfUrl.startsWith('/') ? '' : '/'}${finalPdfUrl}`;
-
     const isCloudinary = fullUrl.startsWith('https://res.cloudinary.com');
 
-    let pdfRes;
-    if (isCloudinary) {
-      pdfRes = await fetch(fullUrl);
-    } else {
-      pdfRes = await fetchWithRefresh(
-        fullUrl,
-        { method: 'GET' },
-        authData.token,
-        setAuthData
-      );
-    }
+    const pdfRes = isCloudinary
+      ? await fetch(fullUrl)
+      : await fetchWithRefresh(fullUrl, { method: 'GET' }, authData.token, setAuthData);
 
-    if (!pdfRes.ok) {
-      throw new Error('Impossible de récupérer le PDF final');
-    }
-
+    if (!pdfRes.ok) throw new Error('Impossible de récupérer le PDF final');
     return await pdfRes.blob();
   };
 
   const generateQueuedPdf = async (endpoint) => {
     let jobRes;
-
     try {
       jobRes = await fetchWithRefresh(
         `${NEST_API_URL}${endpoint}`,
         {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            userId: targetUserId,
-          }),
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: targetUserId }),
         },
         authData.token,
         setAuthData
       );
-    } catch (networkError) {
-      throw new Error(
-        'Erreur réseau – impossible de contacter le serveur.'
-      );
+    } catch {
+      throw new Error('Erreur réseau – impossible de contacter le serveur.');
     }
 
     if (!jobRes.ok) {
       let errorMsg = 'Échec de la création de la tâche';
-
-      try {
-        const errData = await jobRes.json();
-        errorMsg = errData.message || errorMsg;
-      } catch (_) { }
-
+      try { const errData = await jobRes.json(); errorMsg = errData.message || errorMsg; } catch (_) { }
       throw new Error(errorMsg);
     }
 
     const jobData = await jobRes.json();
-
     if (!jobData?.data?.success || !jobData?.data?.jobId) {
-      throw new Error(
-        jobData?.data?.message ||
-        jobData?.message ||
-        'Réponse inattendue du serveur'
-      );
+      throw new Error(jobData?.data?.message || jobData?.message || 'Réponse inattendue du serveur');
     }
 
-    const jobId = jobData.data.jobId;
-
-    const {
-      finalPdfUrl,
-      cloudinaryUrl,
-    } = await waitForPdfJob(jobId);
-
+    const { finalPdfUrl, cloudinaryUrl } = await waitForPdfJob(jobData.data.jobId);
     const finalBlob = await fetchPdfBlob(finalPdfUrl);
     const finalBlobUrl = URL.createObjectURL(finalBlob);
 
-    return {
-      blobUrl: finalBlobUrl,
-      downloadUrl: finalPdfUrl,
-      cloudinaryUrl,
-    };
+    return { blobUrl: finalBlobUrl, downloadUrl: finalPdfUrl, cloudinaryUrl };
   };
 
   const handlePrintSituation = async () => {
     try {
       const pdfData = await generateQueuedPdf('/pdf/situation');
-
       setPdfPreview({
         isOpen: true,
         type: 'situation',
@@ -945,7 +766,6 @@ export default function ProfilePage({ user }) {
           memberEmail: displayUser?.email || '',
         },
       });
-
       showSuccess('Aperçu généré avec succès!');
     } catch (error) {
       console.error('❌ Error generating situation PDF:', error);
@@ -953,31 +773,7 @@ export default function ProfilePage({ user }) {
     }
   };
 
-  const handlePrintDegree = async () => {
-    try {
-      const pdfData = await generateQueuedPdf('/pdf/degree');
-
-      setPdfPreview({
-        isOpen: true,
-        type: 'degree',
-        data: {
-          blobUrl: pdfData.blobUrl,
-          memberName: `${displayUser?.name || ''} ${displayUser?.lastname || ''}`.trim(),
-          downloadUrl: pdfData.downloadUrl,
-          cloudinaryUrl: pdfData.cloudinaryUrl,
-          userId: targetUserId,
-          memberEmail: displayUser?.email || '',
-        },
-      });
-
-      showSuccess('Aperçu du diplôme généré avec succès!');
-    } catch (error) {
-      console.error('❌ Error generating degree PDF:', error);
-      showError(error.message || 'Erreur réseau');
-    }
-  };
-
-  // ─── Validations fetch ────────────────────────────────────────────
+  // ─── Validation data ──────────────────────────────────────────────
   const fetchValidationRequests = async () => {
     if (!targetUserId) return;
     setValidationLoading(true);
@@ -1019,7 +815,6 @@ export default function ProfilePage({ user }) {
       );
       if (found?.name) return found.name;
     }
-
     if (req.steps?.length > 0 && availableSchemas?.length > 0) {
       const stepNames = req.steps.map(s => s.stepName).filter(Boolean);
       const matchingSchema = availableSchemas.find(s =>
@@ -1027,22 +822,16 @@ export default function ProfilePage({ user }) {
       );
       if (matchingSchema?.name) return matchingSchema.name;
     }
-
     return req.targetType ? `Validation ${req.targetType}` : 'Demande';
   };
 
   const isResubmittedItem = useCallback((itemOrStatus) => {
     if (!itemOrStatus) return false;
     const rawObj = itemOrStatus.rawItem || itemOrStatus;
-
-    if (rawObj.resubmittedAt || rawObj.resubmitted_at || rawObj.isResubmitted) {
-      return true;
-    }
+    if (rawObj.resubmittedAt || rawObj.resubmitted_at || rawObj.isResubmitted) return true;
 
     const rawStatus = String(rawObj.status || rawObj.rawStatus || rawObj.state || itemOrStatus.status || '').trim().toUpperCase();
-    if (['PENDING', 'IN_PROGRESS', 'SUBMITTED', 'EN_COURS', 'PROCESSING', 'UNDER_REVIEW'].includes(rawStatus)) {
-      return true;
-    }
+    if (['PENDING', 'IN_PROGRESS', 'SUBMITTED', 'EN_COURS', 'PROCESSING', 'UNDER_REVIEW'].includes(rawStatus)) return true;
 
     const currentMap = resubmissionMapRef.current;
     if (!currentMap || Object.keys(currentMap).length === 0) return false;
@@ -1056,34 +845,19 @@ export default function ProfilePage({ user }) {
     ].filter(Boolean);
 
     let resubmittedAt;
-    for (const cand of candidates) {
-      if (currentMap[cand]) {
-        resubmittedAt = currentMap[cand];
-        break;
-      }
-    }
+    for (const cand of candidates) { if (currentMap[cand]) { resubmittedAt = currentMap[cand]; break; } }
     if (!resubmittedAt) return false;
 
-    const steps = Array.isArray(rawObj.steps)
-      ? rawObj.steps
-      : Array.isArray(rawObj.validationSteps)
-        ? rawObj.validationSteps
-        : [];
+    const steps = Array.isArray(rawObj.steps) ? rawObj.steps : Array.isArray(rawObj.validationSteps) ? rawObj.validationSteps : [];
     const activeCorrectionStep = steps.find(
-      (st) =>
-        (st.type === "verification" || !st.type) &&
-        st.comments &&
-        (st.status === "pending" || st.status === "changes_requested")
+      (st) => (st.type === "verification" || !st.type) && st.comments && (st.status === "pending" || st.status === "changes_requested")
     );
 
     const adminActionDateStr = activeCorrectionStep?.pendingSince || activeCorrectionStep?.updatedAt || rawObj.updatedAt;
     if (adminActionDateStr) {
       const adminActionTime = new Date(adminActionDateStr).getTime();
-      if (!isNaN(adminActionTime) && adminActionTime > resubmittedAt + 3000) {
-        return false;
-      }
+      if (!isNaN(adminActionTime) && adminActionTime > resubmittedAt + 3000) return false;
     }
-
     return true;
   }, []);
 
@@ -1094,74 +868,37 @@ export default function ProfilePage({ user }) {
       : itemOrStatus?.status || itemOrStatus?.rawStatus || itemOrStatus?.state || itemOrStatus?.decision;
     const s = String(rawStatus || '').toUpperCase().trim();
 
-    if (['APPROVED', 'VALIDATED', 'VALIDE', 'VALIDÉ', 'DONE', 'ACTIVE'].includes(s)) {
-      return 'Validé';
-    }
-
-    if (['REJECTED', 'REJETÉ', 'REJETE', 'CANCELLED', 'ANNULÉ', 'REFUSED'].includes(s)) {
-      return 'Rejeté';
-    }
-
-    if (['EXPIRED', 'EXPIRÉ'].includes(s)) {
-      return 'Expiré';
-    }
-
-    if (isResubmittedItem(itemOrStatus)) {
-      return 'En cours';
-    }
+    if (['APPROVED', 'VALIDATED', 'VALIDE', 'VALIDÉ', 'DONE', 'ACTIVE'].includes(s)) return 'Validé';
+    if (['REJECTED', 'REJETÉ', 'REJETE', 'CANCELLED', 'ANNULÉ', 'REFUSED'].includes(s)) return 'Rejeté';
+    if (['EXPIRED', 'EXPIRÉ'].includes(s)) return 'Expiré';
+    if (isResubmittedItem(itemOrStatus)) return 'En cours';
 
     const isDirectChangesRequested = [
-      'CHANGES_REQUESTED',
-      'CHANGES_REQUIRED',
-      'CORRECTION',
-      'CORRECTIONS_REQUESTED',
-      'MODIFICATION',
-      'MODIFICATIONS_REQUISES',
-      'A_CORRIGER',
-      'À CORRIGER',
-      'REQUIRE_ACTION',
-      'ACTION_REQUIRED'
+      'CHANGES_REQUESTED', 'CHANGES_REQUIRED', 'CORRECTION', 'CORRECTIONS_REQUESTED',
+      'MODIFICATION', 'MODIFICATIONS_REQUISES', 'A_CORRIGER', 'À CORRIGER', 'REQUIRE_ACTION', 'ACTION_REQUIRED'
     ].includes(s);
 
     if (isDirectChangesRequested) {
-      if (rawObj?.resubmittedAt || rawObj?.resubmitted_at) {
-        return 'En cours';
+      if (rawObj?.resubmittedAt || rawObj?.resubmitted_at) return 'En cours';
+      return 'Modifications requises';
+    }
+
+    if (['PENDING', 'IN_PROGRESS', 'IN_REVIEW', 'PROCESSING', 'EN_COURS', 'SUBMITTED', 'UNDER_REVIEW'].includes(s)) return 'En cours';
+
+    if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
+      const steps = Array.isArray(rawObj?.steps) ? rawObj.steps : Array.isArray(rawObj?.validationSteps) ? rawObj.validationSteps : [];
+      const hasActiveStep = steps.some((st) => st.isActive === true);
+      if (hasActiveStep) return 'En cours';
+
+      const firstStep = steps.find((st) => (st.order ?? st.stepOrder) === 1);
+      if (firstStep) {
+        const firstStatus = String(firstStep.status || '').toLowerCase().trim();
+        const hasComment =
+          (firstStep.comments && String(firstStep.comments).trim().length > 0) ||
+          (firstStep.reason && String(firstStep.reason).trim().length > 0);
+        if (firstStatus === 'pending' && hasComment) return 'Modifications requises';
       }
-      return 'Modifications requises';
     }
-
-    if (['PENDING', 'IN_PROGRESS', 'IN_REVIEW', 'PROCESSING', 'EN_COURS', 'SUBMITTED', 'UNDER_REVIEW'].includes(s)) {
-      return 'En cours';
-    }
-
-if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
-  const steps = Array.isArray(rawObj?.steps)
-    ? rawObj.steps
-    : Array.isArray(rawObj?.validationSteps)
-      ? rawObj.validationSteps
-      : [];
-
-  // Any active step → an admin owns the workflow. Never prompt the user
-  // to resubmit, even if an earlier step carries a "returned" comment.
-  const hasActiveStep = steps.some((st) => st.isActive === true);
-  if (hasActiveStep) {
-    return 'En cours';
-  }
-
-  // No active step → workflow is paused. This is a user-resubmit
-  // situation ONLY when step 1 itself is pending with a comment.
-  const firstStep = steps.find((st) => (st.order ?? st.stepOrder) === 1);
-  if (firstStep) {
-    const firstStatus = String(firstStep.status || '').toLowerCase().trim();
-    const hasComment =
-      (firstStep.comments && String(firstStep.comments).trim().length > 0) ||
-      (firstStep.reason && String(firstStep.reason).trim().length > 0);
-
-    if (firstStatus === 'pending' && hasComment) {
-      return 'Modifications requises';
-    }
-  }
-}
     return 'En cours';
   }, [isResubmittedItem]);
 
@@ -1187,9 +924,7 @@ if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
 
     resubmissionMapRef.current = newMap;
     setResubmissionMap(newMap);
-    try {
-      localStorage.setItem('resubmitted_validation_map', JSON.stringify(newMap));
-    } catch (_) { }
+    try { localStorage.setItem('resubmitted_validation_map', JSON.stringify(newMap)); } catch (_) { }
 
     setValidationRequests(prev =>
       prev.map(req => {
@@ -1199,9 +934,7 @@ if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
             ...req,
             status: 'pending',
             steps: (req.steps || []).map((st, idx) =>
-              (idx === 0 || st.status === 'changes_requested')
-                ? { ...st, status: 'pending', statusLabel: 'En attente' }
-                : st
+              (idx === 0 || st.status === 'changes_requested') ? { ...st, status: 'pending', statusLabel: 'En attente' } : st
             )
           };
         }
@@ -1209,11 +942,7 @@ if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
       })
     );
 
-    try {
-      await fetchValidationRequests();
-    } catch (err) {
-      console.log('Error refreshing requests after declaration:', err);
-    }
+    try { await fetchValidationRequests(); } catch (err) { console.log('Error refreshing requests after declaration:', err); }
   };
 
   const handleAddressSuccess = async (result) => {
@@ -1237,25 +966,17 @@ if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
 
     resubmissionMapRef.current = newMap;
     setResubmissionMap(newMap);
-    try {
-      localStorage.setItem('resubmitted_validation_map', JSON.stringify(newMap));
-    } catch (_) { }
+    try { localStorage.setItem('resubmitted_validation_map', JSON.stringify(newMap)); } catch (_) { }
 
     setValidationRequests(prev =>
       prev.map(req => {
         const name = (req.schemaName || req.schema?.name || req.title || '').toLowerCase();
-        if (
-          name.includes('adresse') || name.includes('address') ||
-          req.id === result?.id ||
-          req.id === selectedAddressRequestId
-        ) {
+        if (name.includes('adresse') || name.includes('address') || req.id === result?.id || req.id === selectedAddressRequestId) {
           return {
             ...req,
             status: 'pending',
             steps: (req.steps || []).map((st, idx) =>
-              (idx === 0 || st.status === 'changes_requested')
-                ? { ...st, status: 'pending', statusLabel: 'En attente' }
-                : st
+              (idx === 0 || st.status === 'changes_requested') ? { ...st, status: 'pending', statusLabel: 'En attente' } : st
             )
           };
         }
@@ -1263,11 +984,7 @@ if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
       })
     );
 
-    try {
-      await fetchValidationRequests();
-    } catch (err) {
-      console.log('Error refreshing requests after address change:', err);
-    }
+    try { await fetchValidationRequests(); } catch (err) { console.log('Error refreshing requests after address change:', err); }
   };
 
   const fetchSchemas = async () => {
@@ -1321,19 +1038,13 @@ if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
 
     try {
       setDemandSubmitting(true);
-      const payload = {
-        targetId: targetUserId,
-        targetType: targetType,
-        schemaName: schemaName,
-      };
+      const payload = { targetId: targetUserId, targetType, schemaName };
 
       const res = await fetchWithRefresh(
         `${NEST_API_URL}/validation/requests`,
         {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         },
         authData.token,
@@ -1363,7 +1074,7 @@ if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
     }
   };
 
-  // ─── Initial data fetch ───────────────────────────────────────────
+  // ─── Initial fetch + permission checks ────────────────────────────
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -1383,6 +1094,7 @@ if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
 
         setDisplayUser(userData || authData.user);
 
+        // Viewable fields
         const permRes = await fetchWithRefresh(
           `${NEST_API_URL}/permissions/user/${targetUserId}/viewable-fields?model=User`,
           { method: 'GET' },
@@ -1392,41 +1104,55 @@ if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
         const permData = await permRes.json();
         const payload = permData.data || permData;
         const fields = payload.fields || [];
-
         const configs = payload.configs || {};
         setPermissions({ fields, configs });
 
+        // ─── All permission checks in parallel ─────────────────────
+        const viewerId = authData.user.id;
+
         const checkOp = async (operation, model) => {
-          const res = await fetchWithRefresh(
-            `${NEST_API_URL}/permissions/${targetUserId}/check-operation`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
+          try {
+            const res = await fetchWithRefresh(
+              `${NEST_API_URL}/permissions/${viewerId}/check-operation`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ operation, model }),
               },
-              body: JSON.stringify({ operation, model }),
-            },
-            authData.token,
-            setAuthData
-          );
-          const data = await res.json();
-          return data.data?.canPerform || false;
+              authData.token,
+              setAuthData
+            );
+            if (!res.ok) return null;
+            const data = await res.json();
+            const inner = data?.data || data;
+            return Boolean(inner?.canPerform);
+          } catch {
+            return null;
+          }
         };
 
-        const [canUpdate, canDelete, canCreateF, canUpdateF, canDeleteF] = await Promise.all([
-          checkOp('update', 'User'),
-          checkOp('delete', 'User'),
-          checkOp('create', 'File'),
-          checkOp('update', 'File'),
-          checkOp('delete', 'File'),
-        ]);
+        const results = await Promise.all(
+          PERMISSION_CHECKS.map(async (c) => {
+            const r = await checkOp(c.operation, c.model);
+            return [c.key, r];
+          })
+        );
 
-        setCanUpdateUser(canUpdate);
-        setCanDeleteUser(canDelete);
-        setCanCreateFile(canCreateF);
-        setCanUpdateFile(canUpdateF);
-        setCanDeleteFile(canDeleteF);
+        const permMap = {};
+        for (const [key, result] of results) {
+          if (result !== null) permMap[key] = result;
+        }
+        setPerms(permMap);
 
+        // Mirror the ones consumed by cards / legacy state
+        setCanUpdateUser(permMap["users.update"] === true);
+        setCanDeleteUser(permMap["users.delete"] === true);
+        setCanValidateUser(permMap["users.validate"] === true);
+        setCanCreateFile(permMap["files.create"] === true);
+        setCanUpdateFile(permMap["files.update"] === true);
+        setCanDeleteFile(permMap["files.delete"] === true);
+
+        // Load data
         await fetchFiles();
 
         const feesRes = await fetchWithRefresh(
@@ -1462,12 +1188,13 @@ if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
       }
     };
     if (authData?.token && targetUserId) fetchData();
-  }, [id, user, authData, targetUserId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, user, authData?.token, targetUserId]);
 
+  // ─── Derived ──────────────────────────────────────────────────────
   const totalDebt = userFees.reduce((sum, fee) => {
     const computed = fee.computed || {};
     const remaining = computed.remaining || 0;
-
     return sum + (remaining > 0 ? remaining : 0);
   }, 0);
 
@@ -1503,9 +1230,54 @@ if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
     ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
     : "bg-amber-500/10 text-amber-400 border-amber-500/20";
 
-  const verificationText = displayUser?.isAdminVerified
-    ? "Validé"
-    : "En attente de validation";
+  const verificationText = displayUser?.isAdminVerified ? "Validé" : "En attente de validation";
+
+  // ─── Permission-resolved flags ────────────────────────────────────
+  const canReadUsers = can("users.read", true);
+  const canReadFiles = can("files.read", isAdminOrOwner);
+  const canReadFees = can("fees.read_list", isAdminOrOwner);
+  const canUpdateFees = can("fees.update", isAdmin);
+  const canReadValidation = can("validation.read_user_requests", isAdminOrOwner);
+  const canCreateValidation = can("validation.create_request", isAdminOrOwner);
+
+  // Fallback to legacy state if perms hasn't populated yet
+  const canEditUser = can("users.update", isAdminOrOwner);
+  const canDeleteUserResolved = can("users.delete", isAdmin);
+  const canValidateUserResolved = can("users.validate", isAdmin);
+
+  // Tabs — gated
+  const tabs = useMemo(() => {
+    const list = [];
+    if (canReadUsers || isOwner || isAdmin) {
+      list.push({ id: 'info', label: 'Informations', icon: <User className="w-4 h-4" /> });
+    }
+    if (canReadFiles) {
+      list.push({ id: 'files', label: 'Fichiers', icon: <FileArchive className="w-4 h-4" /> });
+    }
+    if (canReadFees) {
+      list.push({ id: 'fees', label: 'Cotisations', icon: <Award className="w-4 h-4" /> });
+      list.push({ id: 'payments', label: 'Paiements', icon: <CreditCard className="w-4 h-4" /> });
+      list.push({ id: 'transactions', label: 'Crédits', icon: <Clock className="w-4 h-4" /> });
+    }
+    if (canReadValidation) {
+      list.push({ id: 'validation', label: 'Validation', icon: <Shield className="w-4 h-4" /> });
+    }
+    if (canCreateValidation) {
+      list.push({ id: 'Demandes', label: 'Demandes', icon: <ClipboardList className="w-4 h-4" /> });
+    }
+    return list;
+  }, [canReadUsers, canReadFiles, canReadFees, canReadValidation, canCreateValidation, isOwner, isAdmin]);
+
+  // Ensure the active tab still exists
+  useEffect(() => {
+    if (tabs.length === 0) return;
+    if (!tabs.some(t => t.id === activeTab)) {
+      setActiveTab(tabs[0].id);
+    }
+  }, [tabs, activeTab]);
+
+  // Menu visibility
+  const showActionsMenu = isAdmin && (canUpdateFees || canEditUser || canValidateUserResolved);
 
   if (loading) {
     return (
@@ -1521,43 +1293,6 @@ if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
   const visibleFields = permissions?.fields || [];
   const isVisible = (fieldName) => visibleFields.includes(fieldName);
 
-  const formatValue = (value) => {
-    if (value === null || value === undefined) return '-';
-    if (typeof value === 'boolean') return value ? 'Oui' : 'Non';
-    if (typeof value === 'string' && (value.includes('T') || /^\d{4}-\d{2}-\d{2}/.test(value))) {
-      try {
-        const d = new Date(value);
-        if (!isNaN(d.getTime())) {
-          return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-        }
-      } catch { }
-    }
-    if (value instanceof Date) {
-      if (!isNaN(value.getTime())) {
-        return value.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-      }
-      return 'Date invalide';
-    }
-    if (typeof value === 'object') return JSON.stringify(value);
-    return String(value);
-  };
-
-  const getSexeLabel = (value) => {
-    if (value === 'M') return 'Homme';
-    if (value === 'F') return 'Femme';
-    return value || '-';
-  };
-
-  const tabs = [
-    { id: 'info', label: 'Informations', icon: <User className="w-4 h-4" /> },
-    { id: 'files', label: 'Fichiers', icon: <FileArchive className="w-4 h-4" /> },
-    { id: 'fees', label: 'Cotisations', icon: <Award className="w-4 h-4" /> },
-    { id: 'payments', label: 'Paiements', icon: <CreditCard className="w-4 h-4" /> },
-    { id: 'transactions', label: 'Crédits', icon: <Clock className="w-4 h-4" /> },
-    { id: 'validation', label: 'Validation', icon: <Shield className="w-4 h-4" /> },
-    { id: 'Demandes', label: 'Demandes', icon: <ClipboardList className="w-4 h-4" /> },
-  ];
-
   return (
     <>
       <div className="min-h-screen bg-[#0A0F1C] relative">
@@ -1572,7 +1307,6 @@ if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
 
         <header className="bg-[#111827] border-b border-white/5 px-6 py-6">
           <div className="max-w-7xl mx-auto flex flex-col lg:flex-row lg:items-center gap-6">
-
             <div className="flex items-center gap-5">
               <div className="relative shrink-0">
                 <img
@@ -1595,11 +1329,7 @@ if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
                       : 'Utilisateur'}
                   </h1>
                   {isVisible('role') && (
-                    <span
-                      className={`text-xs font-medium px-2.5 py-0.5 rounded-full border ${roleColors[displayUser?.role] ||
-                        "bg-slate-500/10 text-slate-400 border-slate-500/20"
-                        }`}
-                    >
+                    <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full border ${roleColors[displayUser?.role] || "bg-slate-500/10 text-slate-400 border-slate-500/20"}`}>
                       {displayUser?.role?.toUpperCase()}
                     </span>
                   )}
@@ -1641,8 +1371,9 @@ if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
                 </div>
               </div>
 
+              {/* ─── Permission-gated actions menu ─── */}
               <div className="flex flex-wrap items-center gap-2" ref={menuRef}>
-                {(isAdmin) && (
+                {showActionsMenu && (
                   <>
                     <button
                       onClick={() => setMenuOpen(!menuOpen)}
@@ -1652,20 +1383,48 @@ if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
                       <MoreVertical className="w-5 h-5" />
                     </button>
                     {menuOpen && (
-                      <div className="absolute right-0 mt-48 w-48 bg-[#182233] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-20 py-1 divide-y divide-white/5">
+                      <div className="absolute right-0 mt-48 w-52 bg-[#182233] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-20 py-1 divide-y divide-white/5">
                         <div className="py-1">
-                          <button
-                            onClick={() => { setMenuOpen(false); setTransactionType('deposit'); setShowTransactionModal(true); }}
-                            className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
-                          >
-                            <Plus className="w-4 h-4 text-emerald-400" /> Versement
-                          </button>
-                          <button
-                            onClick={() => { setMenuOpen(false); setTransactionType('withdraw'); setShowTransactionModal(true); }}
-                            className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
-                          >
-                            <Minus className="w-4 h-4 text-rose-400" /> Retrait
-                          </button>
+                          {canUpdateFees && (
+                            <>
+                              <button
+                                onClick={() => { setMenuOpen(false); setTransactionType('deposit'); setShowTransactionModal(true); }}
+                                className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
+                              >
+                                <Plus className="w-4 h-4 text-emerald-400" /> Versement
+                              </button>
+                              <button
+                                onClick={() => { setMenuOpen(false); setTransactionType('withdraw'); setShowTransactionModal(true); }}
+                                className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
+                              >
+                                <Minus className="w-4 h-4 text-rose-400" /> Retrait
+                              </button>
+                            </>
+                          )}
+
+                          {canValidateUserResolved && !displayUser?.isAdminVerified && (
+                            <>
+                              {canUpdateFees && <div className="border-t border-white/5 my-1" />}
+                              <button
+                                onClick={() => { setMenuOpen(false); handleValidateUser(); }}
+                                className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
+                              >
+                                <UserCheck className="w-4 h-4 text-emerald-400" /> Valider le membre
+                              </button>
+                            </>
+                          )}
+
+                          {canEditUser && (
+                            <>
+                              <div className="border-t border-white/5 my-1" />
+                              <button
+                                onClick={() => { setMenuOpen(false); navigate(`/auth/update/${targetUserId}`); }}
+                                className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
+                              >
+                                <Edit className="w-4 h-4 text-blue-400" /> Modifier
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
                     )}
@@ -1684,10 +1443,11 @@ if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === tab.id
-                      ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/20"
-                      : "text-[#94A3B8] hover:bg-white/5 hover:text-white"
-                      }`}
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                      activeTab === tab.id
+                        ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/20"
+                        : "text-[#94A3B8] hover:bg-white/5 hover:text-white"
+                    }`}
                   >
                     {tab.icon} {tab.label}
                   </button>
@@ -1705,7 +1465,7 @@ if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
                 </div>
               )}
 
-              {activeTab === 'files' && (
+              {activeTab === 'files' && canReadFiles && (
                 <div className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-6">
                   <div className="flex items-center justify-between mb-6">
                     <h2 className="text-lg font-semibold text-white flex items-center gap-3">
@@ -1775,7 +1535,7 @@ if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
                 </div>
               )}
 
-              {activeTab === 'fees' && (
+              {activeTab === 'fees' && canReadFees && (
                 <div className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-6">
                   <h2 className="text-lg font-semibold text-white mb-6 flex items-center gap-3">
                     <Award className="w-5 h-5 text-emerald-400" /> Cotisations
@@ -1800,7 +1560,7 @@ if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
                 </div>
               )}
 
-              {activeTab === 'payments' && (
+              {activeTab === 'payments' && canReadFees && (
                 <div className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-6">
                   <h2 className="text-lg font-semibold text-white mb-6 flex items-center gap-3">
                     <CreditCard className="w-5 h-5 text-emerald-400" /> Historique des paiements
@@ -1820,7 +1580,7 @@ if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
                 </div>
               )}
 
-              {activeTab === 'transactions' && (
+              {activeTab === 'transactions' && canReadFees && (
                 <div className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-6">
                   <h2 className="text-lg font-semibold text-white mb-6 flex items-center gap-3">
                     <Clock className="w-5 h-5 text-emerald-400" />
@@ -1841,7 +1601,7 @@ if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
                 </div>
               )}
 
-              {activeTab === 'validation' && (
+              {activeTab === 'validation' && canReadValidation && (
                 <div className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-6">
                   <h2 className="text-lg font-semibold text-white mb-6 flex items-center gap-3">
                     <Shield className="w-5 h-5 text-emerald-400" />
@@ -1858,7 +1618,7 @@ if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
                         const totalSteps = req.steps?.length || 0;
                         const approvedSteps = req.steps?.filter(s => s.status === 'approved').length || 0;
                         const progressPercent = totalSteps > 0 ? Math.round((approvedSteps / totalSteps) * 100) : 0;
-                        const isExpanded = expandedRequests[req.id] ?? true;
+                        const isExpanded = expandedRequests[req.id] ?? false;
                         const requestName = getRequestName(req);
                         const displayStatus = mapApiStatusToDisplay(req);
 
@@ -1868,9 +1628,7 @@ if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
                               <div className="flex items-center justify-between gap-4 mb-3">
                                 <div>
                                   <div className="flex items-center gap-2 flex-wrap">
-                                    <p className="text-base font-semibold text-[#F8FAFC]">
-                                      {requestName}
-                                    </p>
+                                    <p className="text-base font-semibold text-[#F8FAFC]">{requestName}</p>
                                     {req.targetType && (
                                       <span className="text-xs px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[#94A3B8]">
                                         {req.targetType}
@@ -1878,37 +1636,21 @@ if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
                                     )}
                                   </div>
                                   <p className="text-xs text-[#94A3B8] mt-1">
-                                    Créée le {new Date(req.createdAt).toLocaleDateString('fr-FR')}
+                                    Créée le {new Date(req.createdAt).toLocaleString('fr-FR')}
                                   </p>
                                 </div>
                                 <div className="flex items-center gap-3">
                                   {(() => {
                                     if (displayStatus === 'Validé') {
-                                      return (
-                                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
-                                          Validée
-                                        </span>
-                                      );
+                                      return <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border bg-emerald-500/10 text-emerald-400 border-emerald-500/20">Validée</span>;
                                     }
                                     if (displayStatus === 'Rejeté') {
-                                      return (
-                                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border bg-rose-500/10 text-rose-400 border-rose-500/20">
-                                          Rejetée
-                                        </span>
-                                      );
+                                      return <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border bg-rose-500/10 text-rose-400 border-rose-500/20">Rejetée</span>;
                                     }
                                     if (displayStatus === 'Modifications requises') {
-                                      return (
-                                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border bg-amber-500/10 text-amber-400 border-amber-500/20">
-                                          Modifications requises
-                                        </span>
-                                      );
+                                      return <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border bg-amber-500/10 text-amber-400 border-amber-500/20">Modifications requises</span>;
                                     }
-                                    return (
-                                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border bg-blue-500/10 text-blue-400 border-blue-500/20">
-                                        En cours
-                                      </span>
-                                    );
+                                    return <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border bg-blue-500/10 text-blue-400 border-blue-500/20">En cours</span>;
                                   })()}
                                   <button
                                     type="button"
@@ -1921,13 +1663,11 @@ if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
                                 </div>
                               </div>
 
-                              {(() => {
-                                if (displayStatus !== 'Modifications requises') return null;
-
+                              {/* Correction banner — only if user can create requests */}
+                              {canCreateValidation && displayStatus === 'Modifications requises' && (() => {
                                 const verificationStepWithCorrection = req.steps?.find(s =>
                                   (s.status === 'changes_requested' || s.status === 'pending' || !s.status) && (s.comments || s.reason)
                                 );
-
                                 return (
                                   <div className="mb-4 p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl shadow-sm">
                                     <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -1953,7 +1693,7 @@ if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
                                             );
                                             setSelectedDeclarationRequestId(req.id || null);
                                             setSelectedDeclarationSchema(declSchema || null);
-                                            setIsDeclarationResubmitMode(true);   // ← NEW
+                                            setIsDeclarationResubmitMode(true);
                                             setIsDeclarationModalOpen(true);
                                           }}
                                           className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-semibold transition-all flex items-center gap-2 shadow-lg shadow-amber-500/20 cursor-pointer"
@@ -1982,12 +1722,10 @@ if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
                               <div className="mt-6 pt-6 border-t border-white/5">
                                 <div className="relative pl-8">
                                   <div className="absolute left-[11px] top-2 bottom-2 w-0.5 bg-[#1F2937]" />
-
                                   {req.steps?.map((step, idx) => {
                                     const isReqChangesRequested = displayStatus === 'Modifications requises';
                                     const isDone = step.status === 'approved';
                                     const isChangesRequested = isReqChangesRequested && (step.status === 'changes_requested' || idx === 0);
-                                    const isPending = !isDone && !isChangesRequested && step.status !== 'rejected' && step.status !== 'skipped';
                                     const isRejected = step.status === 'rejected' || step.status === 'expired';
                                     const isSkipped = step.status === 'skipped';
 
@@ -2009,46 +1747,35 @@ if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
 
                                     const stepStatusLabel = isChangesRequested
                                       ? 'Modifications requises'
-                                      : isDone
-                                        ? 'Approuvée'
-                                        : isRejected
-                                          ? 'Rejetée'
-                                          : isSkipped
-                                            ? 'Sautée'
-                                            : 'En attente';
+                                      : isDone ? 'Approuvée'
+                                      : isRejected ? 'Rejetée'
+                                      : isSkipped ? 'Sautée' : 'En attente';
 
                                     return (
                                       <div key={idx} className="relative pb-6 last:pb-0">
                                         <div className={`absolute -left-[29px] z-10 flex items-center justify-center w-6 h-6 rounded-full border-2 ${circleBg}`}>
                                           {icon}
                                         </div>
-
                                         <div className="bg-[#111827] rounded-xl border border-[rgba(255,255,255,0.06)] p-4 hover:border-[rgba(255,255,255,0.12)] transition-all">
                                           <div className="flex items-center justify-between mb-2">
                                             <p className="text-sm font-semibold text-[#F8FAFC]">
                                               {step.stepName || step.name || `Étape ${step.stepOrder || idx + 1}`}
                                             </p>
-                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${isChangesRequested ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-                                              isDone ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-                                                isRejected ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
-                                                  isSkipped ? 'bg-gray-500/10 text-gray-400 border-gray-500/20' :
-                                                    'bg-blue-500/10 text-blue-400 border-blue-500/20'
-                                              }`}>
+                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${
+                                              isChangesRequested ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                                              : isDone ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                              : isRejected ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                                              : isSkipped ? 'bg-gray-500/10 text-gray-400 border-gray-500/20'
+                                              : 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                                            }`}>
                                               {stepStatusLabel}
                                             </span>
                                           </div>
 
                                           {step.requiredRole && (
-                                            <p className="text-xs text-[#94A3B8]">
-                                              Rôle requis : {step.requiredRole}
-                                            </p>
+                                            <p className="text-xs text-[#94A3B8]">Rôle requis : {step.requiredRole}</p>
                                           )}
 
-                                          {step.allowedUserIds?.length > 0 && (
-                                            <p className="text-xs text-[#94A3B8] mt-1">
-                                              Assignée à : {step.allowedUserIds.map(u => u.name || u.email || u.id).join(', ')}
-                                            </p>
-                                          )}
                                           {(step.comments || step.reason) && (
                                             <div className={`mt-2.5 p-2.5 rounded-lg border ${step.status === 'rejected' ? 'bg-rose-500/10 border-rose-500/20 text-rose-300' : 'bg-[#182233] border-white/10'}`}>
                                               <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
@@ -2059,11 +1786,19 @@ if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
                                               </p>
                                             </div>
                                           )}
+
                                           {step.approvedBy && (
                                             <p className="text-xs text-[#64748B] mt-2">
-                                              Traitée par {step.approvedBy.name || step.approvedBy.email || step.approvedBy}{step.approvedAt ? ` le ${new Date(step.approvedAt).toLocaleString('fr-FR')}` : ''}
+                                              Traitée par{' '}
+                                              <span className="text-[#94A3B8] font-medium">
+                                                {step.approvedBy.name + " " + step.approvedBy.lastname || step.requiredRole}
+                                              </span>
+                                              {step.approvedAt
+                                                ? ` le ${new Date(step.approvedAt).toLocaleString('fr-FR')}`
+                                                : ''}
                                             </p>
                                           )}
+
                                           {step.timeout?.duration > 0 && step.status === 'pending' && (
                                             <div className="mt-2 flex items-center gap-1.5 text-xs text-orange-400">
                                               <Clock className="w-3.5 h-3.5" /> <span>Délai : {step.timeout.duration}h – {step.timeout.action}</span>
@@ -2097,7 +1832,7 @@ if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
                 </div>
               )}
 
-              {activeTab === 'Demandes' && (
+              {activeTab === 'Demandes' && canCreateValidation && (
                 <div className="bg-[#111827] rounded-xl border border-white/5 shadow-xl p-6">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                     <div>
@@ -2120,7 +1855,6 @@ if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
                       return (
                         <div className="bg-[#0A0F1C] rounded-2xl border border-emerald-500/30 p-6 flex flex-col justify-between relative overflow-hidden shadow-lg shadow-emerald-950/20 group hover:border-emerald-500/50 transition-all duration-300">
                           <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none" />
-
                           <div>
                             <div className="flex items-start justify-between gap-3 mb-4">
                               <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 group-hover:scale-110 transition-transform">
@@ -2130,35 +1864,22 @@ if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
                                 Requis
                               </span>
                             </div>
-
                             <h3 className="text-base font-bold text-white tracking-tight">
                               {declSchema?.name || "Déclaration"}
                             </h3>
                             <p className="text-xs text-[#94A3B8] mt-1.5 leading-relaxed">
                               {declSchema?.description || "Soumettez votre déclaration avec votre NIN et vos 3 justificatifs obligatoires (CNRC, Reçu de paiement, Attestation CNAS)."}
                             </p>
-
                             <div className="mt-4 pt-4 border-t border-white/5 space-y-2">
-                              <p className="text-[11px] font-semibold uppercase tracking-wider text-[#64748B]">
-                                Éléments obligatoires :
-                              </p>
+                              <p className="text-[11px] font-semibold uppercase tracking-wider text-[#64748B]">Éléments obligatoires :</p>
                               <div className="flex flex-wrap gap-1.5 text-xs text-[#94A3B8]">
-                                <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[#CBD5E1]">
-                                  • NIN
-                                </span>
-                                <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[#CBD5E1]">
-                                  • Document CNRC
-                                </span>
-                                <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[#CBD5E1]">
-                                  • Document Paiement
-                                </span>
-                                <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[#CBD5E1]">
-                                  • Document CNAS
-                                </span>
+                                <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[#CBD5E1]">• NIN</span>
+                                <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[#CBD5E1]">• Document CNRC</span>
+                                <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[#CBD5E1]">• Document Paiement</span>
+                                <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[#CBD5E1]">• Document CNAS</span>
                               </div>
                             </div>
                           </div>
-
                           <div className="mt-6 pt-4 border-t border-white/5">
                             {(() => {
                               const existingDecl = validationRequests.find(r =>
@@ -2166,33 +1887,25 @@ if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
                                   (r.schemaName || r.schema?.name || '').toLowerCase().includes('declaration')) &&
                                 !['rejected', 'cancelled'].includes(r.status?.toLowerCase())
                               );
-
                               const isNeedsCorrection = existingDecl && mapApiStatusToDisplay(existingDecl) === 'Modifications requises';
-
                               return (
                                 <button
                                   type="button"
                                   onClick={() => {
                                     setSelectedDeclarationRequestId(existingDecl?.id || null);
                                     setSelectedDeclarationSchema(declSchema || null);
-                                    setIsDeclarationResubmitMode(!!isNeedsCorrection);   // ← NEW
+                                    setIsDeclarationResubmitMode(!!isNeedsCorrection);
                                     setIsDeclarationModalOpen(true);
                                   }}
-                                  className={`w-full py-2.5 px-4 text-white text-xs font-semibold rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer ${isNeedsCorrection
-                                    ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20'
+                                  className={`w-full py-2.5 px-4 text-white text-xs font-semibold rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                                    isNeedsCorrection ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20'
                                     : 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/20'
-                                    }`}
+                                  }`}
                                 >
                                   {isNeedsCorrection ? (
-                                    <>
-                                      <Edit className="w-4 h-4" />
-                                      Corriger / Compléter mon dossier
-                                    </>
+                                    <><Edit className="w-4 h-4" />Corriger / Compléter mon dossier</>
                                   ) : (
-                                    <>
-                                      <Plus className="w-4 h-4" />
-                                      Faire la demande
-                                    </>
+                                    <><Plus className="w-4 h-4" />Faire la demande</>
                                   )}
                                 </button>
                               );
@@ -2221,21 +1934,16 @@ if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
                                 {sch.targetType || 'Demande'}
                               </span>
                             </div>
-
-                            <h3 className="text-base font-bold text-white tracking-tight">
-                              {sch.name || sch.title}
-                            </h3>
+                            <h3 className="text-base font-bold text-white tracking-tight">{sch.name || sch.title}</h3>
                             <p className="text-xs text-[#94A3B8] mt-1.5 leading-relaxed">
                               {sch.description || `Initiez un parcours de validation pour ${sch.name}.`}
                             </p>
-
                             {sch.steps?.length > 0 && (
                               <p className="text-xs text-[#64748B] mt-3">
                                 {sch.steps.length} étape{sch.steps.length > 1 ? 's' : ''} de validation
                               </p>
                             )}
                           </div>
-
                           <div className="mt-6 pt-4 border-t border-white/5">
                             <button
                               type="button"
@@ -2243,8 +1951,7 @@ if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
                               disabled={demandSubmitting}
                               className="w-full py-2.5 px-4 bg-white/10 hover:bg-white/15 active:scale-[0.99] text-white text-xs font-semibold rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                             >
-                              <Plus className="w-4 h-4" />
-                              Faire la demande
+                              <Plus className="w-4 h-4" />Faire la demande
                             </button>
                           </div>
                         </div>
@@ -2257,7 +1964,7 @@ if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
         </div>
       </div>
 
-      {showTransactionModal && (
+      {showTransactionModal && canUpdateFees && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0A0F1C]/80 backdrop-blur-sm p-4">
           <div className="bg-[#182233] rounded-2xl p-6 md:p-8 w-full max-w-md border border-white/10 shadow-2xl animate-in zoom-in-95">
             <h3 className="text-xl font-semibold text-white mb-6 flex items-center gap-3">
@@ -2314,14 +2021,8 @@ if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
                   type="button"
                   onClick={() => {
                     const amountNum = parseFloat(transactionAmount);
-                    if (isNaN(amountNum) || amountNum <= 0) {
-                      showError('Montant invalide (doit être positif)');
-                      return;
-                    }
-                    if (transactionType === 'withdraw' && amountNum > displayUser.credit) {
-                      showError('Crédit insuffisant');
-                      return;
-                    }
+                    if (isNaN(amountNum) || amountNum <= 0) return showError('Montant invalide (doit être positif)');
+                    if (transactionType === 'withdraw' && amountNum > displayUser.credit) return showError('Crédit insuffisant');
                     handleTransaction(amountNum, transactionMethod, transactionNotes, transactionType);
                   }}
                   className="flex-1 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg transition-colors shadow-lg shadow-emerald-600/20"
@@ -2389,9 +2090,7 @@ if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
               `${NEST_API_URL}/pdf/send-degree-email`,
               {
                 method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId, recipientEmail }),
               },
               authData.token,

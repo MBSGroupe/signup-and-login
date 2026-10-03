@@ -2,6 +2,13 @@
 
 const API_URL = import.meta.env.VITE_NEST_API_URL;
 
+// ─── Login routes per account type ─────────────────────────────────
+// Keep these in sync with your router.
+const LOGIN_PATH = {
+  user: '/',
+  admin: '/admin/login',
+};
+
 const decodeJwtPayload = (token) => {
   try {
     const parts = token.split('.');
@@ -19,14 +26,17 @@ const decodeJwtPayload = (token) => {
   }
 };
 
-// ─── Refresh deduplication ─────────────────────────────────────────
+// ─── Refresh deduplication (per refresh path) ──────────────────────
 // Concurrent 401s must share a single refresh call. If two requests
 // both hit /auth/refresh at once, the first rotates the token and the
 // second revokes the session (server treats the stale token as theft).
-let refreshInFlight = null;
+//
+// The dedupe key is the refresh PATH so a user refresh and an admin
+// refresh never share a promise.
+const refreshInFlightByPath = new Map();
 
 // ─── Hard logout helper ────────────────────────────────────────────
-const forceLogout = (setAuthData) => {
+const forceLogout = (setAuthData, accountType = 'user') => {
   setAuthData?.(null);
   try {
     localStorage.removeItem('accessToken');
@@ -35,9 +45,13 @@ const forceLogout = (setAuthData) => {
   } catch {
     /* noop */
   }
+
+  const base = LOGIN_PATH[accountType] || LOGIN_PATH.user;
+  const target = `${base}?reason=session-expired`;
+
   // replace (not href) so the login page doesn't get a back-button entry
   // pointing at the now-broken dashboard state
-  window.location.replace('/');
+  window.location.replace(target);
 };
 
 const sessionExpiredError = () => {
@@ -50,19 +64,18 @@ const sessionExpiredError = () => {
 /**
  * Wrapper around fetch that:
  *   - attaches the Authorization header
- *   - refreshes the access token on 401 (using /auth/refresh or /auth/admin/refresh
- *     depending on the account type), deduplicating concurrent refreshes
+ *   - refreshes the access token on 401 (/auth/refresh or /auth/admin/refresh
+ *     depending on account type), deduplicating concurrent refreshes
+ *   - on refresh failure, hard-logs out AND redirects to the correct login page
+ *     (member → "/", admin → "/admin/login")
  *   - on 403, parses the backend error and attaches `status`, `code`, `details`
- *     to the thrown Error so callers can branch on it WITHOUT logging the user out
+ *     to the thrown Error so callers can branch on it WITHOUT logging out
  *   - on other non-ok statuses, attaches `status`, `code`, `details` too
  *
- * Account type for refresh routing is resolved from (in order):
+ * Account type is resolved once, up-front, from (in order):
  *   1. authHint.type, if provided by the caller
- *   2. the `type` claim inside the access token itself
+ *   2. the `type` claim inside the access token
  *   3. 'user' as a last-resort default
- *
- * Returns the raw Response on success (ok === true).
- * Throws on refresh failure (session expired) or on any non-ok response.
  *
  * @param {string} url
  * @param {RequestInit} options
@@ -87,20 +100,23 @@ export const fetchWithRefresh = async (
       },
     });
 
+  // ★ Resolve account type ONCE, up-front, so both the refresh routing
+  // and the post-refresh hard-logout target the right login page.
+  const hintedType = authHint?.type;
+  const tokenType = token ? decodeJwtPayload(token)?.type : null;
+  const accountType = hintedType || tokenType || 'user';
+
+  const refreshPath =
+    accountType === 'admin' ? '/auth/admin/refresh' : '/auth/refresh';
+
   let response = await makeRequest(token);
 
   if (response.status === 401) {
-    const hintedType = authHint?.type;
-    const tokenType = token ? decodeJwtPayload(token)?.type : null;
-    const accountType = hintedType || tokenType || 'user';
-    const refreshPath =
-      accountType === 'admin' ? '/auth/admin/refresh' : '/auth/refresh';
-
     try {
-      // ★ Deduplicate: if a refresh is already in flight, await it
-      // instead of firing a second one (which would revoke the session).
-      if (!refreshInFlight) {
-        refreshInFlight = (async () => {
+      // ★ Dedupe per refresh path — a user refresh never blocks or
+      // hijacks an admin refresh.
+      if (!refreshInFlightByPath.has(refreshPath)) {
+        const promise = (async () => {
           const refreshResponse = await fetch(`${API_URL}${refreshPath}`, {
             method: 'POST',
             credentials: 'include',
@@ -120,27 +136,27 @@ export const fetchWithRefresh = async (
           }
           return newToken;
         })().finally(() => {
-          // Release the lock as soon as the promise settles
-          refreshInFlight = null;
+          refreshInFlightByPath.delete(refreshPath);
         });
+
+        refreshInFlightByPath.set(refreshPath, promise);
       }
 
-      const newToken = await refreshInFlight;
+      const newToken = await refreshInFlightByPath.get(refreshPath);
 
       setAuthData?.((prev) => ({ ...prev, token: newToken }));
       response = await makeRequest(newToken);
 
       // ★ If the retry itself still 401s, the new token is no good.
       // Session is likely revoked server-side (restart, admin revocation,
-      // rotation race we didn't catch). Hard logout so the user isn't
-      // left staring at a blank dashboard.
+      // rotation race we didn't catch). Hard logout to the right login.
       if (response.status === 401) {
-        forceLogout(setAuthData);
+        forceLogout(setAuthData, accountType);
         throw sessionExpiredError();
       }
     } catch (error) {
       if (error?.code === 'AUTH_SESSION_EXPIRED') throw error;
-      forceLogout(setAuthData);
+      forceLogout(setAuthData, accountType);
       throw sessionExpiredError();
     }
   }
@@ -152,7 +168,9 @@ export const fetchWithRefresh = async (
     } catch {
       // non-JSON error body — leave as empty object
     }
-    const err = new Error(body?.message || `Request failed (${response.status})`);
+    const err = new Error(
+      body?.message || `Request failed (${response.status})`,
+    );
     err.status = response.status;
     err.code = body?.code;
     err.details = body?.details;
