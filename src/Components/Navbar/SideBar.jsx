@@ -48,6 +48,16 @@ export default function SideBar() {
   const [validationOpen, setValidationOpen] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
 
+  // ─── Stats permissions ─────────────────────────────────────────────
+  // Default to the grade-based fallback while the fetch is in flight,
+  // so the menu isn't half-empty during the first render.
+  const [statsPermissions, setStatsPermissions] = useState({
+    fees: false,
+    users: false,
+    admins: isAdminOrSuper,
+    loaded: false,
+  });
+
   // ─── Validation unread state ───────────────────────────────────────
   const [validationNotifications, setValidationNotifications] = useState([]);
   const [validationLastSeenAt, setValidationLastSeenAt] = useState(() => {
@@ -75,6 +85,60 @@ export default function SideBar() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // ─── Fetch stats permissions once ──────────────────────────────────
+  // Mirrors the pattern used in ProfilePage: POST { operation, model }
+  // to /permissions/:userId/check-operation, read data.canPerform.
+  useEffect(() => {
+    if (!authData?.token || !authData?.user?.id) return;
+    let cancelled = false;
+
+    const checkOp = async (operation, model) => {
+      try {
+        const res = await fetchWithRefresh(
+          `${API_URL}/permissions/${authData.user.id}/check-operation`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ operation, model }),
+          },
+          authData.token,
+          setAuthData,
+          { type: authData.user?.type },
+        );
+        if (!res.ok) return null;
+        const data = await res.json();
+        return data?.data?.canPerform ?? data?.canPerform ?? false;
+      } catch (err) {
+        console.error(`[SideBar] check-operation ${operation}/${model} failed`, err);
+        return null;
+      }
+    };
+
+    const load = async () => {
+      const [fees, users, admins] = await Promise.all([
+        checkOp("read_stats", "Fee"),
+        checkOp("read_stats", "User"),
+        checkOp("read_stats", "Admin"),
+      ]);
+
+      if (cancelled) return;
+
+      // `null` = request failed → fall back to grade check for that slot.
+      // `false` = explicit denial → keep hidden.
+      setStatsPermissions({
+        fees: fees === null ? true : fees,
+        users: users === null ? true : users,
+        admins: admins === null ? isAdminOrSuper : admins,
+        loaded: true,
+      });
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [authData?.token, authData?.user?.id, authData?.user?.type, isAdminOrSuper, setAuthData]);
 
   // ─── Poll unread validation notifications ──────────────────────────
   useEffect(() => {
@@ -238,6 +302,12 @@ export default function SideBar() {
     </button>
   );
 
+  // Which stats sub-items to show — derived from permissions
+  const showFeeStats = statsPermissions.fees;
+  const showUserStats = statsPermissions.users;
+  const showAdminStats = statsPermissions.admins;
+  const hasAnyStatsItem = showFeeStats || showUserStats || showAdminStats;
+
   return (
     <nav
       ref={sidebarRef}
@@ -368,36 +438,50 @@ export default function SideBar() {
             )}
           </div>
 
-          <div>
-            <DropdownToggle
-              icon={BarChart3}
-              label="Statistiques"
-              isOpen={statsOpen}
-              onClick={() =>
-                toggleDropdown(setStatsOpen, [
-                  setUsersOpen,
-                  setAdminsOpen,
-                  setCotisationsOpen,
-                  setValidationOpen,
-                  setConfigOpen,
-                ])
-              }
-            />
-            {statsOpen && (
-              <div className="ml-3 mt-1 space-y-1 border-l border-[rgba(255,255,255,0.06)] pl-2">
-                <SubItem
-                  label="Cotisations"
-                  onClick={() => handleNavigation("/dash/feeStats")}
-                  active={isActive("/dash/feeStats")}
-                />
-                <SubItem
-                  label="Utilisateurs"
-                  onClick={() => handleNavigation("/dash/userStats")}
-                  active={isActive("/dash/userStats")}
-                />
-              </div>
-            )}
-          </div>
+          {/* Stats — rendered only if at least one sub-item is permitted */}
+          {hasAnyStatsItem && (
+            <div>
+              <DropdownToggle
+                icon={BarChart3}
+                label="Statistiques"
+                isOpen={statsOpen}
+                onClick={() =>
+                  toggleDropdown(setStatsOpen, [
+                    setUsersOpen,
+                    setAdminsOpen,
+                    setCotisationsOpen,
+                    setValidationOpen,
+                    setConfigOpen,
+                  ])
+                }
+              />
+              {statsOpen && (
+                <div className="ml-3 mt-1 space-y-1 border-l border-[rgba(255,255,255,0.06)] pl-2">
+                  {showFeeStats && (
+                    <SubItem
+                      label="Cotisations"
+                      onClick={() => handleNavigation("/dash/feeStats")}
+                      active={isActive("/dash/feeStats")}
+                    />
+                  )}
+                  {showUserStats && (
+                    <SubItem
+                      label="Utilisateurs"
+                      onClick={() => handleNavigation("/dash/userStats")}
+                      active={isActive("/dash/userStats")}
+                    />
+                  )}
+                  {showAdminStats && (
+                    <SubItem
+                      label="Administrateurs"
+                      onClick={() => handleNavigation("/dash/adminStats")}
+                      active={isActive("/dash/adminStats")}
+                    />
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {isSuperAdmin && (
             <div>
@@ -427,7 +511,7 @@ export default function SideBar() {
                     onClick={() => handleNavigation("/dash/roles")}
                     active={isActive("/dash/roles")}
                   />
-                  
+
                   <SubItem
                     label="Validations"
                     onClick={() => handleNavigation("/dash/validation/schemas")}
@@ -503,7 +587,6 @@ export default function SideBar() {
           background-color: transparent;
         }
 
-        /* Icon "pops" green: bright emerald + breathing glow + subtle scale */
         @keyframes validationPop {
           0%, 100% {
             filter: drop-shadow(0 0 3px rgba(52, 211, 153, 0.6));

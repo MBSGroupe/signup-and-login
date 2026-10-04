@@ -51,6 +51,8 @@ import ForgotPassword from './Pages/ForgotPassword';
 import ResetPassword from './Pages/ResetPassword';
 import SiteApplication from "./Pages/siteapplication";
 import PixelNo from './Components/NO';
+import AdminStats from "./Pages/DashBoard/Stats/AdminStats";
+
 
 export default function App() {
   return (
@@ -147,6 +149,7 @@ export default function App() {
         <Route path="adminUser/:id" element={<AdminUserView />} />
         <Route path="feeStats" element={<FeeStats />} />
         <Route path="userStats" element={<UserStats />} />
+        <Route path="/dash/adminStats" element={<AdminStats />} />
       </Route>
 
     </Routes>
