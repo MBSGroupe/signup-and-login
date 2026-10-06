@@ -6,7 +6,7 @@ const API_URL = import.meta.env.VITE_NEST_API_URL;
 // Keep these in sync with your router.
 const LOGIN_PATH = {
   user: '/',
-  admin: '/admin/login',
+  admin: '/adminlogin',
 };
 
 const decodeJwtPayload = (token) => {

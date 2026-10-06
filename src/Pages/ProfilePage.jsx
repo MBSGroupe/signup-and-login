@@ -141,62 +141,25 @@ const RTL_FIELDS = new Set([
 ]);
 
 const FALLBACK_LABELS = {
-  region: "CLOA d'exercice",
-  nin: 'NIN',
-  sexe: 'Civilité',
-  serviceNationalStatus: 'Service national',
-  name: 'Nom',
-  lastname: 'Prénom',
-  nomArabe: 'Nom (Arabe)',
-  prenomArabe: 'Prénom (Arabe)',
-  dateOfBirth: 'Date de naissance',
-  lieuNaissance: 'Lieu de naissance',
-  numeroActeNaissance: "N° acte de naissance",
-  adressePersonnelle: 'Adresse personnelle',
-  adressePersonnelleArabe: 'Adresse personnelle (Arabe)',
-  commune: 'Commune',
-  wilaya: 'Wilaya',
-  prenomPere: 'Prénom du père',
-  prenomPereArabe: 'Prénom du père (Arabe)',
-  nomPrenomMere: 'Nom et prénom de la mère',
-  nomPrenomMereArabe: 'Nom et prénom de la mère (Arabe)',
-  maritalStatus: 'Situation familiale',
-  nationality: 'Nationalité',
-  enfants: "Nombre d'enfants",
-  fixe: 'Téléphone fixe',
-  phone: 'Téléphone mobile',
-  email: 'Email',
-  emailPro: 'Email professionnel',
-  diplomaType: 'Type de diplôme',
-  sessionClassique: 'Session Classique',
-  anneeClassique: 'Année Classique',
-  universiteClassique: 'Université Classique',
-  sessionLMDL: 'Session LMD (Licence)',
-  anneeLMDL: 'Année LMD (Licence)',
-  universiteLMDL: 'Université LMD (Licence)',
-  sessionLMDM: 'Session LMD (Master)',
-  anneeLMDM: 'Année LMD (Master)',
-  universiteLMDM: 'Université LMD (Master)',
-  otherDiplomas: 'Autres diplômes',
-  otherTrainings: 'Formations',
-  registrationNumber: "N° d'inscription",
-  oathDate: 'Date de serment',
-  oathLocation: 'Lieu du serment',
-  professionalMode: "Mode d'exercice",
-  installationDate: "Date d'installation",
-  nif: 'NIF',
-  adressePro: 'Adresse professionnelle',
-  adresseProArabe: 'Adresse professionnelle (Arabe)',
-  benefitStateAid: "Aide d'État",
-  moyensHumains: 'Moyens humains',
-  gps: 'GPS (Localisation)',
-  recruitmentDate: 'Date de recrutement',
-  employerName: "Nom et prénom de l'employeur",
-  employerRegistrationNumber: "N° d'inscription de l'employeur",
-  employerAdresse: 'Adresse professionnelle',
-  employerAdresseArabe: 'Adresse professionnelle (Arabe)',
-  employerCommune: 'Commune',
-  employerWilaya: 'Wilaya',
+  region: "CLOA d'exercice", nin: 'NIN', sexe: 'Civilité', serviceNationalStatus: 'Service national',
+  name: 'Nom', lastname: 'Prénom', nomArabe: 'Nom (Arabe)', prenomArabe: 'Prénom (Arabe)',
+  dateOfBirth: 'Date de naissance', lieuNaissance: 'Lieu de naissance', numeroActeNaissance: "N° acte de naissance",
+  adressePersonnelle: 'Adresse personnelle', adressePersonnelleArabe: 'Adresse personnelle (Arabe)',
+  commune: 'Commune', wilaya: 'Wilaya', prenomPere: 'Prénom du père', prenomPereArabe: 'Prénom du père (Arabe)',
+  nomPrenomMere: 'Nom et prénom de la mère', nomPrenomMereArabe: 'Nom et prénom de la mère (Arabe)',
+  maritalStatus: 'Situation familiale', nationality: 'Nationalité', enfants: "Nombre d'enfants",
+  fixe: 'Téléphone fixe', phone: 'Téléphone mobile', email: 'Email', emailPro: 'Email professionnel',
+  diplomaType: 'Type de diplôme', sessionClassique: 'Session Classique', anneeClassique: 'Année Classique',
+  universiteClassique: 'Université Classique', sessionLMDL: 'Session LMD (Licence)', anneeLMDL: 'Année LMD (Licence)',
+  universiteLMDL: 'Université LMD (Licence)', sessionLMDM: 'Session LMD (Master)', anneeLMDM: 'Année LMD (Master)',
+  universiteLMDM: 'Université LMD (Master)', otherDiplomas: 'Autres diplômes', otherTrainings: 'Formations',
+  registrationNumber: "N° d'inscription", oathDate: 'Date de serment', oathLocation: 'Lieu du serment',
+  professionalMode: "Mode d'exercice", installationDate: "Date d'installation", nif: 'NIF',
+  adressePro: 'Adresse professionnelle', adresseProArabe: 'Adresse professionnelle (Arabe)',
+  benefitStateAid: "Aide d'État", moyensHumains: 'Moyens humains', gps: 'GPS (Localisation)',
+  recruitmentDate: 'Date de recrutement', employerName: "Nom et prénom de l'employeur",
+  employerRegistrationNumber: "N° d'inscription de l'employeur", employerAdresse: 'Adresse professionnelle',
+  employerAdresseArabe: 'Adresse professionnelle (Arabe)', employerCommune: 'Commune', employerWilaya: 'Wilaya',
 };
 
 function getFieldLabel(name, configs) {
@@ -254,9 +217,7 @@ function InfoTabContent({ displayUser, permissions }) {
       .map((name) => {
         const raw = displayUser?.[name];
         const isEmpty =
-          raw === undefined ||
-          raw === null ||
-          raw === '' ||
+          raw === undefined || raw === null || raw === '' ||
           (Array.isArray(raw) && raw.length === 0);
         if (isEmpty) return null;
         return { name, label: getFieldLabel(name, configs), raw };
@@ -340,10 +301,24 @@ export default function ProfilePage({ user }) {
   const [transactionAmount, setTransactionAmount] = useState('');
   const [transactionMethod, setTransactionMethod] = useState('cash');
   const [transactionNotes, setTransactionNotes] = useState('');
-  const [pdfPreview, setPdfPreview] = useState({ isOpen: false, type: 'situation', data: null });
+
+  // pdfPreview now carries `isGenerating` so the modal can show a badge
+  // while the queued final PDF is being produced.
+  const [pdfPreview, setPdfPreview] = useState({
+    isOpen: false,
+    type: 'situation',
+    data: null,
+    isGenerating: false,
+  });
+
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
   const [activeTab, setActiveTab] = useState('info');
+
+  // Keep a ref of the *current* pdfPreview so background swaps don't
+  // overwrite a newer modal instance.
+  const pdfPreviewRef = useRef(pdfPreview);
+  useEffect(() => { pdfPreviewRef.current = pdfPreview; }, [pdfPreview]);
 
   const targetUserId = user?.id || id || authData.user?.id;
   const isOwner = authData.user?.id === targetUserId;
@@ -357,7 +332,6 @@ export default function ProfilePage({ user }) {
     return fallback;
   }, [perms]);
 
-  // Legacy per-op state used by FileCard/CotisationCard etc.
   const [canUpdateUser, setCanUpdateUser] = useState(false);
   const [canDeleteUser, setCanDeleteUser] = useState(false);
   const [canCreateFile, setCanCreateFile] = useState(false);
@@ -429,7 +403,6 @@ export default function ProfilePage({ user }) {
       }
 
       const body = await res.json();
-
       let list = [];
       if (Array.isArray(body)) list = body;
       else if (Array.isArray(body?.data)) list = body.data;
@@ -447,7 +420,7 @@ export default function ProfilePage({ user }) {
 
   useEffect(() => { fetchFiles(); }, [fetchFiles]);
 
-  // ─── File handlers (unchanged) ────────────────────────────────────
+  // ─── File handlers ────────────────────────────────────────────────
   const handleUpload = async (file) => {
     try {
       setIsUploading(true);
@@ -669,7 +642,7 @@ export default function ProfilePage({ user }) {
     }
   };
 
-  // ─── PDF flow (unchanged) ─────────────────────────────────────────
+  // ─── PDF plumbing ─────────────────────────────────────────────────
   const waitForPdfJob = async (jobId) => {
     let attempts = 0;
     const maxAttempts = 30;
@@ -687,16 +660,16 @@ export default function ProfilePage({ user }) {
       } catch { attempts++; continue; }
       if (!statusRes.ok) { attempts++; continue; }
       const statusData = await statusRes.json();
-      const jobData = statusData?.data;
+      const jobData = statusData?.data?.data || statusData?.data || statusData;
       if (!jobData) { attempts++; continue; }
 
-      if (jobData.status === 'completed') {
-        const finalPdfUrl = jobData.downloadUrl || jobData.cloudinaryUrl;
-        if (!finalPdfUrl) throw new Error('La génération est terminée mais aucun lien PDF n’a été retourné.');
-        return { finalPdfUrl, cloudinaryUrl: jobData.cloudinaryUrl || null };
+      if (jobData.status === 'completed' || jobData.state === 'completed') {
+        const finalPdfUrl = jobData.downloadUrl || jobData.cloudinaryUrl || jobData.result?.downloadUrl;
+        if (!finalPdfUrl) throw new Error("La génération est terminée mais aucun lien PDF n'a été retourné.");
+        return { finalPdfUrl, cloudinaryUrl: jobData.cloudinaryUrl || jobData.result?.cloudinaryUrl || null };
       }
-      if (jobData.status === 'failed') {
-        throw new Error('La génération a échoué : ' + (jobData.error || 'Erreur inconnue'));
+      if (jobData.status === 'failed' || jobData.state === 'failed') {
+        throw new Error('La génération a échoué : ' + (jobData.error || jobData.failedReason || 'Erreur inconnue'));
       }
       attempts++;
     }
@@ -716,7 +689,7 @@ export default function ProfilePage({ user }) {
     return await pdfRes.blob();
   };
 
-  const generateQueuedPdf = async (endpoint) => {
+  const generateQueuedPdf = async (endpoint, extraBody = {}) => {
     let jobRes;
     try {
       jobRes = await fetchWithRefresh(
@@ -724,7 +697,7 @@ export default function ProfilePage({ user }) {
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: targetUserId }),
+          body: JSON.stringify({ userId: targetUserId, ...extraBody }),
         },
         authData.token,
         setAuthData
@@ -740,38 +713,121 @@ export default function ProfilePage({ user }) {
     }
 
     const jobData = await jobRes.json();
-    if (!jobData?.data?.success || !jobData?.data?.jobId) {
-      throw new Error(jobData?.data?.message || jobData?.message || 'Réponse inattendue du serveur');
+    const jobId = jobData?.jobId || jobData?.data?.jobId;
+    if (!jobData?.success || !jobId) {
+      throw new Error(jobData?.message || 'Réponse inattendue du serveur');
     }
 
-    const { finalPdfUrl, cloudinaryUrl } = await waitForPdfJob(jobData.data.jobId);
+    const { finalPdfUrl, cloudinaryUrl } = await waitForPdfJob(jobId);
     const finalBlob = await fetchPdfBlob(finalPdfUrl);
     const finalBlobUrl = URL.createObjectURL(finalBlob);
 
     return { blobUrl: finalBlobUrl, downloadUrl: finalPdfUrl, cloudinaryUrl };
   };
 
-  const handlePrintSituation = async () => {
-    try {
-      const pdfData = await generateQueuedPdf('/pdf/situation');
-      setPdfPreview({
-        isOpen: true,
-        type: 'situation',
-        data: {
-          blobUrl: pdfData.blobUrl,
-          memberName: `${displayUser?.name || ''} ${displayUser?.lastname || ''}`.trim(),
-          downloadUrl: pdfData.downloadUrl,
-          cloudinaryUrl: pdfData.cloudinaryUrl,
-          userId: targetUserId,
-          memberEmail: displayUser?.email || '',
-        },
-      });
-      showSuccess('Aperçu généré avec succès!');
-    } catch (error) {
-      console.error('❌ Error generating situation PDF:', error);
-      showError(error.message || 'Erreur réseau');
+  // Fetch a synchronous preview buffer (POST preview endpoints return PDF directly)
+  const fetchPreviewBlobUrl = async (endpoint) => {
+    const res = await fetchWithRefresh(
+      `${NEST_API_URL}${endpoint}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: targetUserId }),
+      },
+      authData.token,
+      setAuthData
+    );
+    if (!res.ok) {
+      let msg = "Erreur lors de la génération de l'aperçu";
+      try { const j = await res.json(); msg = j.message || msg; } catch (_) { }
+      throw new Error(msg);
+    }
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  };
+
+  const revokeBlobUrl = (url) => {
+    if (url && typeof url === 'string' && url.startsWith('blob:')) {
+      try { URL.revokeObjectURL(url); } catch (_) { }
     }
   };
+
+  /**
+   * Open modal with an INSTANT preview blob, then kick off the
+   * queued real generation in the background. When the final PDF is
+   * ready, swap the blob URL inside the modal.
+   *
+   * @param {'situation'|'degree'} type
+   */
+  const openPdfWithPreview = async (type) => {
+    const previewEndpoint = type === 'degree' ? '/pdf/preview/degree' : '/pdf/preview/situation';
+    const finalEndpoint   = type === 'degree' ? '/pdf/degree'         : '/pdf/situation';
+
+    // 1) Instantly fetch the preview blob
+    let previewBlobUrl;
+    try {
+      previewBlobUrl = await fetchPreviewBlobUrl(previewEndpoint);
+    } catch (err) {
+      console.error(`❌ Preview error (${type}):`, err);
+      showError(err.message || 'Erreur lors de la génération de l’aperçu');
+      return;
+    }
+
+    // 2) Open modal with preview + "generating" flag
+    const memberName = `${displayUser?.name || ''} ${displayUser?.lastname || ''}`.trim();
+    setPdfPreview({
+      isOpen: true,
+      type,
+      isGenerating: true,
+      data: {
+        blobUrl: previewBlobUrl,
+        memberName,
+        userId: targetUserId,
+        memberEmail: displayUser?.email || '',
+        isPreview: true,
+      },
+    });
+    showSuccess('Aperçu instantané affiché — version finale en cours…');
+
+    // 3) Background: queue the real generation and swap when ready
+    (async () => {
+      try {
+        const finalPdf = await generateQueuedPdf(finalEndpoint);
+        setPdfPreview((prev) => {
+          // If the user closed or reopened with a different type, do nothing.
+          if (!prev.isOpen || prev.type !== type) {
+            revokeBlobUrl(finalPdf.blobUrl);
+            return prev;
+          }
+          // Revoke the preview blob to free memory
+          revokeBlobUrl(prev.data?.blobUrl);
+          return {
+            ...prev,
+            isGenerating: false,
+            data: {
+              ...prev.data,
+              blobUrl: finalPdf.blobUrl,
+              downloadUrl: finalPdf.downloadUrl,
+              cloudinaryUrl: finalPdf.cloudinaryUrl,
+              isPreview: false,
+            },
+          };
+        });
+        showSuccess(type === 'degree' ? 'Diplôme final généré ✅' : 'Situation finale générée ✅');
+        // Refresh files so the newly stored pdf-degrees file appears
+        if (type === 'degree') await fetchFiles();
+      } catch (err) {
+        console.error(`❌ Final generation error (${type}):`, err);
+        setPdfPreview((prev) =>
+          prev.isOpen && prev.type === type ? { ...prev, isGenerating: false } : prev
+        );
+        showError(err.message || 'Erreur lors de la génération finale');
+      }
+    })();
+  };
+
+  const handlePrintSituation = () => openPdfWithPreview('situation');
+  const handleGenerateDegree  = () => openPdfWithPreview('degree');
 
   // ─── Validation data ──────────────────────────────────────────────
   const fetchValidationRequests = async () => {
@@ -1094,7 +1150,6 @@ export default function ProfilePage({ user }) {
 
         setDisplayUser(userData || authData.user);
 
-        // Viewable fields
         const permRes = await fetchWithRefresh(
           `${NEST_API_URL}/permissions/user/${targetUserId}/viewable-fields?model=User`,
           { method: 'GET' },
@@ -1107,7 +1162,6 @@ export default function ProfilePage({ user }) {
         const configs = payload.configs || {};
         setPermissions({ fields, configs });
 
-        // ─── All permission checks in parallel ─────────────────────
         const viewerId = authData.user.id;
 
         const checkOp = async (operation, model) => {
@@ -1144,7 +1198,6 @@ export default function ProfilePage({ user }) {
         }
         setPerms(permMap);
 
-        // Mirror the ones consumed by cards / legacy state
         setCanUpdateUser(permMap["users.update"] === true);
         setCanDeleteUser(permMap["users.delete"] === true);
         setCanValidateUser(permMap["users.validate"] === true);
@@ -1152,7 +1205,6 @@ export default function ProfilePage({ user }) {
         setCanUpdateFile(permMap["files.update"] === true);
         setCanDeleteFile(permMap["files.delete"] === true);
 
-        // Load data
         await fetchFiles();
 
         const feesRes = await fetchWithRefresh(
@@ -1232,7 +1284,6 @@ export default function ProfilePage({ user }) {
 
   const verificationText = displayUser?.isAdminVerified ? "Validé" : "En attente de validation";
 
-  // ─── Permission-resolved flags ────────────────────────────────────
   const canReadUsers = can("users.read", true);
   const canReadFiles = can("files.read", isAdminOrOwner);
   const canReadFees = can("fees.read_list", isAdminOrOwner);
@@ -1240,12 +1291,13 @@ export default function ProfilePage({ user }) {
   const canReadValidation = can("validation.read_user_requests", isAdminOrOwner);
   const canCreateValidation = can("validation.create_request", isAdminOrOwner);
 
-  // Fallback to legacy state if perms hasn't populated yet
   const canEditUser = can("users.update", isAdminOrOwner);
   const canDeleteUserResolved = can("users.delete", isAdmin);
   const canValidateUserResolved = can("users.validate", isAdmin);
 
-  // Tabs — gated
+  // PDF endpoints are admin/super_admin only
+  const canGeneratePdf = isAdmin;
+
   const tabs = useMemo(() => {
     const list = [];
     if (canReadUsers || isOwner || isAdmin) {
@@ -1268,7 +1320,6 @@ export default function ProfilePage({ user }) {
     return list;
   }, [canReadUsers, canReadFiles, canReadFees, canReadValidation, canCreateValidation, isOwner, isAdmin]);
 
-  // Ensure the active tab still exists
   useEffect(() => {
     if (tabs.length === 0) return;
     if (!tabs.some(t => t.id === activeTab)) {
@@ -1276,8 +1327,7 @@ export default function ProfilePage({ user }) {
     }
   }, [tabs, activeTab]);
 
-  // Menu visibility
-  const showActionsMenu = isAdmin && (canUpdateFees || canEditUser || canValidateUserResolved);
+  const showActionsMenu = isAdmin && (canUpdateFees || canEditUser || canValidateUserResolved || canGeneratePdf);
 
   if (loading) {
     return (
@@ -1371,8 +1421,7 @@ export default function ProfilePage({ user }) {
                 </div>
               </div>
 
-              {/* ─── Permission-gated actions menu ─── */}
-              <div className="flex flex-wrap items-center gap-2" ref={menuRef}>
+              <div className="flex flex-wrap items-center gap-2 relative" ref={menuRef}>
                 {showActionsMenu && (
                   <>
                     <button
@@ -1383,7 +1432,7 @@ export default function ProfilePage({ user }) {
                       <MoreVertical className="w-5 h-5" />
                     </button>
                     {menuOpen && (
-                      <div className="absolute right-0 mt-48 w-52 bg-[#182233] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-20 py-1 divide-y divide-white/5">
+                      <div className="absolute right-0 top-full mt-2 w-56 bg-[#182233] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-30 py-1">
                         <div className="py-1">
                           {canUpdateFees && (
                             <>
@@ -1402,18 +1451,6 @@ export default function ProfilePage({ user }) {
                             </>
                           )}
 
-                          {canValidateUserResolved && !displayUser?.isAdminVerified && (
-                            <>
-                              {canUpdateFees && <div className="border-t border-white/5 my-1" />}
-                              <button
-                                onClick={() => { setMenuOpen(false); handleValidateUser(); }}
-                                className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
-                              >
-                                <UserCheck className="w-4 h-4 text-emerald-400" /> Valider le membre
-                              </button>
-                            </>
-                          )}
-
                           {canEditUser && (
                             <>
                               <div className="border-t border-white/5 my-1" />
@@ -1422,6 +1459,24 @@ export default function ProfilePage({ user }) {
                                 className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
                               >
                                 <Edit className="w-4 h-4 text-blue-400" /> Modifier
+                              </button>
+                            </>
+                          )}
+
+                          {canGeneratePdf && (
+                            <>
+                              <div className="border-t border-white/5 my-1" />
+                              <button
+                                onClick={() => { setMenuOpen(false); handlePrintSituation(); }}
+                                className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
+                              >
+                                <FileText className="w-4 h-4 text-emerald-400" /> Attestation de situation
+                              </button>
+                              <button
+                                onClick={() => { setMenuOpen(false); handleGenerateDegree(); }}
+                                className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
+                              >
+                                <Award className="w-4 h-4 text-amber-400" /> Générer le diplôme
                               </button>
                             </>
                           )}
@@ -1663,7 +1718,6 @@ export default function ProfilePage({ user }) {
                                 </div>
                               </div>
 
-                              {/* Correction banner — only if user can create requests */}
                               {canCreateValidation && displayStatus === 'Modifications requises' && (() => {
                                 const verificationStepWithCorrection = req.steps?.find(s =>
                                   (s.status === 'changes_requested' || s.status === 'pending' || !s.status) && (s.comments || s.reason)
@@ -2083,21 +2137,28 @@ export default function ProfilePage({ user }) {
         <PDFPreviewModal
           type={pdfPreview.type}
           data={pdfPreview.data}
-          onClose={() => setPdfPreview({ isOpen: false, type: 'degree', data: null })}
-          onGenerate={pdfPreview.onGenerate}
-          onEmail={async (userId, recipientEmail) => {
-            const res = await fetchWithRefresh(
-              `${NEST_API_URL}/pdf/send-degree-email`,
-              {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId, recipientEmail }),
-              },
-              authData.token,
-              setAuthData
-            );
-            if (!res.ok) throw new Error('Échec de l’envoi');
+          isGenerating={pdfPreview.isGenerating}
+          onClose={() => {
+            revokeBlobUrl(pdfPreview.data?.blobUrl);
+            setPdfPreview({ isOpen: false, type: 'degree', data: null, isGenerating: false });
           }}
+          onEmail={
+            pdfPreview.type === 'degree'
+              ? async (userId, recipientEmail) => {
+                  const res = await fetchWithRefresh(
+                    `${NEST_API_URL}/pdf/send-degree-email`,
+                    {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ userId, recipientEmail }),
+                    },
+                    authData.token,
+                    setAuthData
+                  );
+                  if (!res.ok) throw new Error("Échec de l'envoi");
+                }
+              : undefined
+          }
         />
       )}
     </>

@@ -20,6 +20,7 @@ import {
   ListChecks,
   Inbox,
   X,
+  Search,
 } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_NEST_API_URL;
@@ -38,7 +39,6 @@ const PERIOD_OPTIONS = [
   { value: 'custom',   label: 'Période personnalisée' },
 ];
 
-// Compute { from, to } Date objects from the selected preset.
 function computeDateRange(period, customFrom, customTo) {
   const now = new Date();
   const startOfDay = (d) => {
@@ -84,7 +84,6 @@ function computeDateRange(period, customFrom, customTo) {
   }
 }
 
-// Build a compact list of page numbers with ellipsis markers.
 function getPageNumbers(current, total) {
   if (total <= 7) {
     return Array.from({ length: total }, (_, i) => i + 1);
@@ -104,7 +103,6 @@ function getPageNumbers(current, total) {
   return result;
 }
 
-// ─── Target display ──────────────────────────────────────────────
 function getTargetDisplayFor(req) {
   if (!req) return 'Demande';
 
@@ -161,16 +159,24 @@ export default function AllValidationRequests() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   // ─── Filter state ────────────────────────────────────────────
+  const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [schemaFilter, setSchemaFilter] = useState('all');
   const [periodFilter, setPeriodFilter] = useState('all');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
 
+  // Debounce the search input
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchTerm), 300);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+
   // Reset to page 1 whenever any filter changes
   useEffect(() => {
     setPage(1);
-  }, [statusFilter, schemaFilter, periodFilter, customFrom, customTo]);
+  }, [statusFilter, schemaFilter, periodFilter, customFrom, customTo, debouncedSearch]);
 
   // ─── Fetch available schemas once (for the schema filter dropdown) ──
   useEffect(() => {
@@ -203,6 +209,7 @@ export default function AllValidationRequests() {
       const params = new URLSearchParams();
       if (statusFilter !== 'all') params.set('status', statusFilter);
       if (schemaFilter !== 'all') params.set('schemaId', schemaFilter);
+      if (debouncedSearch)        params.set('search', debouncedSearch);
       if (from) params.set('from', from.toISOString());
       if (to)   params.set('to', to.toISOString());
       params.set('limit', String(PAGE_SIZE));
@@ -244,6 +251,7 @@ export default function AllValidationRequests() {
     periodFilter,
     customFrom,
     customTo,
+    debouncedSearch,
     page,
     authData?.token,
     setAuthData,
@@ -285,12 +293,14 @@ export default function AllValidationRequests() {
 
   // ─── Active filter count & reset ─────────────────────────────
   const activeFilterCount = [
+    searchTerm !== '',
     statusFilter !== 'all',
     schemaFilter !== 'all',
     periodFilter !== 'all',
   ].filter(Boolean).length;
 
   const resetFilters = () => {
+    setSearchTerm('');
     setStatusFilter('all');
     setSchemaFilter('all');
     setPeriodFilter('all');
@@ -333,6 +343,18 @@ export default function AllValidationRequests() {
               </p>
             </div>
           </div>
+        </div>
+
+        {/* ─── Search bar ─────────────────────────────────────── */}
+        <div className="mb-4 relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748B]" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Rechercher par nom, prénom, email, matricule..."
+            className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-[#111827] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] placeholder-[#64748B] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+          />
         </div>
 
         {/* ─── Filters panel ──────────────────────────────────── */}
@@ -481,7 +503,6 @@ export default function AllValidationRequests() {
                 >
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     <div className="flex-1 min-w-0">
-
                       {/* Row 1: name */}
                       <div className="flex items-center gap-3">
                         <span className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
@@ -521,7 +542,6 @@ export default function AllValidationRequests() {
                           </span>
                         )}
                       </div>
-
                     </div>
 
                     <div className="flex items-center gap-2 text-[#64748B] group-hover:text-emerald-400 transition-colors">

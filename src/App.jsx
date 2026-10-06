@@ -68,9 +68,7 @@ export default function App() {
         <Route path="forgot-password" element={<ForgotPassword />} />
         <Route path="reset-password" element={<ResetPassword />} />
         <Route path="application-mobile" element={<SiteApplication />} />
-
-
-
+         <Route path="verify/degree/:token" element={<VerifyDegree />} />
         <Route path="verify-pending" element={<VerifyPendingPage />} />
         <Route path="verify" element={<VerifyPage />} />
         <Route 
@@ -142,7 +140,7 @@ export default function App() {
         <Route path="validation/progress/:id" element={<ValidationRequestProgress />} />
 
         <Route path="template/background" element={< BackgroundManager/>} />
-        <Route path="verify/degree/:token" element={<VerifyDegree />} />
+       
 
         <Route path="delete/:id" element={<DeleteItem mode='user' />} />
         <Route path="cancel/fee/:id" element={<DeleteItem mode='cotisation' />} />

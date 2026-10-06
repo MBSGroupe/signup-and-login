@@ -631,7 +631,7 @@ export default function GetUsers({ mode }) {
                   </select>
                 </div>
               )}
-
+{/* 
               {STATUS_OPTIONS.length > 0 && (
                 <div>
                   <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Statut</label>
@@ -646,7 +646,7 @@ export default function GetUsers({ mode }) {
                     ))}
                   </select>
                 </div>
-              )}
+              )} */}
             </div>
           </div>
         )}
@@ -686,7 +686,7 @@ export default function GetUsers({ mode }) {
                         </th>
                         <th className="py-4 px-6 text-left text-xs uppercase tracking-wider text-[#64748B] font-semibold">Email</th>
                         <th className="py-4 px-6 text-left text-xs uppercase tracking-wider text-[#64748B] font-semibold">CLOA</th>
-                        <th className="py-4 px-6 text-left text-xs uppercase tracking-wider text-[#64748B] font-semibold">Statut</th>
+                        {/* <th className="py-4 px-6 text-left text-xs uppercase tracking-wider text-[#64748B] font-semibold">Statut</th> */}
                         <th className="py-4 px-6 text-right text-xs uppercase tracking-wider text-[#64748B] font-semibold">Actions</th>
                       </tr>
                     </thead>
@@ -703,7 +703,7 @@ export default function GetUsers({ mode }) {
                               <td className="py-3 px-6 text-[#F8FAFC]">{user.lastname || '-'}</td>
                               <td className="py-3 px-6 text-[#94A3B8] truncate max-w-[150px]">{user.email || '-'}</td>
                               <td className="py-3 px-6 text-[#F8FAFC]">{user.region || '-'}</td>
-                              <td className="py-3 px-6">
+                              {/* <td className="py-3 px-6">
                                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                                   user.status === 'active' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
                                   user.status === 'pending' ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20' :
@@ -711,7 +711,7 @@ export default function GetUsers({ mode }) {
                                 }`}>
                                   {user.status || 'inconnu'}
                                 </span>
-                              </td>
+                              </td> */}
                               <td className="py-3 px-6 text-right">
                                 <button
                                   onClick={(e) => toggleMenuAt(e, user)}

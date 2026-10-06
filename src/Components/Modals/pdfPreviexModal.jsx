@@ -1,6 +1,6 @@
 import { createPortal } from "react-dom";
 import { useEffect, useState } from "react";
-import { FileText } from 'lucide-react';
+import { FileText, Loader2 } from 'lucide-react';
 
 // ─── Design System Constants (Banking Theme) ────────────────────────────────
 
@@ -20,23 +20,31 @@ const CARD_BASE =
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
-export default function PDFPreviewModal({ type, data, onClose, onGenerate, onEmail }) {
+export default function PDFPreviewModal({
+  type,
+  data,
+  onClose,
+  onGenerate,
+  onEmail,
+  isGenerating = false,
+}) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [blobUrl, setBlobUrl] = useState(null);
   const [generating, setGenerating] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
 
+  // Title resolution per type
   let title = 'Aperçu du document';
   if (type === 'payment') {
     title = data?.title || 'Aperçu du reçu de paiement';
   } else if (type === 'situation') {
     title = data?.title || 'Situation du membre';
   } else if (type === 'degree') {
-    title = data?.title || 'Aperçu du Agrément';
+    title = data?.title || "Aperçu du Diplôme";
   }
 
-  // Set the blob URL when data changes
+  // Sync local blob state with the incoming data blob
   useEffect(() => {
     if (data?.blobUrl) {
       setBlobUrl(data.blobUrl);
@@ -64,7 +72,8 @@ export default function PDFPreviewModal({ type, data, onClose, onGenerate, onEma
     setGenerating(true);
     try {
       await onGenerate();
-      // onGenerate should update the parent's data.blobUrl -> this modal will re-render with new blob
+      // onGenerate should update the parent's data.blobUrl -> this modal
+      // will re-render with the new blob thanks to the useEffect above.
     } catch (err) {
       console.error('Generation failed:', err);
       setError('Échec de la génération finale');
@@ -84,31 +93,58 @@ export default function PDFPreviewModal({ type, data, onClose, onGenerate, onEma
       alert('Email envoyé avec succès ✅');
     } catch (err) {
       console.error('Email sending failed:', err);
-      alert('Échec de l\'envoi de l\'email');
+      alert("Échec de l'envoi de l'email");
     } finally {
       setSendingEmail(false);
     }
   };
 
+  // ─── Badge state machine ────────────────────────────────────────────────
+  // isGenerating === true  → amber "Version finale en cours…"
+  // data.isPreview === false → green "Version finale"
+  // neither                → no badge (e.g. situation-only flow)
+  const showGeneratingBadge = isGenerating;
+  const showFinalBadge = !isGenerating && data?.isPreview === false;
+
   return createPortal(
     <div className="fixed inset-0 flex items-center justify-center z-[9999] p-4">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-[#0A0F1C]/80 backdrop-blur-sm" onClick={onClose} />
+      <div
+        className="absolute inset-0 bg-[#0A0F1C]/80 backdrop-blur-sm"
+        onClick={onClose}
+      />
 
       {/* Modal container */}
       <div className={CARD_BASE}>
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-white/10 bg-[#111827]/50 rounded-t-2xl">
-          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-            <FileText className="w-5 h-5 text-emerald-400" />
-            {title}
-          </h3>
+          <div className="flex items-center gap-3 flex-wrap min-w-0">
+            <h3 className="text-lg font-semibold text-white flex items-center gap-2 min-w-0">
+              <FileText className="w-5 h-5 text-emerald-400 shrink-0" />
+              <span className="truncate">{title}</span>
+            </h3>
+
+            {showGeneratingBadge && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 shrink-0">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Version finale en cours…
+              </span>
+            )}
+
+            {showFinalBadge && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
+                ✓ Version finale
+              </span>
+            )}
+          </div>
+
           <div className="flex flex-wrap items-center gap-2">
             {blobUrl && (
               <button onClick={handleDownload} className={BTN_PRIMARY}>
                 💾 Télécharger
               </button>
             )}
+
             {onGenerate && (
               <button
                 onClick={handleGenerate}
@@ -118,11 +154,17 @@ export default function PDFPreviewModal({ type, data, onClose, onGenerate, onEma
                 {generating ? '⏳ Génération...' : '🔄 Générer'}
               </button>
             )}
+
             {data?.downloadUrl && onEmail && (
-                <button onClick={handleEmail} disabled={sendingEmail} className={BTN_SECONDARY}>
-                  {sendingEmail ? '📧 Envoi...' : '📧 Email'}
-                </button>
-              )}
+              <button
+                onClick={handleEmail}
+                disabled={sendingEmail}
+                className={BTN_SECONDARY}
+              >
+                {sendingEmail ? '📧 Envoi...' : '📧 Email'}
+              </button>
+            )}
+
             <button onClick={onClose} className={BTN_DANGER}>
               Fermer
             </button>
@@ -139,22 +181,38 @@ export default function PDFPreviewModal({ type, data, onClose, onGenerate, onEma
                   <div className="w-8 h-8 border-4 border-emerald-400/10 border-b-emerald-400 rounded-full animate-spin" />
                 </div>
               </div>
-              <p className="mt-4 text-[#64748B] text-sm font-medium">Chargement du PDF…</p>
+              <p className="mt-4 text-[#64748B] text-sm font-medium">
+                Chargement du PDF…
+              </p>
             </div>
           ) : error ? (
             <div className="flex flex-col items-center justify-center h-[60vh] text-[#64748B]">
               <div className="p-4 rounded-full bg-red-500/10 text-red-400 mb-4">
-                <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                <svg
+                  className="w-10 h-10"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                  />
                 </svg>
               </div>
               <p className="text-lg font-medium text-red-300">❌ {error}</p>
-              <button onClick={onClose} className="mt-6 px-5 py-2.5 bg-[#1F2937] hover:bg-[#2A3A4A] text-white rounded-lg transition-colors border border-white/5">
+              <button
+                onClick={onClose}
+                className="mt-6 px-5 py-2.5 bg-[#1F2937] hover:bg-[#2A3A4A] text-white rounded-lg transition-colors border border-white/5"
+              >
                 Fermer
               </button>
             </div>
           ) : blobUrl ? (
             <iframe
+              key={blobUrl}
               src={blobUrl}
               className="w-full h-[calc(90vh-120px)] rounded-xl border border-white/5 bg-[#111827]"
               title="PDF Preview"

@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState, useMemo } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { UserContext } from '../../../Context/dataCont';
 import { fetchWithRefresh } from '../../../Components/api';
 import { useNavigate } from 'react-router-dom';
@@ -25,21 +25,11 @@ import {
   Check,
   Search,
 } from 'lucide-react';
-import wilayasData from '../../../assets/data/wilayas.json';
 
 const API_URL = import.meta.env.VITE_NEST_API_URL;
 
-// ─── Static filter options ──────────────────────────────────────────
-const SEXE_OPTIONS = ['M', 'F'];
-const CIVILITY_OPTIONS = ['Mr', 'Mme', 'Mlle'];
-const MARITAL_STATUS_OPTIONS = ['Célibataire', 'Marié(e)', 'Divorcé(e)', 'Veuf(ve)'];
-const DIPLOMA_TYPE_OPTIONS = ['Classique', 'LMD'];
-const REGISTRATION_STATUS_OPTIONS = ['Inscrit', 'Radié', 'Suspendu'];
-const PROFESSIONAL_MODE_OPTIONS = ['Libéral', 'Associé', 'Salarié'];
-const SERVICE_NATIONAL_OPTIONS = ['Ayant effectué', 'Exempté', 'En cours', 'Non concerné'];
-const USER_STATUS_OPTIONS = ['pending', 'active', 'suspended', 'archived'];
-const DEFAULT_TARGET_TYPES = ['User', 'File', 'Cotisation'];
-const REQUEST_STATUS_OPTIONS = ['pending', 'partial', 'approved', 'rejected', 'cancelled', 'expired'];
+// Requests per page — backend clamps at 100
+const PAGE_SIZE = 20;
 
 const PERIOD_OPTIONS = [
   { value: 'all',      label: 'Toutes les périodes' },
@@ -51,33 +41,28 @@ const PERIOD_OPTIONS = [
   { value: 'custom',   label: 'Période personnalisée' },
 ];
 
-// Helper: unwrap the ResponseInterceptor envelope
-const unwrap = (body) => (body && typeof body === 'object' && 'data' in body && 'success' in body)
-  ? body.data
-  : body;
+const unwrap = (body) =>
+  body && typeof body === 'object' && 'data' in body && 'success' in body
+    ? body.data
+    : body;
 
-// Compute { from, to } Date objects from the selected preset.
 function computeDateRange(period, customFrom, customTo) {
   const now = new Date();
   const startOfDay = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
   const endOfDay   = (d) => { const x = new Date(d); x.setHours(23, 59, 59, 999); return x; };
 
   switch (period) {
-    case 'today':
-      return { from: startOfDay(now), to: endOfDay(now) };
+    case 'today': return { from: startOfDay(now), to: endOfDay(now) };
     case '7days': {
-      const f = new Date(now);
-      f.setDate(f.getDate() - 6);
+      const f = new Date(now); f.setDate(f.getDate() - 6);
       return { from: startOfDay(f), to: endOfDay(now) };
     }
     case '30days': {
-      const f = new Date(now);
-      f.setDate(f.getDate() - 29);
+      const f = new Date(now); f.setDate(f.getDate() - 29);
       return { from: startOfDay(f), to: endOfDay(now) };
     }
     case '3months': {
-      const f = new Date(now);
-      f.setMonth(f.getMonth() - 3);
+      const f = new Date(now); f.setMonth(f.getMonth() - 3);
       return { from: startOfDay(f), to: endOfDay(now) };
     }
     case 'thisYear': {
@@ -89,57 +74,232 @@ function computeDateRange(period, customFrom, customTo) {
       const to   = customTo   ? endOfDay(new Date(customTo))     : null;
       return { from, to };
     }
-    default:
-      return { from: null, to: null };
+    default: return { from: null, to: null };
   }
+}
+
+function getPageNumbers(current, total) {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages = new Set([1, total, current, current - 1, current + 1]);
+  const sorted = Array.from(pages).filter((p) => p >= 1 && p <= total).sort((a, b) => a - b);
+  const result = [];
+  let prev = 0;
+  for (const p of sorted) {
+    if (prev && p - prev > 1) result.push('...');
+    result.push(p);
+    prev = p;
+  }
+  return result;
 }
 
 export default function ValidationRequestsList() {
   const { authData, setAuthData } = useContext(UserContext);
   const { confirm } = useModal();
   const navigate = useNavigate();
+
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [showFilters, setShowFilters] = useState(false);
+  const [schemas, setSchemas] = useState([]);
 
-  // ─── Filter states ──────────────────────────────────────────────
+  // ─── Pagination ─────────────────────────────────────────────────
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  // ─── Filters ────────────────────────────────────────────────────
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [targetTypeFilter, setTargetTypeFilter] = useState('all');
+  const [schemaFilter, setSchemaFilter] = useState('all');
   const [periodFilter, setPeriodFilter] = useState('all');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
-  const [wilayaFilter, setWilayaFilter] = useState('all');
-  const [sexeFilter, setSexeFilter] = useState('all');
-  const [civilityFilter, setCivilityFilter] = useState('all');
-  const [maritalStatusFilter, setMaritalStatusFilter] = useState('all');
-  const [diplomaTypeFilter, setDiplomaTypeFilter] = useState('all');
-  const [registrationStatusFilter, setRegistrationStatusFilter] = useState('all');
-  const [professionalModeFilter, setProfessionalModeFilter] = useState('all');
-  const [serviceNationalFilter, setServiceNationalFilter] = useState('all');
-  const [userStatusFilter, setUserStatusFilter] = useState('all');
 
-  // ─── Pagination ─────────────────────────────────────────────────
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  // Debounce search so we don't fire on every keystroke
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchTerm), 300);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+
+  // Reset to page 1 whenever a filter (not page) changes
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, schemaFilter, periodFilter, customFrom, customTo, debouncedSearch]);
 
   // ─── Mass selection ─────────────────────────────────────────────
   const [selectedRequests, setSelectedRequests] = useState([]);
   const [massApproving, setMassApproving] = useState(false);
 
-  // Dynamic target-type / schema options derived from the fetched requests
-  const availableTargetTypes = useMemo(() => {
-    return Array.from(
-      new Set([
-        ...DEFAULT_TARGET_TYPES,
-        ...requests.map(r => r.targetType).filter(Boolean),
-        ...requests.map(r => r.validationSchema?.name || r.schemaName).filter(Boolean),
-      ])
-    );
-  }, [requests]);
+  // ─── Fetch schemas once for the type dropdown ───────────────────
+  useEffect(() => {
+    const fetchSchemas = async () => {
+      try {
+        const res = await fetchWithRefresh(
+          `${API_URL}/validation/schemas`,
+          { method: 'GET' },
+          authData.token,
+          setAuthData
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        const list = data?.schemas || data?.data || data || [];
+        setSchemas(Array.isArray(list) ? list : []);
+      } catch (err) {
+        console.error('Error fetching schemas:', err);
+      }
+    };
+    if (authData?.token) fetchSchemas();
+  }, [authData?.token, setAuthData]);
 
-  // ─── Helpers (declared early so they can be used in the filter memo) ───
+  // ─── Fetch approver requests whenever any filter or page changes ─
+  useEffect(() => {
+    if (!authData?.token) return;
+    let cancelled = false;
+
+    const run = async () => {
+      setLoading(true);
+      setError(null);
+
+      const { from, to } = computeDateRange(periodFilter, customFrom, customTo);
+      const params = new URLSearchParams();
+      if (statusFilter !== 'all') params.set('status', statusFilter);
+      if (schemaFilter !== 'all') params.set('schemaId', schemaFilter);
+      if (debouncedSearch)        params.set('search', debouncedSearch);
+      if (from)                   params.set('from', from.toISOString());
+      if (to)                     params.set('to', to.toISOString());
+      params.set('limit', String(PAGE_SIZE));
+      params.set('skip', String((page - 1) * PAGE_SIZE));
+
+      try {
+        const res = await fetchWithRefresh(
+          `${API_URL}/validation/requests/approver?${params.toString()}`,
+          { method: 'GET' },
+          authData.token,
+          setAuthData
+        );
+        const body = await res.json();
+        const payload = unwrap(body);
+        const list = payload?.requests || (Array.isArray(payload) ? payload : []);
+        if (cancelled) return;
+        setRequests(Array.isArray(list) ? list : []);
+        setTotal(typeof payload?.total === 'number' ? payload.total : list.length);
+      } catch (err) {
+        if (cancelled) return;
+        console.error('Failed to load approver requests:', err);
+        setError(err?.message || 'Erreur lors du chargement des demandes.');
+        setRequests([]);
+        setTotal(0);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    run();
+    return () => { cancelled = true; };
+  }, [
+    statusFilter, schemaFilter, periodFilter, customFrom, customTo,
+    debouncedSearch, page,
+    authData?.token, setAuthData,
+  ]);
+
+  // ─── Actions ────────────────────────────────────────────────────
+  const toggleRequestSelection = (requestId) => {
+    setSelectedRequests((prev) =>
+      prev.includes(requestId)
+        ? prev.filter((id) => id !== requestId)
+        : [...prev, requestId]
+    );
+  };
+
+  const handleSelectAll = () => {
+    const eligibleIds = requests
+      .filter((req) => {
+        const firstPendingStep = req.steps
+          ?.filter((s) => s.status === 'pending')
+          .sort((a, b) => a.order - b.order)[0];
+        return (
+          firstPendingStep &&
+          firstPendingStep.massValidation &&
+          firstPendingStep.allowedUserIds?.some((u) => (u.id || u) === authData.user?.id)
+        );
+      })
+      .map((req) => req.id);
+    setSelectedRequests(eligibleIds);
+  };
+
+  const handleMassApprove = async () => {
+    if (selectedRequests.length === 0) return;
+    setMassApproving(true);
+    try {
+      const res = await fetchWithRefresh(
+        `${API_URL}/validation/requests/mass-approve`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            requestIds: selectedRequests,
+            comments: 'Dossier Conforme aux exigences',
+          }),
+        },
+        authData.token,
+        setAuthData
+      );
+      const result = await res.json();
+      if (result.success) {
+        setSelectedRequests([]);
+        // Refetch by nudging page to itself → useEffect doesn't fire.
+        // Simplest reliable refetch: re-trigger by resetting page then
+        // forcing state change via a no-op fetch.
+        setPage((p) => p);
+        // Force a reload by simulating a filter change tick
+        setStatusFilter((s) => s);
+      }
+    } catch (err) {
+      console.error('Mass approve error:', err);
+    } finally {
+      setMassApproving(false);
+    }
+  };
+
+  const handleCancel = async (requestId) => {
+    const confirmed = await confirm({
+      title: 'Annuler la demande',
+      message: 'Annuler cette demande de validation ?',
+    });
+    if (!confirmed) return;
+
+    try {
+      const res = await fetchWithRefresh(
+        `${API_URL}/validation/requests/${requestId}/cancel`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reason: "Annulée par l'utilisateur" }),
+        },
+        authData.token,
+        setAuthData
+      );
+      const body = await res.json();
+      if (body?.success) {
+        setRequests((prev) => prev.filter((r) => r.id !== requestId));
+      }
+    } catch (err) {
+      console.error('Cancel error:', err);
+    }
+  };
+
+  const resetFilters = () => {
+    setSearchTerm('');
+    setStatusFilter('all');
+    setSchemaFilter('all');
+    setPeriodFilter('all');
+    setCustomFrom('');
+    setCustomTo('');
+    setPage(1);
+  };
+
+  // ─── UI helpers ─────────────────────────────────────────────────
   const getTargetDisplay = (targetType, target, fullReq = null) => {
     if (fullReq?.payload?.title || fullReq?.data?.title) {
       return fullReq.payload?.title || fullReq.data?.title;
@@ -149,161 +309,30 @@ export default function ValidationRequestsList() {
     }
     switch (targetType) {
       case 'User':
-        return target.fullName || `${target.name || ''} ${target.lastname || ''}`.trim() || target.id;
+        return (
+          target.fullName ||
+          `${target.name || ''} ${target.lastname || ''}`.trim() ||
+          target.email ||
+          target.id
+        );
       case 'File':
         return target.fileName || target.name || `Document (${target.folder || 'unknown'})`;
       case 'Cotisation':
         return target.type || target.feeType || `Cotisation ${target.year || ''}` || target.id;
       default:
         if (typeof target === 'object') {
-          return target.name || target.title || target.fullName || target.id || fullReq?.validationSchema?.name || 'Demande';
+          return (
+            target.name ||
+            target.title ||
+            target.fullName ||
+            target.id ||
+            fullReq?.validationSchema?.name ||
+            'Demande'
+          );
         }
         return target;
     }
   };
-
-  // ─── Client-side filter logic ───────────────────────────────────
-  const filteredRequests = useMemo(() => {
-    const { from, to } = computeDateRange(periodFilter, customFrom, customTo);
-
-    return requests.filter(req => {
-      // Search
-      if (searchTerm) {
-        const targetDisplay = String(
-          getTargetDisplay(req.targetType, req.targetId, req)
-        ).toLowerCase();
-        const schemaName = (req.validationSchema?.name || req.schemaName || '').toLowerCase();
-        const searchLower = searchTerm.toLowerCase();
-        if (
-          !targetDisplay.includes(searchLower) &&
-          !schemaName.includes(searchLower) &&
-          !req.id?.toLowerCase().includes(searchLower)
-        ) {
-          return false;
-        }
-      }
-
-      // Request status
-      if (statusFilter !== 'all' && req.status !== statusFilter) return false;
-
-      // Target type OR schema name
-      if (targetTypeFilter !== 'all') {
-        const currentSchema = req.validationSchema?.name || req.schemaName;
-        if (req.targetType !== targetTypeFilter && currentSchema !== targetTypeFilter) {
-          return false;
-        }
-      }
-
-      // Period
-      if (from && new Date(req.createdAt) < from) return false;
-      if (to   && new Date(req.createdAt) > to)   return false;
-
-      // User-specific filters
-      const target = req.targetId;
-      if (req.targetType === 'User' && target && typeof target === 'object') {
-        if (wilayaFilter !== 'all' && target.wilaya !== wilayaFilter && target.region !== wilayaFilter) return false;
-        if (sexeFilter !== 'all' && target.sexe !== sexeFilter) return false;
-        if (civilityFilter !== 'all' && target.civility !== civilityFilter) return false;
-        if (maritalStatusFilter !== 'all' && target.maritalStatus !== maritalStatusFilter) return false;
-        if (diplomaTypeFilter !== 'all' && target.diplomaType !== diplomaTypeFilter) return false;
-        if (registrationStatusFilter !== 'all' && target.registrationStatus !== registrationStatusFilter) return false;
-        if (professionalModeFilter !== 'all' && target.professionalMode !== professionalModeFilter) return false;
-        if (serviceNationalFilter !== 'all' && target.serviceNationalStatus !== serviceNationalFilter) return false;
-        if (userStatusFilter !== 'all' && target.status !== userStatusFilter) return false;
-      }
-
-      return true;
-    });
-  }, [
-    requests,
-    searchTerm,
-    statusFilter,
-    targetTypeFilter,
-    periodFilter,
-    customFrom,
-    customTo,
-    wilayaFilter,
-    sexeFilter,
-    civilityFilter,
-    maritalStatusFilter,
-    diplomaTypeFilter,
-    registrationStatusFilter,
-    professionalModeFilter,
-    serviceNationalFilter,
-    userStatusFilter,
-  ]);
-
-  // ─── Pagination slice ───────────────────────────────────────────
-  const totalPages = Math.max(1, Math.ceil(filteredRequests.length / pageSize));
-
-  const paginatedRequests = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredRequests.slice(start, start + pageSize);
-  }, [filteredRequests, currentPage, pageSize]);
-
-  // Reset to page 1 when any filter changes
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [
-    searchTerm,
-    statusFilter,
-    targetTypeFilter,
-    periodFilter,
-    customFrom,
-    customTo,
-    wilayaFilter,
-    sexeFilter,
-    civilityFilter,
-    maritalStatusFilter,
-    diplomaTypeFilter,
-    registrationStatusFilter,
-    professionalModeFilter,
-    serviceNationalFilter,
-    userStatusFilter,
-    pageSize,
-  ]);
-
-  // Clamp page if total shrinks (e.g. filter reduces results)
-  useEffect(() => {
-    if (currentPage > totalPages) setCurrentPage(totalPages);
-  }, [totalPages, currentPage]);
-
-  const goToPage = (p) => {
-    if (p >= 1 && p <= totalPages) setCurrentPage(p);
-  };
-
-  const pageNumbers = useMemo(() => {
-    const max = 5;
-    let start = Math.max(1, currentPage - Math.floor(max / 2));
-    const end = Math.min(totalPages, start + max - 1);
-    if (end - start < max - 1) start = Math.max(1, end - max + 1);
-    const arr = [];
-    for (let i = start; i <= end; i++) arr.push(i);
-    return arr;
-  }, [currentPage, totalPages]);
-
-  const activeFilterCount = useMemo(() => {
-    let n = 0;
-    if (searchTerm) n++;
-    if (statusFilter !== 'all') n++;
-    if (targetTypeFilter !== 'all') n++;
-    if (periodFilter !== 'all') n++;
-    if (wilayaFilter !== 'all') n++;
-    if (sexeFilter !== 'all') n++;
-    if (civilityFilter !== 'all') n++;
-    if (maritalStatusFilter !== 'all') n++;
-    if (diplomaTypeFilter !== 'all') n++;
-    if (registrationStatusFilter !== 'all') n++;
-    if (professionalModeFilter !== 'all') n++;
-    if (serviceNationalFilter !== 'all') n++;
-    if (userStatusFilter !== 'all') n++;
-    return n;
-  }, [
-    searchTerm, statusFilter, targetTypeFilter, periodFilter,
-    wilayaFilter, sexeFilter, civilityFilter, maritalStatusFilter,
-    diplomaTypeFilter, registrationStatusFilter, professionalModeFilter,
-    serviceNationalFilter, userStatusFilter
-  ]);
 
   const getTargetIcon = (type) => {
     switch (type) {
@@ -338,133 +367,19 @@ export default function ValidationRequestsList() {
     }
   };
 
-  // ─── API calls ──────────────────────────────────────────────────
-  const fetchRequests = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetchWithRefresh(
-        `${API_URL}/validation/requests/approver?status=${statusFilter}`,
-        { method: 'GET' },
-        authData.token,
-        setAuthData
-      );
-      const body = await res.json();
-      const payload = unwrap(body);
-      const list = payload?.requests || (Array.isArray(payload) ? payload : []);
-      setRequests(Array.isArray(list) ? list : []);
-    } catch (err) {
-      console.error('Failed to load approver requests:', err);
-      setError(err?.message || 'Erreur lors du chargement des demandes.');
-      setRequests([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const activeFilterCount = [
+    searchTerm !== '',
+    statusFilter !== 'all',
+    schemaFilter !== 'all',
+    periodFilter !== 'all',
+  ].filter(Boolean).length;
 
-  useEffect(() => {
-    if (authData?.token) fetchRequests();
-  }, [statusFilter, authData?.token, setAuthData]);
-
-  // ─── Actions ────────────────────────────────────────────────────
-  const toggleRequestSelection = (requestId) => {
-    setSelectedRequests(prev =>
-      prev.includes(requestId)
-        ? prev.filter(id => id !== requestId)
-        : [...prev, requestId]
-    );
-  };
-
-  const handleSelectAll = () => {
-    // Select all mass-validation-eligible requests across the FULL filtered list
-    const eligibleIds = filteredRequests
-      .filter(req => {
-        const firstPendingStep = req.steps
-          ?.filter(s => s.status === 'pending')
-          .sort((a, b) => a.order - b.order)[0];
-        return (
-          firstPendingStep &&
-          firstPendingStep.massValidation &&
-          firstPendingStep.allowedUserIds?.some(u => (u.id || u) === authData.user?.id)
-        );
-      })
-      .map(req => req.id);
-    setSelectedRequests(eligibleIds);
-  };
-
-  const handleMassApprove = async () => {
-    if (selectedRequests.length === 0) return;
-    setMassApproving(true);
-    try {
-      const res = await fetchWithRefresh(
-        `${API_URL}/validation/requests/mass-approve`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ requestIds: selectedRequests, comments: 'Dossier Conforme aux exigences' }),
-        },
-        authData.token,
-        setAuthData
-      );
-      const result = await res.json();
-      if (result.success) {
-        setSelectedRequests([]);
-        fetchRequests();
-      }
-    } catch (err) {
-      console.error('Mass approve error:', err);
-    } finally {
-      setMassApproving(false);
-    }
-  };
-
-  const handleCancel = async (requestId) => {
-    const confirmed = await confirm({
-      title: 'Annuler la demande',
-      message: 'Annuler cette demande de validation ?',
-    });
-    if (!confirmed) return;
-
-    try {
-      const res = await fetchWithRefresh(
-        `${API_URL}/validation/requests/${requestId}/cancel`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ reason: "Annulée par l'utilisateur" })
-        },
-        authData.token,
-        setAuthData
-      );
-      const body = await res.json();
-      if (body?.success) {
-        fetchRequests();
-      }
-    } catch (err) {
-      console.error('Cancel error:', err);
-    }
-  };
-
-  const resetFilters = () => {
-    setSearchTerm('');
-    setStatusFilter('all');
-    setTargetTypeFilter('all');
-    setPeriodFilter('all');
-    setCustomFrom('');
-    setCustomTo('');
-    setWilayaFilter('all');
-    setSexeFilter('all');
-    setCivilityFilter('all');
-    setMaritalStatusFilter('all');
-    setDiplomaTypeFilter('all');
-    setRegistrationStatusFilter('all');
-    setProfessionalModeFilter('all');
-    setServiceNationalFilter('all');
-    setUserStatusFilter('all');
-  };
+  const rangeStart = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const rangeEnd = Math.min(page * PAGE_SIZE, total);
+  const pageNumbers = getPageNumbers(page, totalPages);
 
   // ─── Loading ────────────────────────────────────────────────────
-  if (loading) {
+  if (loading && requests.length === 0) {
     return (
       <div className="min-h-screen bg-[#0A0F1C] flex items-center justify-center ml-[30px] mt-16">
         <div className="flex flex-col items-center gap-4">
@@ -508,228 +423,144 @@ export default function ValidationRequestsList() {
           </div>
         )}
 
-        {/* SEARCH + PAGE SIZE */}
-        <div className="mb-6 flex flex-col md:flex-row md:items-center gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748B]" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Rechercher par nom, prénom, email, ID..."
-              className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-[#111827] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] placeholder-[#64748B] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
-            />
-          </div>
-          <select
-            value={pageSize}
-            onChange={(e) => setPageSize(Number(e.target.value))}
-            className="px-4 py-2.5 rounded-xl bg-[#111827] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-          >
-            <option value="10">10 / page</option>
-            <option value="20">20 / page</option>
-            <option value="50">50 / page</option>
-            <option value="100">100 / page</option>
-          </select>
-        </div>
-
-        {/* QUICK ACTIONS */}
-        <div className="flex flex-wrap gap-3 mb-6">
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all duration-200 ${
-              showFilters || activeFilterCount > 0
-                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                : 'bg-[#182233] hover:bg-[#1F2937] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)]'
-            }`}
-          >
-            <Filter className="w-4 h-4" />
-            Filtres
-            {activeFilterCount > 0 && (
-              <span className="ml-1 bg-emerald-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
-                {activeFilterCount}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={resetFilters}
-            disabled={activeFilterCount === 0}
-            className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all duration-200 ${
-              activeFilterCount === 0
-                ? 'bg-white/5 text-[#64748B] cursor-not-allowed'
-                : 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20'
-            }`}
-          >
-            <X className="w-4 h-4" />
-            Réinitialiser
-          </button>
+        {/* SEARCH BAR */}
+        <div className="mb-6 relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748B]" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Rechercher par nom, prénom, email, matricule..."
+            className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-[#111827] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] placeholder-[#64748B] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+          />
         </div>
 
         {/* FILTERS PANEL */}
-        {showFilters && (
-          <div className="mb-6 p-5 bg-[#111827] rounded-xl border border-[rgba(255,255,255,0.06)] shadow-xl">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {/* Statut (demande) */}
-              <div>
-                <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">
-                  Statut
-                </label>
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                >
-                  <option value="all">Tous les statuts</option>
-                  {REQUEST_STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
+        <div className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] p-5 mb-6 shadow-lg">
+          <div className="flex flex-wrap items-center gap-3 mb-4">
+            <div className="flex items-center gap-2 text-[#94A3B8]">
+              <Filter className="w-4 h-4" />
+              <span className="text-xs uppercase tracking-wider font-medium">Filtres</span>
+            </div>
+            {activeFilterCount > 0 && (
+              <span className="bg-emerald-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-semibold">
+                {activeFilterCount}
+              </span>
+            )}
+            <span className="text-xs text-[#64748B] ml-auto">
+              {total} demande{total > 1 ? 's' : ''}
+            </span>
+            <button
+              type="button"
+              onClick={resetFilters}
+              disabled={activeFilterCount === 0}
+              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                activeFilterCount === 0
+                  ? 'bg-white/5 text-[#64748B] cursor-not-allowed'
+                  : 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20'
+              }`}
+            >
+              <X className="w-3.5 h-3.5" />
+              Réinitialiser
+            </button>
+          </div>
 
-              {/* Type / Schéma */}
-              <div>
-                <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">
-                  Type de demande
-                </label>
-                <select
-                  value={targetTypeFilter}
-                  onChange={(e) => setTargetTypeFilter(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                >
-                  <option value="all">Tous les types & schémas</option>
-                  {availableTargetTypes.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </div>
-
-              {/* Période */}
-              <div>
-                <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">
-                  Période
-                </label>
-                <select
-                  value={periodFilter}
-                  onChange={(e) => setPeriodFilter(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                >
-                  {PERIOD_OPTIONS.map(opt => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Wilaya */}
-              <div>
-                <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Wilaya</label>
-                <select value={wilayaFilter} onChange={(e) => setWilayaFilter(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500">
-                  <option value="all">Toutes les wilayas</option>
-                  {wilayasData?.map(w => <option key={w.code} value={w.code}>{w.code} - {w.name}</option>)}
-                </select>
-              </div>
-
-              {/* Sexe */}
-              <div>
-                <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Sexe</label>
-                <select value={sexeFilter} onChange={(e) => setSexeFilter(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500">
-                  <option value="all">Tous les sexes</option>
-                  {SEXE_OPTIONS.map(s => <option key={s} value={s}>{s === 'M' ? 'Homme' : 'Femme'}</option>)}
-                </select>
-              </div>
-
-              {/* Civilité */}
-              <div>
-                <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Civilité</label>
-                <select value={civilityFilter} onChange={(e) => setCivilityFilter(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500">
-                  <option value="all">Toutes les civilités</option>
-                  {CIVILITY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-
-              {/* Situation familiale */}
-              <div>
-                <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Situation familiale</label>
-                <select value={maritalStatusFilter} onChange={(e) => setMaritalStatusFilter(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500">
-                  <option value="all">Toutes les situations</option>
-                  {MARITAL_STATUS_OPTIONS.map(m => <option key={m} value={m}>{m}</option>)}
-                </select>
-              </div>
-
-              {/* Type de diplôme */}
-              <div>
-                <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Type de diplôme</label>
-                <select value={diplomaTypeFilter} onChange={(e) => setDiplomaTypeFilter(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500">
-                  <option value="all">Tous les types</option>
-                  {DIPLOMA_TYPE_OPTIONS.map(d => <option key={d} value={d}>{d}</option>)}
-                </select>
-              </div>
-
-              {/* Statut d'inscription */}
-              <div>
-                <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Statut d'inscription</label>
-                <select value={registrationStatusFilter} onChange={(e) => setRegistrationStatusFilter(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500">
-                  <option value="all">Tous les statuts</option>
-                  {REGISTRATION_STATUS_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
-                </select>
-              </div>
-
-              {/* Mode d'exercice */}
-              <div>
-                <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Mode d'exercice</label>
-                <select value={professionalModeFilter} onChange={(e) => setProfessionalModeFilter(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500">
-                  <option value="all">Tous les modes</option>
-                  {PROFESSIONAL_MODE_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
-                </select>
-              </div>
-
-              {/* Service national */}
-              <div>
-                <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Service national</label>
-                <select value={serviceNationalFilter} onChange={(e) => setServiceNationalFilter(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500">
-                  <option value="all">Toutes les situations</option>
-                  {SERVICE_NATIONAL_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-
-              {/* Statut utilisateur */}
-              <div>
-                <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Statut (utilisateur)</label>
-                <select value={userStatusFilter} onChange={(e) => setUserStatusFilter(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500">
-                  <option value="all">Tous les statuts</option>
-                  {USER_STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {/* Statut */}
+            <div>
+              <label className="block text-[11px] uppercase tracking-wider text-[#64748B] mb-1.5">
+                Statut
+              </label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="w-full px-3 py-2 bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+              >
+                <option value="all">Tous les statuts</option>
+                <option value="pending">En attente</option>
+                <option value="partial">Partielles</option>
+                <option value="approved">Approuvées</option>
+                <option value="rejected">Rejetées</option>
+                <option value="cancelled">Annulées</option>
+                <option value="expired">Expirées</option>
+              </select>
             </div>
 
-            {/* Custom date range */}
-            {periodFilter === 'custom' && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 pt-4 border-t border-[rgba(255,255,255,0.06)]">
-                <div>
-                  <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">
-                    Du
-                  </label>
-                  <input
-                    type="date"
-                    value={customFrom}
-                    onChange={(e) => setCustomFrom(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500 [color-scheme:dark]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">
-                    Au
-                  </label>
-                  <input
-                    type="date"
-                    value={customTo}
-                    onChange={(e) => setCustomTo(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] focus:outline-none focus:ring-1 focus:ring-emerald-500 [color-scheme:dark]"
-                  />
-                </div>
-              </div>
-            )}
+            {/* Type de schéma */}
+            <div>
+              <label className="block text-[11px] uppercase tracking-wider text-[#64748B] mb-1.5">
+                Type de demande
+              </label>
+              <select
+                value={schemaFilter}
+                onChange={(e) => setSchemaFilter(e.target.value)}
+                className="w-full px-3 py-2 bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+              >
+                <option value="all">Tous les types</option>
+                {schemas.map((s) => (
+                  <option key={s.id || s._id} value={s.id || s._id}>
+                    {s.name || s.title || 'Sans nom'}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Période */}
+            <div>
+              <label className="block text-[11px] uppercase tracking-wider text-[#64748B] mb-1.5">
+                Période
+              </label>
+              <select
+                value={periodFilter}
+                onChange={(e) => setPeriodFilter(e.target.value)}
+                className="w-full px-3 py-2 bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+              >
+                {PERIOD_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
           </div>
-        )}
+
+          {/* Custom date range */}
+          {periodFilter === 'custom' && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3 pt-3 border-t border-[rgba(255,255,255,0.06)]">
+              <div>
+                <label className="block text-[11px] uppercase tracking-wider text-[#64748B] mb-1.5">
+                  Du
+                </label>
+                <input
+                  type="date"
+                  value={customFrom}
+                  onChange={(e) => setCustomFrom(e.target.value)}
+                  className="w-full px-3 py-2 bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all [color-scheme:dark]"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] uppercase tracking-wider text-[#64748B] mb-1.5">
+                  Au
+                </label>
+                <input
+                  type="date"
+                  value={customTo}
+                  onChange={(e) => setCustomTo(e.target.value)}
+                  className="w-full px-3 py-2 bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all [color-scheme:dark]"
+                />
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* MASS ACTIONS */}
-        {filteredRequests.some(req => {
-          const firstPending = req.steps?.filter(s => s.status === 'pending').sort((a, b) => a.order - b.order)[0];
-          return firstPending && firstPending.massValidation && firstPending.allowedUserIds?.some(u => (u.id || u) === authData.user?.id);
+        {requests.some((req) => {
+          const firstPending = req.steps
+            ?.filter((s) => s.status === 'pending')
+            .sort((a, b) => a.order - b.order)[0];
+          return (
+            firstPending &&
+            firstPending.massValidation &&
+            firstPending.allowedUserIds?.some((u) => (u.id || u) === authData.user?.id)
+          );
         }) && (
           <div className="flex items-center gap-3 mb-4">
             {selectedRequests.length > 0 && (
@@ -743,7 +574,9 @@ export default function ValidationRequestsList() {
                 ) : (
                   <CheckSquare className="w-4 h-4" />
                 )}
-                {massApproving ? 'Approbation...' : `Approuver la sélection (${selectedRequests.length})`}
+                {massApproving
+                  ? 'Approbation...'
+                  : `Approuver la sélection (${selectedRequests.length})`}
               </button>
             )}
             <button
@@ -751,13 +584,17 @@ export default function ValidationRequestsList() {
               className="inline-flex items-center gap-2 px-4 py-2 bg-[#1F2937] hover:bg-[#2A3A4A] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] rounded-xl transition-all text-sm font-medium"
             >
               <CheckSquare className="w-4 h-4" />
-              Tout sélectionner (mass validation)
+              Tout sélectionner (page actuelle)
             </button>
           </div>
         )}
 
-        {/* REQUEST LIST */}
-        {filteredRequests.length === 0 ? (
+        {/* LIST */}
+        {loading && requests.length === 0 ? (
+          <div className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] p-12 text-center shadow-2xl shadow-black/50">
+            <Loader2 className="w-8 h-8 text-emerald-400 animate-spin mx-auto" />
+          </div>
+        ) : requests.length === 0 ? (
           <div className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] p-12 text-center shadow-2xl shadow-black/50">
             <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto mb-4">
               <Inbox className="w-8 h-8 text-emerald-400" />
@@ -765,22 +602,22 @@ export default function ValidationRequestsList() {
             <p className="text-[#94A3B8] text-lg font-medium">Aucune demande trouvée</p>
             <p className="text-[#64748B] text-sm mt-1">
               {activeFilterCount > 0
-                ? 'Modifiez ou réinitialisez les filtres.'
+                ? 'Essayez de modifier ou réinitialiser les filtres.'
                 : 'Revenez plus tard.'}
             </p>
           </div>
         ) : (
           <>
-            <div className="space-y-4">
-              {paginatedRequests.map((req, idx) => {
+            <div className={`space-y-4 transition-opacity duration-150 ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
+              {requests.map((req, idx) => {
                 const firstPendingStep = req.steps
-                  ?.filter(s => s.status === 'pending')
+                  ?.filter((s) => s.status === 'pending')
                   .sort((a, b) => a.order - b.order)[0];
 
                 const canMassValidate =
                   firstPendingStep &&
                   firstPendingStep.massValidation &&
-                  firstPendingStep.allowedUserIds?.some(u => (u.id || u) === authData.user?.id);
+                  firstPendingStep.allowedUserIds?.some((u) => (u.id || u) === authData.user?.id);
 
                 const isSelected = selectedRequests.includes(req.id);
 
@@ -805,14 +642,19 @@ export default function ValidationRequestsList() {
                         </div>
                       )}
 
-                      <div className="flex-1 min-w-0 cursor-pointer" onClick={() => navigate(`/dash/validation/requests/${req.id}`)}>
+                      <div
+                        className="flex-1 min-w-0 cursor-pointer"
+                        onClick={() => navigate(`/dash/validation/requests/${req.id}`)}
+                      >
                         <div className="flex items-center gap-3">
                           <span className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 flex-shrink-0">
                             {getTargetIcon(req.targetType)}
                           </span>
                           <div className="min-w-0">
                             <h3 className="text-lg font-semibold text-[#F8FAFC] truncate">
-                              {req.validationSchema?.name || req.schemaName || `${req.targetType} – ${getTargetDisplay(req.targetType, req.targetId)}`}
+                              {req.validationSchema?.name ||
+                                req.schemaName ||
+                                `${req.targetType} – ${getTargetDisplay(req.targetType, req.targetId)}`}
                             </h3>
                             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5">
                               <span className="text-xs text-[#64748B] bg-[#0A0F1C] px-2 py-0.5 rounded border border-[rgba(255,255,255,0.06)]">
@@ -825,7 +667,10 @@ export default function ValidationRequestsList() {
                               <span className="text-xs text-[#64748B] flex items-center gap-1">
                                 <User className="w-3 h-3" />
                                 {typeof req.createdBy === 'object' && req.createdBy !== null
-                                  ? `${req.createdBy.name || ''} ${req.createdBy.lastname || ''}`.trim() || req.createdBy.name || req.createdBy.email || 'Inconnu'
+                                  ? `${req.createdBy.name || ''} ${req.createdBy.lastname || ''}`.trim() ||
+                                    req.createdBy.name ||
+                                    req.createdBy.email ||
+                                    'Inconnu'
                                   : (req.createdBy || 'Inconnu')}
                               </span>
                             </div>
@@ -847,7 +692,10 @@ export default function ValidationRequestsList() {
 
                       <div className="flex items-center gap-2 flex-shrink-0">
                         <button
-                          onClick={(e) => { e.stopPropagation(); navigate(`/dash/validation/requests/${req.id}`); }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/dash/validation/requests/${req.id}`);
+                          }}
                           className="text-[#64748B] hover:text-emerald-400 transition-colors p-1"
                         >
                           <ChevronRight className="w-5 h-5" />
@@ -860,51 +708,57 @@ export default function ValidationRequestsList() {
             </div>
 
             {/* PAGINATION */}
-            {totalPages > 1 && (
-              <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="text-sm text-[#64748B]">
-                  Affichage de {(currentPage - 1) * pageSize + 1} à{" "}
-                  {Math.min(currentPage * pageSize, filteredRequests.length)} sur{" "}
-                  {filteredRequests.length} demande{filteredRequests.length > 1 ? 's' : ''}
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => goToPage(currentPage - 1)}
-                    disabled={currentPage === 1}
-                    className={`p-2 rounded-lg transition ${
-                      currentPage === 1
-                        ? 'bg-[#111827] text-[#64748B] cursor-not-allowed opacity-50'
-                        : 'bg-[#111827] text-[#F8FAFC] hover:bg-[#1F2937] border border-[rgba(255,255,255,0.06)]'
-                    }`}
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
+            {total > PAGE_SIZE && (
+              <div className="mt-6 bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] px-4 py-3 shadow-lg">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <p className="text-xs text-[#64748B]">
+                    <span className="text-[#94A3B8] font-medium">{rangeStart}–{rangeEnd}</span> sur{' '}
+                    <span className="text-[#94A3B8] font-medium">{total}</span> demande{total > 1 ? 's' : ''}
+                  </p>
 
-                  {pageNumbers.map((page) => (
+                  <div className="flex items-center gap-1">
                     <button
-                      key={page}
-                      onClick={() => goToPage(page)}
-                      className={`px-4 py-2 rounded-lg transition ${
-                        currentPage === page
-                          ? 'bg-emerald-500 text-white font-semibold shadow-lg shadow-emerald-500/20'
-                          : 'bg-[#111827] text-[#F8FAFC] hover:bg-[#1F2937] border border-[rgba(255,255,255,0.06)]'
-                      }`}
+                      type="button"
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={page === 1 || loading}
+                      className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-[#94A3B8] hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      title="Page précédente"
                     >
-                      {page}
+                      <ChevronLeft className="w-4 h-4" />
                     </button>
-                  ))}
 
-                  <button
-                    onClick={() => goToPage(currentPage + 1)}
-                    disabled={currentPage === totalPages}
-                    className={`p-2 rounded-lg transition ${
-                      currentPage === totalPages
-                        ? 'bg-[#111827] text-[#64748B] cursor-not-allowed opacity-50'
-                        : 'bg-[#111827] text-[#F8FAFC] hover:bg-[#1F2937] border border-[rgba(255,255,255,0.06)]'
-                    }`}
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
+                    {pageNumbers.map((p, i) =>
+                      p === '...' ? (
+                        <span key={`ellipsis-${i}`} className="px-2 text-[#64748B] text-xs select-none">
+                          …
+                        </span>
+                      ) : (
+                        <button
+                          key={p}
+                          type="button"
+                          onClick={() => setPage(p)}
+                          disabled={loading}
+                          className={`min-w-[32px] h-8 px-2 rounded-lg text-xs font-medium transition-all ${
+                            p === page
+                              ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
+                              : 'bg-white/5 hover:bg-white/10 text-[#94A3B8] hover:text-white disabled:opacity-50'
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      )
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={page === totalPages || loading}
+                      className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-[#94A3B8] hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      title="Page suivante"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
