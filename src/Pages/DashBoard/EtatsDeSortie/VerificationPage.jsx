@@ -32,7 +32,9 @@ export default function VerifyDegree() {
           throw new Error(result.message || 'Verification failed');
         }
 
-        setData(result);
+        // ✅ Unwrap the { success, data } envelope from the backend
+        const payload = result.data ?? result;
+        setData(payload);
       } catch (err) {
         setError(err.message || 'An error occurred');
       } finally {
@@ -78,7 +80,9 @@ export default function VerifyDegree() {
           <div className="space-y-4">
             <div>
               <p className="text-sm text-[#94A3B8] uppercase tracking-wider">Type de document</p>
-              <p className="text-lg font-medium text-white">{data.documentType || 'Diplôme'}</p>
+              <p className="text-lg font-medium text-white">
+                {data.documentType === 'degree' ? 'Diplôme' : (data.documentType || 'Diplôme')}
+              </p>
             </div>
             <div>
               <p className="text-sm text-[#94A3B8] uppercase tracking-wider">Titulaire</p>
@@ -105,7 +109,7 @@ export default function VerifyDegree() {
 
           <div className="mt-8 pt-4 border-t border-white/5">
             <p className="text-xs text-[#64748B] text-center">
-              Ce document a été émis par {import.meta.env.VITE_COMPANY_NAME || 'l\'organisme'}.
+              Ce document a été émis par {import.meta.env.VITE_COMPANY_NAME || "l'organisme"}.
               <br />
               Vérifiez toujours l'authenticité via ce lien.
             </p>
