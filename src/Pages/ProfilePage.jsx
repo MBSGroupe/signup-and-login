@@ -3,8 +3,7 @@ import { useContext, useEffect, useState, useRef, useCallback, useMemo } from "r
 import { UserContext } from "../Context/dataCont";
 import { useParams, useNavigate } from "react-router-dom";
 import PDFPreviewModal from '../Components/Modals/pdfPreviexModal';
-import DeclarationModal from '../Components/Modals/DeclarationModal';
-import AddressChangeModal from '../Components/Modals/AdressChangeModal';
+import SchemaFormModal from '../Components/Modals/SchemaFormModal';
 import { useError } from '../Context/ErrorContext';
 import { useModal } from '../Context/ModalContext';
 
@@ -50,7 +49,6 @@ import {
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
-// ─── Permission checks the profile page needs ──────────────────────
 const PERMISSION_CHECKS = [
   { key: "users.read",                    model: "User",              operation: "read" },
   { key: "users.update",                  model: "User",              operation: "update" },
@@ -67,7 +65,6 @@ const PERMISSION_CHECKS = [
   { key: "validation.create_request",     model: "ValidationRequest", operation: "create_request" },
 ];
 
-// ─── Folder metadata ────────────────────────────────────────────────
 const FOLDER_LABELS = {
   uploads: 'Documents',
   documents: 'Documents',
@@ -96,7 +93,6 @@ function sortFolders(a, b) {
   return a.localeCompare(b);
 }
 
-// ─── Signup-aligned section definition ─────────────────────────────
 const PROFILE_SECTIONS = [
   { key: 'cloa', label: "CLOA d'exercice", fields: ['region'] },
   {
@@ -302,8 +298,6 @@ export default function ProfilePage({ user }) {
   const [transactionMethod, setTransactionMethod] = useState('cash');
   const [transactionNotes, setTransactionNotes] = useState('');
 
-  // pdfPreview now carries `isGenerating` so the modal can show a badge
-  // while the queued final PDF is being produced.
   const [pdfPreview, setPdfPreview] = useState({
     isOpen: false,
     type: 'situation',
@@ -315,8 +309,6 @@ export default function ProfilePage({ user }) {
   const menuRef = useRef(null);
   const [activeTab, setActiveTab] = useState('info');
 
-  // Keep a ref of the *current* pdfPreview so background swaps don't
-  // overwrite a newer modal instance.
   const pdfPreviewRef = useRef(pdfPreview);
   useEffect(() => { pdfPreviewRef.current = pdfPreview; }, [pdfPreview]);
 
@@ -325,7 +317,6 @@ export default function ProfilePage({ user }) {
   const isAdmin = ['admin', 'super_admin'].includes(authData?.user?.grade);
   const isAdminOrOwner = isAdmin || isOwner;
 
-  // ─── Permission map ──────────────────────────────────────────────
   const [perms, setPerms] = useState({});
   const can = useCallback((key, fallback = false) => {
     if (key in perms) return perms[key] === true;
@@ -344,13 +335,13 @@ export default function ProfilePage({ user }) {
   const [expandedRequests, setExpandedRequests] = useState({});
   const [demandSubmitting, setDemandSubmitting] = useState(false);
   const [availableSchemas, setAvailableSchemas] = useState([]);
-  const [isDeclarationModalOpen, setIsDeclarationModalOpen] = useState(false);
-  const [selectedDeclarationSchema, setSelectedDeclarationSchema] = useState(null);
-  const [selectedDeclarationRequestId, setSelectedDeclarationRequestId] = useState(null);
-  const [isDeclarationResubmitMode, setIsDeclarationResubmitMode] = useState(false);
-  const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
-  const [selectedAddressSchema, setSelectedAddressSchema] = useState(null);
-  const [selectedAddressRequestId, setSelectedAddressRequestId] = useState(null);
+
+  // ── schema-driven form state (replaces declaration/address modals) ──
+  const [isFormModalOpen, setIsFormModalOpen] = useState(false);
+  const [activeSchema, setActiveSchema] = useState(null);
+  const [activeRequestId, setActiveRequestId] = useState(null);
+  const [isFormResubmitMode, setIsFormResubmitMode] = useState(false);
+
   const resubmissionMapRef = useRef({});
   const [resubmissionMap, setResubmissionMap] = useState({});
 
@@ -420,7 +411,6 @@ export default function ProfilePage({ user }) {
 
   useEffect(() => { fetchFiles(); }, [fetchFiles]);
 
-  // ─── File handlers ────────────────────────────────────────────────
   const handleUpload = async (file) => {
     try {
       setIsUploading(true);
@@ -527,7 +517,6 @@ export default function ProfilePage({ user }) {
     }
   };
 
-  // ─── Refresh helpers ──────────────────────────────────────────────
   const refreshUserAndFees = async () => {
     try {
       const userRes = await fetchWithRefresh(
@@ -584,7 +573,6 @@ export default function ProfilePage({ user }) {
     }
   };
 
-  // ─── Transaction ──────────────────────────────────────────────────
   const handleTransaction = async (amount, method, notes, type) => {
     const finalAmount = type === 'deposit' ? Math.abs(amount) : -Math.abs(amount);
 
@@ -725,7 +713,6 @@ export default function ProfilePage({ user }) {
     return { blobUrl: finalBlobUrl, downloadUrl: finalPdfUrl, cloudinaryUrl };
   };
 
-  // Fetch a synchronous preview buffer (POST preview endpoints return PDF directly)
   const fetchPreviewBlobUrl = async (endpoint) => {
     const res = await fetchWithRefresh(
       `${NEST_API_URL}${endpoint}`,
@@ -752,18 +739,10 @@ export default function ProfilePage({ user }) {
     }
   };
 
-  /**
-   * Open modal with an INSTANT preview blob, then kick off the
-   * queued real generation in the background. When the final PDF is
-   * ready, swap the blob URL inside the modal.
-   *
-   * @param {'situation'|'degree'} type
-   */
   const openPdfWithPreview = async (type) => {
     const previewEndpoint = type === 'degree' ? '/pdf/preview/degree' : '/pdf/preview/situation';
     const finalEndpoint   = type === 'degree' ? '/pdf/degree'         : '/pdf/situation';
 
-    // 1) Instantly fetch the preview blob
     let previewBlobUrl;
     try {
       previewBlobUrl = await fetchPreviewBlobUrl(previewEndpoint);
@@ -773,7 +752,6 @@ export default function ProfilePage({ user }) {
       return;
     }
 
-    // 2) Open modal with preview + "generating" flag
     const memberName = `${displayUser?.name || ''} ${displayUser?.lastname || ''}`.trim();
     setPdfPreview({
       isOpen: true,
@@ -789,17 +767,14 @@ export default function ProfilePage({ user }) {
     });
     showSuccess('Aperçu instantané affiché — version finale en cours…');
 
-    // 3) Background: queue the real generation and swap when ready
     (async () => {
       try {
         const finalPdf = await generateQueuedPdf(finalEndpoint);
         setPdfPreview((prev) => {
-          // If the user closed or reopened with a different type, do nothing.
           if (!prev.isOpen || prev.type !== type) {
             revokeBlobUrl(finalPdf.blobUrl);
             return prev;
           }
-          // Revoke the preview blob to free memory
           revokeBlobUrl(prev.data?.blobUrl);
           return {
             ...prev,
@@ -814,7 +789,6 @@ export default function ProfilePage({ user }) {
           };
         });
         showSuccess(type === 'degree' ? 'Diplôme final généré ✅' : 'Situation finale générée ✅');
-        // Refresh files so the newly stored pdf-degrees file appears
         if (type === 'degree') await fetchFiles();
       } catch (err) {
         console.error(`❌ Final generation error (${type}):`, err);
@@ -958,89 +932,77 @@ export default function ProfilePage({ user }) {
     return 'En cours';
   }, [isResubmittedItem]);
 
-  const handleDeclarationSuccess = async (result) => {
-    setIsDeclarationModalOpen(false);
-    setSelectedDeclarationRequestId(null);
-    setIsDeclarationResubmitMode(false);
-    const now = Date.now();
-    const newMap = { ...resubmissionMapRef.current };
-
-    if (targetUserId) newMap[String(targetUserId)] = now;
-    if (result?.id) newMap[String(result.id)] = now;
-    if (result?.reference) newMap[String(result.reference)] = now;
-    if (selectedDeclarationSchema?.id) newMap[String(selectedDeclarationSchema.id)] = now;
-    if (selectedDeclarationSchema?.name) newMap[String(selectedDeclarationSchema.name).trim().toLowerCase()] = now;
-
-    validationRequests.forEach(req => {
-      const name = (req.schemaName || req.schema?.name || req.title || '').toLowerCase();
-      if (name.includes('déclaration') || name.includes('declaration')) {
-        if (req.id) newMap[String(req.id)] = now;
-      }
-    });
-
-    resubmissionMapRef.current = newMap;
-    setResubmissionMap(newMap);
-    try { localStorage.setItem('resubmitted_validation_map', JSON.stringify(newMap)); } catch (_) { }
-
-    setValidationRequests(prev =>
-      prev.map(req => {
-        const name = (req.schemaName || req.schema?.name || req.title || '').toLowerCase();
-        if (name.includes('déclaration') || name.includes('declaration') || req.id === result?.id || req.id === selectedDeclarationRequestId) {
-          return {
-            ...req,
-            status: 'pending',
-            steps: (req.steps || []).map((st, idx) =>
-              (idx === 0 || st.status === 'changes_requested') ? { ...st, status: 'pending', statusLabel: 'En attente' } : st
-            )
-          };
-        }
-        return req;
-      })
-    );
-
-    try { await fetchValidationRequests(); } catch (err) { console.log('Error refreshing requests after declaration:', err); }
+  // ─── Schema-driven form modal ──────────────────────────────────────
+  const openSchemaForm = (schema, { existingRequestId = null, resubmit = false } = {}) => {
+    setActiveSchema(schema);
+    setActiveRequestId(existingRequestId);
+    setIsFormResubmitMode(resubmit);
+    setIsFormModalOpen(true);
   };
 
-  const handleAddressSuccess = async (result) => {
-    setIsAddressModalOpen(false);
-    setSelectedAddressRequestId(null);
+  const closeSchemaForm = () => {
+    setIsFormModalOpen(false);
+    setActiveSchema(null);
+    setActiveRequestId(null);
+    setIsFormResubmitMode(false);
+  };
+
+  /**
+   * Unified success handler for schema-driven requests (was split across
+   * handleDeclarationSuccess / handleAddressSuccess before).
+   */
+  const handleRequestSubmitSuccess = async (result) => {
+    const submittedSchema = activeSchema;
+    closeSchemaForm();
+
     const now = Date.now();
     const newMap = { ...resubmissionMapRef.current };
 
     if (targetUserId) newMap[String(targetUserId)] = now;
     if (result?.id) newMap[String(result.id)] = now;
     if (result?.reference) newMap[String(result.reference)] = now;
-    if (selectedAddressSchema?.id) newMap[String(selectedAddressSchema.id)] = now;
-    if (selectedAddressSchema?.name) newMap[String(selectedAddressSchema.name).trim().toLowerCase()] = now;
+    if (submittedSchema?.id) newMap[String(submittedSchema.id)] = now;
+    if (submittedSchema?.name)
+      newMap[String(submittedSchema.name).trim().toLowerCase()] = now;
 
     validationRequests.forEach(req => {
       const name = (req.schemaName || req.schema?.name || req.title || '').toLowerCase();
-      if (name.includes('adresse') || name.includes('address')) {
+      const target = (submittedSchema?.name || '').toLowerCase();
+      if (target && name === target) {
         if (req.id) newMap[String(req.id)] = now;
       }
     });
 
     resubmissionMapRef.current = newMap;
     setResubmissionMap(newMap);
-    try { localStorage.setItem('resubmitted_validation_map', JSON.stringify(newMap)); } catch (_) { }
+    try {
+      localStorage.setItem('resubmitted_validation_map', JSON.stringify(newMap));
+    } catch (_) { }
 
     setValidationRequests(prev =>
       prev.map(req => {
         const name = (req.schemaName || req.schema?.name || req.title || '').toLowerCase();
-        if (name.includes('adresse') || name.includes('address') || req.id === result?.id || req.id === selectedAddressRequestId) {
+        const target = (submittedSchema?.name || '').toLowerCase();
+        if (name === target || req.id === result?.id || req.id === activeRequestId) {
           return {
             ...req,
             status: 'pending',
             steps: (req.steps || []).map((st, idx) =>
-              (idx === 0 || st.status === 'changes_requested') ? { ...st, status: 'pending', statusLabel: 'En attente' } : st
-            )
+              (idx === 0 || st.status === 'changes_requested')
+                ? { ...st, status: 'pending', statusLabel: 'En attente' }
+                : st
+            ),
           };
         }
         return req;
-      })
+      }),
     );
 
-    try { await fetchValidationRequests(); } catch (err) { console.log('Error refreshing requests after address change:', err); }
+    try {
+      await fetchValidationRequests();
+    } catch (err) {
+      console.log('Error refreshing requests after submission:', err);
+    }
   };
 
   const fetchSchemas = async () => {
@@ -1061,12 +1023,23 @@ export default function ProfilePage({ user }) {
     }
   };
 
+  /**
+   * Direct-init flow for schemas that have no payloadSchema (empty form).
+   * Any schema with a payloadSchema should go through SchemaFormModal.
+   */
   const handleCreateDemand = async (schemaOrName) => {
     if (demandSubmitting) return;
 
-    const schemaName = typeof schemaOrName === 'object' ? (schemaOrName.name || schemaOrName.title) : schemaOrName;
-    const schemaId = typeof schemaOrName === 'object' ? (schemaOrName.id || schemaOrName._id) : null;
-    const targetType = typeof schemaOrName === 'object' ? (schemaOrName.targetType || 'User') : 'User';
+    const schemaObj = typeof schemaOrName === 'object' ? schemaOrName : null;
+    const schemaName = schemaObj ? (schemaObj.name || schemaObj.title) : schemaOrName;
+    const schemaId = schemaObj ? (schemaObj.id || schemaObj._id) : null;
+    const targetType = schemaObj ? (schemaObj.targetType || 'User') : 'User';
+
+    // If the schema declares a payloadSchema, route through the dynamic form.
+    if (Array.isArray(schemaObj?.payloadSchema) && schemaObj.payloadSchema.length > 0) {
+      openSchemaForm(schemaObj, { existingRequestId: null, resubmit: false });
+      return;
+    }
 
     const confirmed = await confirm({
       title: 'Confirmer la demande',
@@ -1295,7 +1268,6 @@ export default function ProfilePage({ user }) {
   const canDeleteUserResolved = can("users.delete", isAdmin);
   const canValidateUserResolved = can("users.validate", isAdmin);
 
-  // PDF endpoints are admin/super_admin only
   const canGeneratePdf = isAdmin;
 
   const tabs = useMemo(() => {
@@ -1677,6 +1649,15 @@ export default function ProfilePage({ user }) {
                         const requestName = getRequestName(req);
                         const displayStatus = mapApiStatusToDisplay(req);
 
+                        // Find the schema that matches this request (by name) so the
+                        // "Corriger mon dossier" button can hand the right schema to
+                        // the dynamic form modal.
+                        const matchingSchema = availableSchemas.find(
+                          (s) =>
+                            (s.name || s.title || '').trim().toLowerCase() ===
+                            (requestName || '').trim().toLowerCase(),
+                        );
+
                         return (
                           <div key={req.id || reqIdx} className="bg-[#0A0F1C] rounded-xl border border-white/10 p-5 transition-all">
                             <div>
@@ -1741,14 +1722,16 @@ export default function ProfilePage({ user }) {
                                         <button
                                           type="button"
                                           onClick={() => {
-                                            const declSchema = availableSchemas.find(s =>
-                                              (s.name || s.title || '').toLowerCase().includes('déclaration') ||
-                                              (s.name || s.title || '').toLowerCase().includes('declaration')
-                                            );
-                                            setSelectedDeclarationRequestId(req.id || null);
-                                            setSelectedDeclarationSchema(declSchema || null);
-                                            setIsDeclarationResubmitMode(true);
-                                            setIsDeclarationModalOpen(true);
+                                            if (!matchingSchema) {
+                                              showError(
+                                                `Schéma "${requestName}" introuvable dans la liste des schémas disponibles.`,
+                                              );
+                                              return;
+                                            }
+                                            openSchemaForm(matchingSchema, {
+                                              existingRequestId: req.id,
+                                              resubmit: true,
+                                            });
                                           }}
                                           className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-semibold transition-all flex items-center gap-2 shadow-lg shadow-amber-500/20 cursor-pointer"
                                         >
@@ -1900,117 +1883,118 @@ export default function ProfilePage({ user }) {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    {(() => {
-                      const declSchema = availableSchemas.find(s =>
-                        (s.name || s.title || '').toLowerCase().includes('déclaration') ||
-                        (s.name || s.title || '').toLowerCase().includes('declaration')
-                      );
-                      return (
-                        <div className="bg-[#0A0F1C] rounded-2xl border border-emerald-500/30 p-6 flex flex-col justify-between relative overflow-hidden shadow-lg shadow-emerald-950/20 group hover:border-emerald-500/50 transition-all duration-300">
-                          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none" />
-                          <div>
-                            <div className="flex items-start justify-between gap-3 mb-4">
-                              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 group-hover:scale-110 transition-transform">
-                                <Shield className="w-6 h-6" />
+                  {availableSchemas.length === 0 ? (
+                    <div className="flex flex-col items-center gap-3 py-12 text-[#64748B]">
+                      <ClipboardList className="w-10 h-10" />
+                      <p className="text-sm">Aucune démarche disponible pour le moment.</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      {availableSchemas.map((sch, idx) => {
+                        const schemaName = sch.name || sch.title || 'Demande';
+                        const existingReq = validationRequests.find(r => {
+                          const rName = (r.schemaName || r.schema?.name || r.validationSchema?.name || '').trim().toLowerCase();
+                          const sName = schemaName.trim().toLowerCase();
+                          const match = rName === sName || r.validationSchemaId === sch.id;
+                          const isActive = !['rejected', 'cancelled'].includes(r.status?.toLowerCase());
+                          return match && isActive;
+                        });
+                        const displayStatus = existingReq ? mapApiStatusToDisplay(existingReq) : null;
+                        const isNeedsCorrection = existingReq && displayStatus === 'Modifications requises';
+                        const isInProgress = existingReq && !isNeedsCorrection;
+
+                        return (
+                          <div
+                            key={sch.id || sch._id || idx}
+                            className="bg-[#0A0F1C] rounded-2xl border border-white/10 p-6 flex flex-col justify-between hover:border-white/20 transition-all duration-300"
+                          >
+                            <div>
+                              <div className="flex items-start justify-between gap-3 mb-4">
+                                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                                  <Shield className="w-6 h-6" />
+                                </div>
+                                <div className="flex flex-col items-end gap-1.5">
+                                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-white/5 text-[#94A3B8] border border-white/10">
+                                    {sch.targetType || 'Demande'}
+                                  </span>
+                                  {existingReq && (
+                                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${
+                                      isNeedsCorrection
+                                        ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                                        : 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                                    }`}>
+                                      {isNeedsCorrection ? 'Modifications requises' : 'En cours'}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
-                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                                Requis
-                              </span>
+                              <h3 className="text-base font-bold text-white tracking-tight">{schemaName}</h3>
+                              <p className="text-xs text-[#94A3B8] mt-1.5 leading-relaxed">
+                                {sch.description || `Initiez un parcours de validation pour ${schemaName}.`}
+                              </p>
+                              {Array.isArray(sch.steps) && sch.steps.length > 0 && (
+                                <p className="text-xs text-[#64748B] mt-3">
+                                  {sch.steps.length} étape{sch.steps.length > 1 ? 's' : ''} de validation
+                                </p>
+                              )}
                             </div>
-                            <h3 className="text-base font-bold text-white tracking-tight">
-                              {declSchema?.name || "Déclaration"}
-                            </h3>
-                            <p className="text-xs text-[#94A3B8] mt-1.5 leading-relaxed">
-                              {declSchema?.description || "Soumettez votre déclaration avec votre NIN et vos 3 justificatifs obligatoires (CNRC, Reçu de paiement, Attestation CNAS)."}
-                            </p>
-                            <div className="mt-4 pt-4 border-t border-white/5 space-y-2">
-                              <p className="text-[11px] font-semibold uppercase tracking-wider text-[#64748B]">Éléments obligatoires :</p>
-                              <div className="flex flex-wrap gap-1.5 text-xs text-[#94A3B8]">
-                                <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[#CBD5E1]">• NIN</span>
-                                <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[#CBD5E1]">• Document CNRC</span>
-                                <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[#CBD5E1]">• Document Paiement</span>
-                                <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[#CBD5E1]">• Document CNAS</span>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="mt-6 pt-4 border-t border-white/5">
-                            {(() => {
-                              const existingDecl = validationRequests.find(r =>
-                                ((r.schemaName || r.schema?.name || '').toLowerCase().includes('déclaration') ||
-                                  (r.schemaName || r.schema?.name || '').toLowerCase().includes('declaration')) &&
-                                !['rejected', 'cancelled'].includes(r.status?.toLowerCase())
-                              );
-                              const isNeedsCorrection = existingDecl && mapApiStatusToDisplay(existingDecl) === 'Modifications requises';
-                              return (
+                            <div className="mt-6 pt-4 border-t border-white/5">
+                              {isInProgress ? (
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    setSelectedDeclarationRequestId(existingDecl?.id || null);
-                                    setSelectedDeclarationSchema(declSchema || null);
-                                    setIsDeclarationResubmitMode(!!isNeedsCorrection);
-                                    setIsDeclarationModalOpen(true);
+                                    setActiveTab('validation');
                                   }}
-                                  className={`w-full py-2.5 px-4 text-white text-xs font-semibold rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                                    isNeedsCorrection ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20'
-                                    : 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/20'
+                                  className="w-full py-2.5 px-4 bg-white/5 hover:bg-white/10 text-[#CBD5E1] text-xs font-semibold rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
+                                >
+                                  <Clock className="w-4 h-4" />
+                                  Suivre la demande en cours
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (isNeedsCorrection) {
+                                      openSchemaForm(sch, {
+                                        existingRequestId: existingReq?.id || null,
+                                        resubmit: true,
+                                      });
+                                    } else if (
+                                      Array.isArray(sch.payloadSchema) &&
+                                      sch.payloadSchema.length > 0
+                                    ) {
+                                      openSchemaForm(sch, {
+                                        existingRequestId: null,
+                                        resubmit: false,
+                                      });
+                                    } else {
+                                      handleCreateDemand(sch);
+                                    }
+                                  }}
+                                  disabled={demandSubmitting}
+                                  className={`w-full py-2.5 px-4 text-white text-xs font-semibold rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 ${
+                                    isNeedsCorrection
+                                      ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20'
+                                      : 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/20'
                                   }`}
                                 >
                                   {isNeedsCorrection ? (
-                                    <><Edit className="w-4 h-4" />Corriger / Compléter mon dossier</>
+                                    <>
+                                      <Edit className="w-4 h-4" /> Corriger / Compléter mon dossier
+                                    </>
                                   ) : (
-                                    <><Plus className="w-4 h-4" />Faire la demande</>
+                                    <>
+                                      <Plus className="w-4 h-4" /> Faire la demande
+                                    </>
                                   )}
                                 </button>
-                              );
-                            })()}
-                          </div>
-                        </div>
-                      );
-                    })()}
-
-                    {availableSchemas
-                      .filter(s => {
-                        const name = (s.name || s.title || '').toLowerCase();
-                        return !name.includes('déclaration') && !name.includes('declaration');
-                      })
-                      .map((sch, idx) => (
-                        <div
-                          key={sch.id || sch._id || idx}
-                          className="bg-[#0A0F1C] rounded-2xl border border-white/10 p-6 flex flex-col justify-between hover:border-white/20 transition-all duration-300"
-                        >
-                          <div>
-                            <div className="flex items-start justify-between gap-3 mb-4">
-                              <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400">
-                                <FileText className="w-6 h-6" />
-                              </div>
-                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-white/5 text-[#94A3B8] border border-white/10">
-                                {sch.targetType || 'Demande'}
-                              </span>
+                              )}
                             </div>
-                            <h3 className="text-base font-bold text-white tracking-tight">{sch.name || sch.title}</h3>
-                            <p className="text-xs text-[#94A3B8] mt-1.5 leading-relaxed">
-                              {sch.description || `Initiez un parcours de validation pour ${sch.name}.`}
-                            </p>
-                            {sch.steps?.length > 0 && (
-                              <p className="text-xs text-[#64748B] mt-3">
-                                {sch.steps.length} étape{sch.steps.length > 1 ? 's' : ''} de validation
-                              </p>
-                            )}
                           </div>
-                          <div className="mt-6 pt-4 border-t border-white/5">
-                            <button
-                              type="button"
-                              onClick={() => handleCreateDemand(sch)}
-                              disabled={demandSubmitting}
-                              className="w-full py-2.5 px-4 bg-white/10 hover:bg-white/15 active:scale-[0.99] text-white text-xs font-semibold rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                            >
-                              <Plus className="w-4 h-4" />Faire la demande
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                  </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
             </main>
@@ -2089,46 +2073,20 @@ export default function ProfilePage({ user }) {
         </div>
       )}
 
-      <DeclarationModal
-        isOpen={isDeclarationModalOpen}
-        onClose={() => {
-          setIsDeclarationModalOpen(false);
-          setSelectedDeclarationRequestId(null);
-          setIsDeclarationResubmitMode(false);
-        }}
+      {/* ── Schema-driven request form (replaces DeclarationModal & AddressChangeModal) ── */}
+      <SchemaFormModal
+        isOpen={isFormModalOpen}
+        onClose={closeSchemaForm}
         onGoToValidations={() => {
-          setIsDeclarationModalOpen(false);
-          setSelectedDeclarationRequestId(null);
-          setIsDeclarationResubmitMode(false);
+          closeSchemaForm();
           setActiveTab('validation');
         }}
         targetUserId={targetUserId}
         authToken={authData?.token}
-        onSuccess={handleDeclarationSuccess}
-        schema={selectedDeclarationSchema}
-        existingRequestId={selectedDeclarationRequestId}
-        resubmitMode={isDeclarationResubmitMode}
-        user={displayUser}
-        initialNin={displayUser?.nin}
-        validationRequests={validationRequests}
-      />
-
-      <AddressChangeModal
-        isOpen={isAddressModalOpen}
-        onClose={() => {
-          setIsAddressModalOpen(false);
-          setSelectedAddressRequestId(null);
-        }}
-        onGoToValidations={() => {
-          setIsAddressModalOpen(false);
-          setSelectedAddressRequestId(null);
-          setActiveTab('validation');
-        }}
-        targetUserId={targetUserId}
-        authToken={authData?.token}
-        onSuccess={handleAddressSuccess}
-        schema={selectedAddressSchema}
-        existingRequestId={selectedAddressRequestId}
+        onSuccess={handleRequestSubmitSuccess}
+        schema={activeSchema}
+        existingRequestId={activeRequestId}
+        resubmitMode={isFormResubmitMode}
         user={displayUser}
         validationRequests={validationRequests}
       />
