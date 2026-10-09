@@ -609,26 +609,6 @@ export default function ProfilePage({ user }) {
     }
   };
 
-  const handleValidateUser = async () => {
-    try {
-      const response = await fetchWithRefresh(
-        `${NEST_API_URL}/users/${targetUserId}/validate`,
-        { method: 'PATCH' },
-        authData.token,
-        setAuthData
-      );
-      const data = await response.json();
-      if (response.ok && data.success) {
-        showSuccess('Utilisateur validé avec succès');
-        await refreshUserAndFees();
-      } else {
-        showError(data.message || 'Erreur lors de la validation');
-      }
-    } catch (err) {
-      console.error(err);
-      showError('Erreur réseau');
-    }
-  };
 
   // ─── PDF plumbing ─────────────────────────────────────────────────
   const waitForPdfJob = async (jobId) => {
@@ -713,25 +693,7 @@ export default function ProfilePage({ user }) {
     return { blobUrl: finalBlobUrl, downloadUrl: finalPdfUrl, cloudinaryUrl };
   };
 
-  const fetchPreviewBlobUrl = async (endpoint) => {
-    const res = await fetchWithRefresh(
-      `${NEST_API_URL}${endpoint}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: targetUserId }),
-      },
-      authData.token,
-      setAuthData
-    );
-    if (!res.ok) {
-      let msg = "Erreur lors de la génération de l'aperçu";
-      try { const j = await res.json(); msg = j.message || msg; } catch (_) { }
-      throw new Error(msg);
-    }
-    const blob = await res.blob();
-    return URL.createObjectURL(blob);
-  };
+
 
   const revokeBlobUrl = (url) => {
     if (url && typeof url === 'string' && url.startsWith('blob:')) {
@@ -739,69 +701,60 @@ export default function ProfilePage({ user }) {
     }
   };
 
-  const openPdfWithPreview = async (type) => {
-    const previewEndpoint = type === 'degree' ? '/pdf/preview/degree' : '/pdf/preview/situation';
-    const finalEndpoint   = type === 'degree' ? '/pdf/degree'         : '/pdf/situation';
+const openPdf = async (type) => {
+  const finalEndpoint = type === 'degree' ? '/pdf/degree' : '/pdf/situation';
 
-    let previewBlobUrl;
-    try {
-      previewBlobUrl = await fetchPreviewBlobUrl(previewEndpoint);
-    } catch (err) {
-      console.error(`❌ Preview error (${type}):`, err);
-      showError(err.message || 'Erreur lors de la génération de l’aperçu');
-      return;
-    }
+  const memberName = `${displayUser?.name || ''} ${displayUser?.lastname || ''}`.trim();
 
-    const memberName = `${displayUser?.name || ''} ${displayUser?.lastname || ''}`.trim();
-    setPdfPreview({
-      isOpen: true,
-      type,
-      isGenerating: true,
-      data: {
-        blobUrl: previewBlobUrl,
-        memberName,
-        userId: targetUserId,
-        memberEmail: displayUser?.email || '',
-        isPreview: true,
-      },
-    });
-    showSuccess('Aperçu instantané affiché — version finale en cours…');
+  // Open the modal immediately in a loading state so the user gets
+  // instant feedback. Only the real (stored) PDF is ever shown or
+  // downloadable — no preview phase.
+  setPdfPreview({
+    isOpen: true,
+    type,
+    isGenerating: true,
+    data: {
+      memberName,
+      userId: targetUserId,
+      memberEmail: displayUser?.email || '',
+    },
+  });
 
-    (async () => {
-      try {
-        const finalPdf = await generateQueuedPdf(finalEndpoint);
-        setPdfPreview((prev) => {
-          if (!prev.isOpen || prev.type !== type) {
-            revokeBlobUrl(finalPdf.blobUrl);
-            return prev;
-          }
-          revokeBlobUrl(prev.data?.blobUrl);
-          return {
-            ...prev,
-            isGenerating: false,
-            data: {
-              ...prev.data,
-              blobUrl: finalPdf.blobUrl,
-              downloadUrl: finalPdf.downloadUrl,
-              cloudinaryUrl: finalPdf.cloudinaryUrl,
-              isPreview: false,
-            },
-          };
-        });
-        showSuccess(type === 'degree' ? 'Diplôme final généré ✅' : 'Situation finale générée ✅');
-        if (type === 'degree') await fetchFiles();
-      } catch (err) {
-        console.error(`❌ Final generation error (${type}):`, err);
-        setPdfPreview((prev) =>
-          prev.isOpen && prev.type === type ? { ...prev, isGenerating: false } : prev
-        );
-        showError(err.message || 'Erreur lors de la génération finale');
+  try {
+    const finalPdf = await generateQueuedPdf(finalEndpoint);
+
+    setPdfPreview((prev) => {
+      // User closed the modal or switched types while we were waiting.
+      if (!prev.isOpen || prev.type !== type) {
+        revokeBlobUrl(finalPdf.blobUrl);
+        return prev;
       }
-    })();
-  };
+      return {
+        ...prev,
+        isGenerating: false,
+        data: {
+          ...prev.data,
+          blobUrl: finalPdf.blobUrl,
+          downloadUrl: finalPdf.downloadUrl,
+          cloudinaryUrl: finalPdf.cloudinaryUrl,
+        },
+      };
+    });
 
-  const handlePrintSituation = () => openPdfWithPreview('situation');
-  const handleGenerateDegree  = () => openPdfWithPreview('degree');
+    showSuccess(type === 'degree' ? 'Diplôme généré ✅' : 'Situation générée ✅');
+    if (type === 'degree') await fetchFiles();
+  } catch (err) {
+    console.error(`❌ Generation error (${type}):`, err);
+    setPdfPreview((prev) =>
+      prev.isOpen && prev.type === type
+        ? { ...prev, isGenerating: false }
+        : prev,
+    );
+    showError(err.message || 'Erreur lors de la génération');
+  }
+};
+const handlePrintSituation = () => openPdf('situation');
+const handleGenerateDegree  = () => openPdf('degree');
 
   // ─── Validation data ──────────────────────────────────────────────
   const fetchValidationRequests = async () => {
@@ -2091,14 +2044,14 @@ export default function ProfilePage({ user }) {
         validationRequests={validationRequests}
       />
 
-      {pdfPreview.isOpen && pdfPreview.data?.blobUrl && (
+      {pdfPreview.isOpen  && (
         <PDFPreviewModal
-          type={pdfPreview.type}
-          data={pdfPreview.data}
-          isGenerating={pdfPreview.isGenerating}
-          onClose={() => {
-            revokeBlobUrl(pdfPreview.data?.blobUrl);
-            setPdfPreview({ isOpen: false, type: 'degree', data: null, isGenerating: false });
+            type={pdfPreview.type}
+            data={pdfPreview.data}
+            isGenerating={pdfPreview.isGenerating}
+            onClose={() => {
+              revokeBlobUrl(pdfPreview.data?.blobUrl);
+              setPdfPreview({ isOpen: false, type: 'degree', data: null, isGenerating: false });
           }}
           onEmail={
             pdfPreview.type === 'degree'

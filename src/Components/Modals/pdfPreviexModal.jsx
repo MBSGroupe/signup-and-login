@@ -2,59 +2,57 @@ import { createPortal } from "react-dom";
 import { useEffect, useState } from "react";
 import { FileText, Loader2 } from 'lucide-react';
 
-// ─── Design System Constants (Banking Theme) ────────────────────────────────
-
 const BTN_PRIMARY =
   "inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg transition-colors shadow-lg shadow-emerald-600/20";
 const BTN_SECONDARY =
   "inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-[#1F2937] hover:bg-[#2A3A4A] text-white text-sm font-medium rounded-lg transition-colors border border-white/5";
 const BTN_DANGER =
   "inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-sm font-medium rounded-lg transition-colors shadow-lg shadow-red-600/20";
-const BTN_SUCCESS =
-  "inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg transition-colors shadow-lg shadow-emerald-600/20 disabled:opacity-60 disabled:cursor-not-allowed";
-const BTN_GHOST =
-  "inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-transparent hover:bg-white/5 text-[#94A3B8] hover:text-white text-sm font-medium rounded-lg transition-colors";
 
 const CARD_BASE =
   "relative bg-[#182233] border border-white/10 shadow-2xl rounded-2xl w-full max-w-5xl max-h-[90vh] flex flex-col";
-
-// ─── Component ──────────────────────────────────────────────────────────────
 
 export default function PDFPreviewModal({
   type,
   data,
   onClose,
-  onGenerate,
   onEmail,
   isGenerating = false,
 }) {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [blobUrl, setBlobUrl] = useState(null);
-  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState(null);
   const [sendingEmail, setSendingEmail] = useState(false);
 
-  // Title resolution per type
   let title = 'Aperçu du document';
-  if (type === 'payment') {
-    title = data?.title || 'Aperçu du reçu de paiement';
-  } else if (type === 'situation') {
-    title = data?.title || 'Situation du membre';
-  } else if (type === 'degree') {
-    title = data?.title || "Aperçu du Diplôme";
-  }
+  if (type === 'payment') title = data?.title || 'Aperçu du reçu de paiement';
+  else if (type === 'situation') title = data?.title || 'Situation du membre';
+  else if (type === 'degree') title = data?.title || 'Aperçu du Diplôme';
 
-  // Sync local blob state with the incoming data blob
+  // Sync local blob with incoming data. When the parent swaps the blob in,
+  // this re-runs and replaces the loading state with the actual PDF.
   useEffect(() => {
     if (data?.blobUrl) {
       setBlobUrl(data.blobUrl);
-      setLoading(false);
       setError(null);
     } else {
-      setError('No PDF data available');
-      setLoading(false);
+      setBlobUrl(null);
     }
   }, [data]);
+
+  // If the parent stops generating and there's still no blob, it's an error.
+  useEffect(() => {
+    if (!isGenerating && !data?.blobUrl) {
+      setError("Impossible de générer le document.");
+    }
+  }, [isGenerating, data]);
+
+  // ── Derived view state ────────────────────────────────────────────
+  // While generating OR before a blob arrives → spinner
+  // If we have a blob → PDF
+  // Otherwise → error
+  const showLoading = isGenerating || (!blobUrl && !error);
+  const showError = !showLoading && !!error;
+  const showPdf = !showLoading && !showError && !!blobUrl;
 
   const handleDownload = () => {
     if (blobUrl) {
@@ -64,21 +62,6 @@ export default function PDFPreviewModal({
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-    }
-  };
-
-  const handleGenerate = async () => {
-    if (!onGenerate) return;
-    setGenerating(true);
-    try {
-      await onGenerate();
-      // onGenerate should update the parent's data.blobUrl -> this modal
-      // will re-render with the new blob thanks to the useEffect above.
-    } catch (err) {
-      console.error('Generation failed:', err);
-      setError('Échec de la génération finale');
-    } finally {
-      setGenerating(false);
     }
   };
 
@@ -99,22 +82,13 @@ export default function PDFPreviewModal({
     }
   };
 
-  // ─── Badge state machine ────────────────────────────────────────────────
-  // isGenerating === true  → amber "Version finale en cours…"
-  // data.isPreview === false → green "Version finale"
-  // neither                → no badge (e.g. situation-only flow)
-  const showGeneratingBadge = isGenerating;
-  const showFinalBadge = !isGenerating && data?.isPreview === false;
-
   return createPortal(
     <div className="fixed inset-0 flex items-center justify-center z-[9999] p-4">
-      {/* Backdrop */}
       <div
         className="absolute inset-0 bg-[#0A0F1C]/80 backdrop-blur-sm"
         onClick={onClose}
       />
 
-      {/* Modal container */}
       <div className={CARD_BASE}>
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-white/10 bg-[#111827]/50 rounded-t-2xl">
@@ -124,38 +98,22 @@ export default function PDFPreviewModal({
               <span className="truncate">{title}</span>
             </h3>
 
-            {showGeneratingBadge && (
+            {isGenerating && (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 shrink-0">
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                Version finale en cours…
-              </span>
-            )}
-
-            {showFinalBadge && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
-                ✓ Version finale
+                Génération en cours…
               </span>
             )}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {blobUrl && (
+            {showPdf && (
               <button onClick={handleDownload} className={BTN_PRIMARY}>
                 💾 Télécharger
               </button>
             )}
 
-            {onGenerate && (
-              <button
-                onClick={handleGenerate}
-                disabled={generating}
-                className={BTN_SUCCESS}
-              >
-                {generating ? '⏳ Génération...' : '🔄 Générer'}
-              </button>
-            )}
-
-            {data?.downloadUrl && onEmail && (
+            {showPdf && data?.downloadUrl && onEmail && (
               <button
                 onClick={handleEmail}
                 disabled={sendingEmail}
@@ -171,9 +129,9 @@ export default function PDFPreviewModal({
           </div>
         </div>
 
-        {/* PDF Viewer */}
+        {/* Body */}
         <div className="flex-1 w-full p-3 bg-[#0A0F1C] rounded-b-2xl overflow-hidden">
-          {loading ? (
+          {showLoading ? (
             <div className="flex flex-col items-center justify-center h-[60vh]">
               <div className="relative">
                 <div className="w-16 h-16 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
@@ -182,18 +140,16 @@ export default function PDFPreviewModal({
                 </div>
               </div>
               <p className="mt-4 text-[#64748B] text-sm font-medium">
-                Chargement du PDF…
+                Génération du document en cours…
+              </p>
+              <p className="mt-1 text-[#475569] text-xs">
+                Cela peut prendre quelques secondes.
               </p>
             </div>
-          ) : error ? (
+          ) : showError ? (
             <div className="flex flex-col items-center justify-center h-[60vh] text-[#64748B]">
               <div className="p-4 rounded-full bg-red-500/10 text-red-400 mb-4">
-                <svg
-                  className="w-10 h-10"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
+                <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -210,23 +166,13 @@ export default function PDFPreviewModal({
                 Fermer
               </button>
             </div>
-          ) : blobUrl ? (
+          ) : (
             <iframe
               key={blobUrl}
               src={blobUrl}
               className="w-full h-[calc(90vh-120px)] rounded-xl border border-white/5 bg-[#111827]"
               title="PDF Preview"
-              onLoad={() => console.log('✅ PDF loaded successfully')}
-              onError={(e) => {
-                console.error('❌ Iframe error:', e);
-                setError('Failed to load PDF in iframe');
-              }}
             />
-          ) : (
-            <div className="flex flex-col items-center justify-center h-[60vh] text-[#64748B]">
-              <FileText className="w-12 h-12 text-[#1F2937] mb-3" />
-              <p>Aucun PDF à afficher</p>
-            </div>
           )}
         </div>
       </div>
