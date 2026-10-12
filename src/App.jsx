@@ -5,6 +5,7 @@ import DashLayout from './Layouts/DashLayout';
 
 import ProtectedRoute from './Layouts/ProtectedRoute';
 import AdminRoute from './Layouts/AdminRoute';
+import ResetAdminPassword from './Pages/DashBoard/Admins/ResetAdminPassword'
 import ChangePassword from './Pages/DashBoard/Users/changePassword';
 import LoginForm from './Pages/Login';
 import FormulaireCNOA from './Pages/Sign-up';
@@ -25,6 +26,7 @@ import AdminUserView from './Pages/DashBoard/Users/AdminView/AdminUserView';
 import GetCotisations from "./Pages/DashBoard/Cotisations/getCotisations";
 import FeeStats from "./Pages/DashBoard/Stats/FeeStats";
 import UserStats from "./Pages/DashBoard/Stats/UserStats";
+import ValidationStats from './Pages/DashBoard/Stats/ValidationStats';
 import CreateBulkCotisation from "./Pages/DashBoard/Cotisations/CreateBulkCotisations";
 import PermissionManager from "./Pages/DashBoard/Permissions/PermissionConfig";
 import PermissionDetails from "./Pages/DashBoard/Permissions/getSchema";
@@ -116,6 +118,8 @@ export default function App() {
         <Route path="/dash/admins/create"   element={<AdminForm mode="create" />} />
         <Route path="/dash/admins/edit/:id" element={<AdminForm mode="edit" />} />
         <Route path="/dash/admins/:id" element={<AdminProfile mode="edit" />} />
+        <Route path="/dash/admins/:id/reset-password" element={<ResetAdminPassword />} />
+
 
 
         <Route path="/dash/roles"           element={<RolesPanel />} />
@@ -138,7 +142,6 @@ export default function App() {
         <Route path="validation/schemas/:schemaId/versions" element={<ValidationSchemaVersions />} />
         <Route path="validation/schemas/:schemaId" element={<ValidationSchemaDetails />} />
         <Route path="validation/progress/:id" element={<ValidationRequestProgress />} />
-
         <Route path="template/background" element={< BackgroundManager/>} />
        
 
@@ -147,6 +150,7 @@ export default function App() {
         <Route path="adminUser/:id" element={<AdminUserView />} />
         <Route path="feeStats" element={<FeeStats />} />
         <Route path="userStats" element={<UserStats />} />
+        <Route path="validationStats" element={<ValidationStats />} />
         <Route path="/dash/adminStats" element={<AdminStats />} />
       </Route>
 

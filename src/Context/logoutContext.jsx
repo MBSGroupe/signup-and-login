@@ -12,7 +12,7 @@ export default function LogoutProvider({ children }) {
 
   const handleLogout = useCallback(async () => {
     const isAdmin = ["admin", "super_admin"].includes(authData?.user?.grade);
-    const logoutPath = isAdmin ? "/auth/admin/logout" : "/auth/logout";
+    const logoutPath =  "/auth/logout";
     const redirectPath = isAdmin
       ? "/adminlogin?reason=logged-out"
       : "/?reason=logged-out";

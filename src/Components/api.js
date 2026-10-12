@@ -11,7 +11,7 @@ const LOGIN_PATH = {
 
 const decodeJwtPayload = (token) => {
   try {
-    const parts = token.split('.');
+    const parts = token.split('.');X
     if (parts.length !== 3) return null;
     const payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
     const json = decodeURIComponent(

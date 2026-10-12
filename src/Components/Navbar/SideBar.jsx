@@ -54,6 +54,7 @@ export default function SideBar() {
   const [statsPermissions, setStatsPermissions] = useState({
     fees: false,
     users: false,
+    requests :false,
     admins: isAdminOrSuper,
     loaded: false,
   });
@@ -116,10 +117,11 @@ export default function SideBar() {
     };
 
     const load = async () => {
-      const [fees, users, admins] = await Promise.all([
+      const [fees, users, admins, requests] = await Promise.all([
         checkOp("read_stats", "Fee"),
         checkOp("read_stats", "User"),
         checkOp("read_stats", "Admin"),
+        checkOp("read_stats", "ValidationRequest"),
       ]);
 
       if (cancelled) return;
@@ -128,6 +130,7 @@ export default function SideBar() {
       // `false` = explicit denial → keep hidden.
       setStatsPermissions({
         fees: fees === null ? true : fees,
+        requests: requests === null ? true : requests,
         users: users === null ? true : users,
         admins: admins === null ? isAdminOrSuper : admins,
         loaded: true,
@@ -306,7 +309,8 @@ export default function SideBar() {
   const showFeeStats = statsPermissions.fees;
   const showUserStats = statsPermissions.users;
   const showAdminStats = statsPermissions.admins;
-  const hasAnyStatsItem = showFeeStats || showUserStats || showAdminStats;
+  const showValidationStats = statsPermissions.requests;
+  const hasAnyStatsItem = showFeeStats || showUserStats || showAdminStats || showValidationStats;
 
   return (
     <nav
@@ -476,6 +480,13 @@ export default function SideBar() {
                       label="Administrateurs"
                       onClick={() => handleNavigation("/dash/adminStats")}
                       active={isActive("/dash/adminStats")}
+                    />
+                  )}
+                  {showValidationStats && (
+                    <SubItem
+                      label=" Validations"
+                      onClick={() => handleNavigation("/dash/validationStats")}
+                      active={isActive("/dash/validationStats")}
                     />
                   )}
                 </div>
