@@ -63,6 +63,7 @@ const PERMISSION_CHECKS = [
   { key: "fees.update",                   model: "Fee",               operation: "update" },
   { key: "validation.read_user_requests", model: "ValidationRequest", operation: "read_user_requests" },
   { key: "validation.create_request",     model: "ValidationRequest", operation: "create_request" },
+   { key: "pdf.generate",                  model: "Pdf",               operation: "generate" },  
 ];
 
 const FOLDER_LABELS = {
@@ -1221,7 +1222,7 @@ const handleGenerateDegree  = () => openPdf('degree');
   const canDeleteUserResolved = can("users.delete", isAdmin);
   const canValidateUserResolved = can("users.validate", isAdmin);
 
-  const canGeneratePdf = isAdmin;
+  const canGeneratePdf = can("pdf.generate", isAdmin);
 
   const tabs = useMemo(() => {
     const list = [];
