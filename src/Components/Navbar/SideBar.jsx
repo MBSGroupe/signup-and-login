@@ -33,13 +33,62 @@ const STORAGE_KEY = "validation_last_seen_at";
 const isValidationType = (type) =>
   typeof type === "string" && type.startsWith("validation.");
 
+/* ────────────────────────────────────────────────────────────────────
+ * SINGLE SOURCE OF TRUTH
+ * Every sidebar entry is gated by a permission.
+ * `operation` + `model` are sent to
+ *   POST /permissions/:userId/check-operation  →  { canPerform: boolean }
+ *
+ * Adjust the operation/model names below to match your backend.
+ * Nothing else in this file needs to change.
+ * ──────────────────────────────────────────────────────────────────── */
+const PERMISSION_MAP = {
+  // Tableau de bord
+  dashboard: { operation: "read", model: "Dashboard" },
+
+  // Administrateurs
+  adminsRead: { operation: "read", model: "Admin" },
+  adminsCreate: { operation: "create", model: "Admin" },
+
+  // Membres
+  membersRead: { operation: "read", model: "User" },
+
+  // Cotisations
+  cotisationsRead: { operation: "read", model: "Fee" },
+  cotisationsCreate: { operation: "create", model: "Fee" },
+
+  // Validations
+  // "Demandes à valider" is for approvers only → read_approver_requests
+  validationsRead: {
+    operation: "read_approver_requests",
+    model: "ValidationRequest",
+  },
+  validationsReadAll: {
+    operation: "read_all_requests",
+    model: "ValidationRequest",
+  },
+
+  // Statistiques
+  statsFees: { operation: "read_stats", model: "Fee" },
+  statsUsers: { operation: "read_stats", model: "User" },
+  statsAdmins: { operation: "read_stats", model: "Admin" },
+  statsRequests: { operation: "read_stats", model: "ValidationRequest" },
+
+  // Mon profil
+  profileRead: { operation: "read", model: "Admin" },
+};
+
+const EMPTY_PERMISSIONS = Object.fromEntries(
+  Object.keys(PERMISSION_MAP).map((key) => [key, false]),
+);
+
 export default function SideBar() {
   const navigate = useNavigate();
   const location = useLocation();
   const { authData, setAuthData } = useContext(UserContext);
 
+  // ⚠️ Kept ONLY for the "Configuration" board (per your request).
   const isSuperAdmin = authData?.user?.grade === "super_admin";
-  const isAdminOrSuper = ["admin", "super_admin"].includes(authData?.user?.grade);
 
   const [usersOpen, setUsersOpen] = useState(false);
   const [adminsOpen, setAdminsOpen] = useState(false);
@@ -48,16 +97,9 @@ export default function SideBar() {
   const [validationOpen, setValidationOpen] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
 
-  // ─── Stats permissions ─────────────────────────────────────────────
-  // Default to the grade-based fallback while the fetch is in flight,
-  // so the menu isn't half-empty during the first render.
-  const [statsPermissions, setStatsPermissions] = useState({
-    fees: false,
-    users: false,
-    requests :false,
-    admins: isAdminOrSuper,
-    loaded: false,
-  });
+  // ─── Permissions state ─────────────────────────────────────────────
+  // Everything starts hidden and is revealed once the API answers.
+  const [permissions, setPermissions] = useState(EMPTY_PERMISSIONS);
 
   // ─── Validation unread state ───────────────────────────────────────
   const [validationNotifications, setValidationNotifications] = useState([]);
@@ -87,9 +129,7 @@ export default function SideBar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // ─── Fetch stats permissions once ──────────────────────────────────
-  // Mirrors the pattern used in ProfilePage: POST { operation, model }
-  // to /permissions/:userId/check-operation, read data.canPerform.
+  // ─── Fetch every sidebar permission in one batch ───────────────────
   useEffect(() => {
     if (!authData?.token || !authData?.user?.id) return;
     let cancelled = false;
@@ -111,41 +151,69 @@ export default function SideBar() {
         const data = await res.json();
         return data?.data?.canPerform ?? data?.canPerform ?? false;
       } catch (err) {
-        console.error(`[SideBar] check-operation ${operation}/${model} failed`, err);
+        console.error(
+          `[SideBar] check-operation ${operation}/${model} failed`,
+          err,
+        );
         return null;
       }
     };
 
     const load = async () => {
-      const [fees, users, admins, requests] = await Promise.all([
-        checkOp("read_stats", "Fee"),
-        checkOp("read_stats", "User"),
-        checkOp("read_stats", "Admin"),
-        checkOp("read_stats", "ValidationRequest"),
-      ]);
+      const entries = Object.entries(PERMISSION_MAP);
+
+      const results = await Promise.all(
+        entries.map(([, { operation, model }]) => checkOp(operation, model)),
+      );
 
       if (cancelled) return;
 
-      // `null` = request failed → fall back to grade check for that slot.
-      // `false` = explicit denial → keep hidden.
-      setStatsPermissions({
-        fees: fees === null ? true : fees,
-        requests: requests === null ? true : requests,
-        users: users === null ? true : users,
-        admins: admins === null ? isAdminOrSuper : admins,
-        loaded: true,
+      const next = {};
+      entries.forEach(([key], index) => {
+        // null  → the request itself failed → stay permissive so a backend
+        //         hiccup doesn't blank the whole sidebar.
+        // false → explicit denial → keep it hidden.
+        next[key] = results[index] === null ? true : results[index];
       });
+
+      setPermissions(next);
     };
 
     load();
     return () => {
       cancelled = true;
     };
-  }, [authData?.token, authData?.user?.id, authData?.user?.type, isAdminOrSuper, setAuthData]);
+  }, [authData?.token, authData?.user?.id, authData?.user?.type, setAuthData]);
+
+  // ─── Derived visibility flags ──────────────────────────────────────
+  // A dropdown group is only rendered when AT LEAST ONE of its
+  // sub-items is permitted. If every sub-item is denied, the group
+  // button itself disappears.
+
+  // Administrateurs
+  const showAdminsGroup =
+    permissions.adminsRead || permissions.adminsCreate;
+
+  // Cotisations
+  const showCotisationsGroup =
+    permissions.cotisationsRead || permissions.cotisationsCreate;
+
+  // Validations — "Demandes à valider" (read_approver_requests)
+  // or "Toutes les demandes" (read_all). If neither, the
+  // "Validations" button is not rendered at all.
+  const showValidationsGroup =
+    permissions.validationsRead || permissions.validationsReadAll;
+
+  // Statistiques
+  const hasAnyStatsItem =
+    permissions.statsFees ||
+    permissions.statsUsers ||
+    permissions.statsAdmins ||
+    permissions.statsRequests;
 
   // ─── Poll unread validation notifications ──────────────────────────
   useEffect(() => {
-    if (!authData?.token) return;
+    if (!authData?.token || !showValidationsGroup) return;
     let cancelled = false;
 
     const fetchValidationNotifications = async () => {
@@ -176,7 +244,12 @@ export default function SideBar() {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [authData?.token, authData?.user?.type, setAuthData]);
+  }, [
+    authData?.token,
+    authData?.user?.type,
+    setAuthData,
+    showValidationsGroup,
+  ]);
 
   // Highlight when at least one unread validation notification is
   // newer than the last time the user acknowledged.
@@ -231,12 +304,6 @@ export default function SideBar() {
   };
 
   const isActive = (path) => location.pathname === path;
-  const isValidationActive = () => location.pathname.startsWith("/dash/validation");
-  const isConfigActive = () =>
-    location.pathname === "/dash/permissions" ||
-    location.pathname === "/dash/validation/schemas" ||
-    location.pathname.startsWith("/dash/roles") ||
-    location.pathname === "/dash/template/background";
 
   // ─── Nav components ────────────────────────────────────────────────
   const NavItem = ({ icon: Icon, label, onClick, active, className = "" }) => (
@@ -305,13 +372,6 @@ export default function SideBar() {
     </button>
   );
 
-  // Which stats sub-items to show — derived from permissions
-  const showFeeStats = statsPermissions.fees;
-  const showUserStats = statsPermissions.users;
-  const showAdminStats = statsPermissions.admins;
-  const showValidationStats = statsPermissions.requests;
-  const hasAnyStatsItem = showFeeStats || showUserStats || showAdminStats || showValidationStats;
-
   return (
     <nav
       ref={sidebarRef}
@@ -337,14 +397,18 @@ export default function SideBar() {
       {/* Navigation Links */}
       <div className="flex-1 overflow-y-auto px-3 py-4 custom-scrollbar">
         <div className="flex flex-col gap-1">
-          <NavItem
-            icon={LayoutDashboard}
-            label="Tableau de bord"
-            onClick={() => handleNavigation("/dash")}
-            active={isActive("/dash")}
-          />
+          {/* ── Tableau de bord ─────────────────────────────────────── */}
+          {permissions.dashboard && (
+            <NavItem
+              icon={LayoutDashboard}
+              label="Tableau de bord"
+              onClick={() => handleNavigation("/dash")}
+              active={isActive("/dash")}
+            />
+          )}
 
-          {isSuperAdmin && (
+          {/* ── Administrateurs ─────────────────────────────────────── */}
+          {showAdminsGroup && (
             <div>
               <DropdownToggle
                 icon={Shield}
@@ -362,87 +426,108 @@ export default function SideBar() {
               />
               {adminsOpen && (
                 <div className="ml-3 mt-1 space-y-1 border-l border-[rgba(255,255,255,0.06)] pl-2">
-                  <SubItem
-                    label="Tous les administrateurs"
-                    onClick={() => handleNavigation("/dash/admins")}
-                    active={isActive("/dash/admins")}
-                  />
-                  <SubItem
-                    label="Ajouter un administrateur"
-                    onClick={() => handleNavigation("/dash/admins/create")}
-                    active={isActive("/dash/admins/create")}
-                  />
+                  {permissions.adminsRead && (
+                    <SubItem
+                      label="Tous les administrateurs"
+                      onClick={() => handleNavigation("/dash/admins")}
+                      active={isActive("/dash/admins")}
+                    />
+                  )}
+                  {permissions.adminsCreate && (
+                    <SubItem
+                      label="Ajouter un administrateur"
+                      onClick={() => handleNavigation("/dash/admins/create")}
+                      active={isActive("/dash/admins/create")}
+                    />
+                  )}
                 </div>
               )}
             </div>
           )}
 
-          <NavItem
-            icon={User}
-            label="Membres"
-            onClick={() => handleNavigation("/dash/allMembers")}
-            active={isActive("/dash/allMembers")}
-          />
-
-          <div>
-            <DropdownToggle
-              icon={CreditCard}
-              label="Cotisations"
-              isOpen={cotisationsOpen}
-              onClick={() =>
-                toggleDropdown(setCotisationsOpen, [
-                  setUsersOpen,
-                  setAdminsOpen,
-                  setStatsOpen,
-                  setValidationOpen,
-                  setConfigOpen,
-                ])
-              }
+          {/* ── Membres ─────────────────────────────────────────────── */}
+          {permissions.membersRead && (
+            <NavItem
+              icon={User}
+              label="Membres"
+              onClick={() => handleNavigation("/dash/allMembers")}
+              active={isActive("/dash/allMembers")}
             />
-            {cotisationsOpen && (
-              <div className="ml-3 mt-1 space-y-1 border-l border-[rgba(255,255,255,0.06)] pl-2">
-                <SubItem
-                  label="Toutes les cotisations"
-                  onClick={() => handleNavigation("/dash/allCotisations")}
-                  active={isActive("/dash/allCotisations")}
-                />
-                {isSuperAdmin && (
-                  <SubItem
-                    label="Ajouter une cotisation"
-                    onClick={() => handleNavigation("/dash/ajouterCotisation")}
-                    active={isActive("/dash/ajouterCotisation")}
-                  />
-                )}
-              </div>
-            )}
-          </div>
+          )}
 
-          <div>
-            <DropdownToggle
-              icon={CheckSquare}
-              label="Validations"
-              isOpen={validationOpen}
-              onClick={openValidationDropdown}
-              highlight={hasNewValidation}
-            />
-            {validationOpen && (
-              <div className="ml-3 mt-1 space-y-1 border-l border-[rgba(255,255,255,0.06)] pl-2">
-                <SubItem
-                  label="Demandes à valider"
-                  onClick={goToValidationRequests}
-                  active={isActive("/dash/validation/requests")}
-                  showDot={hasNewValidation}
-                />
-                <SubItem
-                  label="Toutes les demandes"
-                  onClick={() => handleNavigation("/dash/validation/all-requests")}
-                  active={isActive("/dash/validation/all-requests")}
-                />
-              </div>
-            )}
-          </div>
+          {/* ── Cotisations ─────────────────────────────────────────── */}
+          {showCotisationsGroup && (
+            <div>
+              <DropdownToggle
+                icon={CreditCard}
+                label="Cotisations"
+                isOpen={cotisationsOpen}
+                onClick={() =>
+                  toggleDropdown(setCotisationsOpen, [
+                    setUsersOpen,
+                    setAdminsOpen,
+                    setStatsOpen,
+                    setValidationOpen,
+                    setConfigOpen,
+                  ])
+                }
+              />
+              {cotisationsOpen && (
+                <div className="ml-3 mt-1 space-y-1 border-l border-[rgba(255,255,255,0.06)] pl-2">
+                  {permissions.cotisationsRead && (
+                    <SubItem
+                      label="Toutes les cotisations"
+                      onClick={() => handleNavigation("/dash/allCotisations")}
+                      active={isActive("/dash/allCotisations")}
+                    />
+                  )}
+                  {permissions.cotisationsCreate && (
+                    <SubItem
+                      label="Ajouter une cotisation"
+                      onClick={() => handleNavigation("/dash/ajouterCotisation")}
+                      active={isActive("/dash/ajouterCotisation")}
+                    />
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
-          {/* Stats — rendered only if at least one sub-item is permitted */}
+          {/* ── Validations ─────────────────────────────────────────── */}
+          {showValidationsGroup && (
+            <div>
+              <DropdownToggle
+                icon={CheckSquare}
+                label="Validations"
+                isOpen={validationOpen}
+                onClick={openValidationDropdown}
+                highlight={hasNewValidation}
+              />
+              {validationOpen && (
+                <div className="ml-3 mt-1 space-y-1 border-l border-[rgba(255,255,255,0.06)] pl-2">
+                  {permissions.validationsRead && (
+                    <SubItem
+                      label="Demandes à valider"
+                      onClick={goToValidationRequests}
+                      active={isActive("/dash/validation/requests")}
+                      showDot={hasNewValidation}
+                    />
+                  )}
+                  {permissions.validationsReadAll && (
+                    <SubItem
+                      label="Toutes les demandes"
+                      onClick={() =>
+                        handleNavigation("/dash/validation/all-requests")
+                      }
+                      active={isActive("/dash/validation/all-requests")}
+                    />
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Statistiques ────────────────────────────────────────── */}
           {hasAnyStatsItem && (
             <div>
               <DropdownToggle
@@ -461,28 +546,28 @@ export default function SideBar() {
               />
               {statsOpen && (
                 <div className="ml-3 mt-1 space-y-1 border-l border-[rgba(255,255,255,0.06)] pl-2">
-                  {showFeeStats && (
+                  {permissions.statsFees && (
                     <SubItem
                       label="Cotisations"
                       onClick={() => handleNavigation("/dash/feeStats")}
                       active={isActive("/dash/feeStats")}
                     />
                   )}
-                  {showUserStats && (
+                  {permissions.statsUsers && (
                     <SubItem
                       label="Utilisateurs"
                       onClick={() => handleNavigation("/dash/userStats")}
                       active={isActive("/dash/userStats")}
                     />
                   )}
-                  {showAdminStats && (
+                  {permissions.statsAdmins && (
                     <SubItem
                       label="Administrateurs"
                       onClick={() => handleNavigation("/dash/adminStats")}
                       active={isActive("/dash/adminStats")}
                     />
                   )}
-                  {showValidationStats && (
+                  {permissions.statsRequests && (
                     <SubItem
                       label=" Validations"
                       onClick={() => handleNavigation("/dash/validationStats")}
@@ -494,6 +579,7 @@ export default function SideBar() {
             </div>
           )}
 
+          {/* ── Configuration — INTENTIONALLY super_admin only ──────── */}
           {isSuperAdmin && (
             <div>
               <DropdownToggle
@@ -522,7 +608,6 @@ export default function SideBar() {
                     onClick={() => handleNavigation("/dash/roles")}
                     active={isActive("/dash/roles")}
                   />
-
                   <SubItem
                     label="Validations"
                     onClick={() => handleNavigation("/dash/validation/schemas")}
@@ -538,14 +623,17 @@ export default function SideBar() {
             </div>
           )}
 
-          <NavItem
-            icon={UserCog}
-            label="Mon profil"
-            onClick={() =>
-              handleNavigation(`/dash/admins/${authData?.user?.id}`)
-            }
-            active={isActive(`/dash/admins/${authData?.user?.id}`)}
-          />
+          {/* ── Mon profil ──────────────────────────────────────────── */}
+          {permissions.profileRead && (
+            <NavItem
+              icon={UserCog}
+              label="Mon profil"
+              onClick={() =>
+                handleNavigation(`/dash/admins/${authData?.user?.id}`)
+              }
+              active={isActive(`/dash/admins/${authData?.user?.id}`)}
+            />
+          )}
         </div>
       </div>
 
