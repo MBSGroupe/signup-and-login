@@ -4,6 +4,7 @@ import { fetchWithRefresh } from '../../../Components/api';
 import { useNavigate } from 'react-router-dom';
 import { useModal } from '../../../Context/ModalContext';
 import BackButton from '../../../Components/Buttons/BackButton';
+import wilayasData from '../../../assets/data/wilayas.json';
 import {
   Loader2,
   Inbox,
@@ -112,6 +113,7 @@ export default function ValidationRequestsList() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [schemaFilter, setSchemaFilter] = useState('all');
   const [periodFilter, setPeriodFilter] = useState('all');
+  const [regionFilter, setRegionFilter] = useState('all');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
 
@@ -125,7 +127,7 @@ export default function ValidationRequestsList() {
   // Reset to page 1 whenever a filter (not page) changes
   useEffect(() => {
     setPage(1);
-  }, [statusFilter, schemaFilter, periodFilter, customFrom, customTo, debouncedSearch]);
+  }, [statusFilter, schemaFilter, regionFilter, periodFilter, customFrom, customTo, debouncedSearch]);
 
   // ─── Mass selection ─────────────────────────────────────────────
   const [selectedRequests, setSelectedRequests] = useState([]);
@@ -165,6 +167,7 @@ export default function ValidationRequestsList() {
       const params = new URLSearchParams();
       if (statusFilter !== 'all') params.set('status', statusFilter);
       if (schemaFilter !== 'all') params.set('schemaId', schemaFilter);
+      if (regionFilter !== 'all') params.set('region', regionFilter);
       if (debouncedSearch)        params.set('search', debouncedSearch);
       if (from)                   params.set('from', from.toISOString());
       if (to)                     params.set('to', to.toISOString());
@@ -198,7 +201,7 @@ export default function ValidationRequestsList() {
     run();
     return () => { cancelled = true; };
   }, [
-    statusFilter, schemaFilter, periodFilter, customFrom, customTo,
+    statusFilter, schemaFilter, regionFilter, periodFilter, customFrom, customTo,
     debouncedSearch, page,
     authData?.token, setAuthData,
   ]);
@@ -293,6 +296,7 @@ export default function ValidationRequestsList() {
     setSearchTerm('');
     setStatusFilter('all');
     setSchemaFilter('all');
+    setRegionFilter('all');
     setPeriodFilter('all');
     setCustomFrom('');
     setCustomTo('');
@@ -371,6 +375,7 @@ export default function ValidationRequestsList() {
     searchTerm !== '',
     statusFilter !== 'all',
     schemaFilter !== 'all',
+    regionFilter !== 'all',
     periodFilter !== 'all',
   ].filter(Boolean).length;
 
@@ -465,7 +470,7 @@ export default function ValidationRequestsList() {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {/* Statut */}
             <div>
               <label className="block text-[11px] uppercase tracking-wider text-[#64748B] mb-1.5">
@@ -500,6 +505,25 @@ export default function ValidationRequestsList() {
                 {schemas.map((s) => (
                   <option key={s.id || s._id} value={s.id || s._id}>
                     {s.name || s.title || 'Sans nom'}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* CLOA */}
+            <div>
+              <label className="block text-[11px] uppercase tracking-wider text-[#64748B] mb-1.5">
+                Par CLOA
+              </label>
+              <select
+                value={regionFilter}
+                onChange={(e) => setRegionFilter(e.target.value)}
+                className="w-full px-3 py-2 bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+              >
+                <option value="all">Toutes les CLOA</option>
+                {wilayasData.map((w) => (
+                  <option key={w.code} value={w.code}>
+                    {w.code} - {w.name}
                   </option>
                 ))}
               </select>
