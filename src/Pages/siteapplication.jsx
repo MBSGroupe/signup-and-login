@@ -182,7 +182,7 @@ const translations = {
 };
 
 // Nom du fichier APK déposé dans public/
-export const APK_FILE_NAME = "application-b73d6f36-9f87-4cfb-a670-296736204fe3.apk";
+export const APK_FILE_NAME = import.meta.env.VITE_APK_FILE_NAME || "cnoa-app.apk";
 export const APK_DOWNLOAD_URL = `/${APK_FILE_NAME}`;
 
 /**
@@ -256,7 +256,7 @@ export default function SiteApplication() {
         : window.location.origin;
         
       setDownloadUrl(`${hostOrigin}/${APK_FILE_NAME}`);
-      setWebAppUrl(hostOrigin);
+      setWebAppUrl(import.meta.env.VITE_IOS_APP_URL || hostOrigin);
 
       // Détection automatique au montage
       const detected = detectDevicePlatform();
