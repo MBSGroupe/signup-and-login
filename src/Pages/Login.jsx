@@ -12,6 +12,7 @@ import {
 import CNOALOGO from "../assets/LOGOCLOA.png";
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
+const SIGNUP_ENABLED = import.meta.env.VITE_SIGNUP_ENABLED !== "false";
 const LOCK_STORAGE_KEY = "loginLockUntil";
 
 const VERIFIED_MESSAGE =
@@ -301,17 +302,19 @@ const LoginForm = () => {
           </Link>
         </div>
 
-        <div className="mt-8 text-center text-[#64748B] text-sm">
-          <p>
-            Vous n'êtes pas inscrit ? Créez un compte{" "}
-            <Link
-              to="/signup"
-              className="text-emerald-400 hover:underline font-medium"
-            >
-              S'inscrire
-            </Link>
-          </p>
-        </div>
+        {SIGNUP_ENABLED && (
+          <div className="mt-8 text-center text-[#64748B] text-sm">
+            <p>
+              Vous n'êtes pas inscrit ? Créez un compte{" "}
+              <Link
+                to="/signup"
+                className="text-emerald-400 hover:underline font-medium"
+              >
+                S'inscrire
+              </Link>
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

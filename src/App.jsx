@@ -9,6 +9,7 @@ import ResetAdminPassword from './Pages/DashBoard/Admins/ResetAdminPassword'
 import ChangePassword from './Pages/DashBoard/Users/changePassword';
 import LoginForm from './Pages/Login';
 import FormulaireCNOA from './Pages/Sign-up';
+import SignupClosed from './Pages/SignupClosed';
 import ProfilePage from './Pages/ProfilePage';
 import OnboardingPage from './Pages/OnboardingPage';
 import VerifyPage from './Pages/VerificationPage';
@@ -55,6 +56,8 @@ import SiteApplication from "./Pages/siteapplication";
 import PixelNo from './Components/NO';
 import AdminStats from "./Pages/DashBoard/Stats/AdminStats";
 
+// Signup can be closed per environment with VITE_SIGNUP_ENABLED=false (open by default)
+const SIGNUP_ENABLED = import.meta.env.VITE_SIGNUP_ENABLED !== 'false';
 
 export default function App() {
   return (
@@ -63,7 +66,7 @@ export default function App() {
       {/* PUBLIC / MAIN LAYOUT */}
       <Route path="/" element={<MainLayout />}>
         <Route index element={<LoginForm />} />
-        <Route path="signup" element={<FormulaireCNOA />} />
+        <Route path="signup" element={SIGNUP_ENABLED ? <FormulaireCNOA /> : <SignupClosed />} />
         <Route path="adminlogin" element={<AdminLogin />} />
 
         
