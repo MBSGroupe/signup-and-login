@@ -85,6 +85,19 @@ function computeDateRange(period, customFrom, customTo) {
   }
 }
 
+// One dropdown entry per schema (latest version first in the API order).
+// Inactive schemas stay listed so their requests remain filterable.
+function toSchemaFamilies(list) {
+  const families = new Map();
+  for (const s of list) {
+    const key = `${s.targetType}::${(s.name || '').trim()}`;
+    const prev = families.get(key);
+    if (!prev) families.set(key, { ...s, anyActive: !!s.isActive });
+    else if (s.isActive) prev.anyActive = true;
+  }
+  return Array.from(families.values());
+}
+
 function getPageNumbers(current, total) {
   if (total <= 7) {
     return Array.from({ length: total }, (_, i) => i + 1);
@@ -185,7 +198,7 @@ export default function AllValidationRequests() {
     const fetchSchemas = async () => {
       try {
         const res = await fetchWithRefresh(
-          `${API_URL}/validation/schemas`,
+          `${API_URL}/validation/schemas?includeInactive=true`,
           { method: 'GET' },
           authData.token,
           setAuthData
@@ -193,7 +206,7 @@ export default function AllValidationRequests() {
         if (!res.ok) return;
         const data = await res.json();
         const list = data?.schemas || data?.data || data || [];
-        setSchemas(Array.isArray(list) ? list : []);
+        setSchemas(Array.isArray(list) ? toSchemaFamilies(list) : []);
       } catch (err) {
         console.error('Error fetching schemas:', err);
       }
@@ -427,7 +440,7 @@ export default function AllValidationRequests() {
                 <option value="all">Tous les types</option>
                 {schemas.map((s) => (
                   <option key={s.id || s._id} value={s.id || s._id}>
-                    {s.name || s.title || 'Sans nom'}
+                    {s.name || s.title || 'Sans nom'}{s.anyActive ? '' : ' (inactif)'}
                   </option>
                 ))}
               </select>

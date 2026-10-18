@@ -25,7 +25,10 @@ import {
   Activity,
   Gauge,
   AlertCircle,
+  MapPin,
+  Hourglass,
 } from 'lucide-react';
+import wilayasData from '../../../assets/data/wilayas.json';
 import {
   BarChart,
   Bar,
@@ -92,6 +95,17 @@ const STATUS_LABELS = {
   rejected: 'Rejetées',
   cancelled: 'Annulées',
   expired: 'Expirées',
+};
+
+// CLOA code ("16") → "16 - Alger"
+const REGION_LABELS = Object.fromEntries(
+  wilayasData.map((w) => [w.code, `${w.code} - ${w.name}`]),
+);
+
+const CREATOR_LABELS = {
+  admin: 'Administrateur',
+  user: 'Membre',
+  unknown: 'Non spécifié (migration)',
 };
 
 const STATUS_KEYS = [
@@ -202,6 +216,33 @@ function StatusCell({ value, color }) {
   );
 }
 
+// ─── Horizontal bar row (label · bar · value) ──────────────────────
+function BarRow({ label, sublabel = null, value, max, color = '#22c55e', extra = null }) {
+  const pct = max > 0 ? Math.max(2, (value / max) * 100) : 0;
+  return (
+    <div className="py-2">
+      <div className="flex items-center justify-between gap-3 mb-1.5">
+        <div className="min-w-0">
+          <p className="text-xs text-[#F8FAFC] font-medium truncate">{label}</p>
+          {sublabel && (
+            <p className="text-[10px] font-mono text-[#64748B] truncate">{sublabel}</p>
+          )}
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          {extra}
+          <span className="text-xs font-mono text-[#F8FAFC] tabular-nums">{value}</span>
+        </div>
+      </div>
+      <div className="h-1.5 rounded-full bg-[#0A0F1C] overflow-hidden">
+        <div
+          className="h-full rounded-full"
+          style={{ width: `${pct}%`, backgroundColor: color }}
+        />
+      </div>
+    </div>
+  );
+}
+
 // ─── Model icon helper ──────────────────────────────────────────────
 function modelIcon(type) {
   switch (type) {
@@ -296,6 +337,9 @@ export default function ValidationStats() {
     bySchema = [],
     byCreatorType = [],
     bySource = [],
+    byRegion = [],
+    byCurrentStep = [],
+    pendingAge = { lt7: 0, d7to30: 0, gt30: 0, avgDays: 0 },
     byModelDetailed = [],
     bySchemaDetailed = [],
     monthlyRequests = [],
@@ -319,6 +363,7 @@ export default function ValidationStats() {
   const tabs = [
     { id: 'overview', label: "Vue d'ensemble", icon: BarChart3 },
     { id: 'models', label: 'Modèles & Schémas', icon: Layers },
+    { id: 'regions', label: 'Par CLOA', icon: MapPin },
     { id: 'workflow', label: 'Workflow', icon: Activity },
     { id: 'performance', label: 'Performance', icon: Gauge },
     { id: 'activity', label: 'Activité', icon: Timer },
@@ -480,14 +525,14 @@ export default function ValidationStats() {
                 label="Approuvées"
                 value={approved}
                 accent="emerald"
-                hint={`${approvalRate}% du total`}
+                hint={`${approvalRate}% des demandes traitées`}
               />
               <MetricTile
                 icon={XCircle}
                 label="Rejetées"
                 value={rejected}
                 accent="rose"
-                hint={`${rejectionRate}% du total`}
+                hint={`${rejectionRate}% des demandes traitées`}
               />
             </div>
 
@@ -671,7 +716,96 @@ export default function ValidationStats() {
                 )}
               </Section>
             </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+              <Section
+                icon={Layers}
+                title="Étape en cours"
+                subtitle="où attendent les demandes en cours"
+              >
+                {byCurrentStep.length === 0 ? (
+                  <EmptyChart icon={Layers} message="Aucune demande en cours" />
+                ) : (
+                  <div className="divide-y divide-[rgba(255,255,255,0.04)]">
+                    {byCurrentStep.map((s, i) => (
+                      <BarRow
+                        key={`${s.schema}-${s.step}-${i}`}
+                        label={s.step}
+                        sublabel={`${s.schema}${s.role ? ` · ${s.role}` : ''}`}
+                        value={s.count}
+                        max={byCurrentStep[0].count}
+                        color="#f59e0b"
+                      />
+                    ))}
+                  </div>
+                )}
+              </Section>
+
+              <Section
+                icon={Hourglass}
+                title="Ancienneté des demandes en cours"
+                subtitle={`attente moyenne : ${pendingAge.avgDays} j`}
+              >
+                {awaitingAction === 0 ? (
+                  <EmptyChart icon={Hourglass} message="Aucune demande en cours" />
+                ) : (
+                  <div className="space-y-1 py-1">
+                    {[
+                      { label: 'Moins de 7 jours', value: pendingAge.lt7, color: '#22c55e' },
+                      { label: '7 à 30 jours', value: pendingAge.d7to30, color: '#f59e0b' },
+                      { label: 'Plus de 30 jours', value: pendingAge.gt30, color: '#ef4444' },
+                    ].map((row) => (
+                      <BarRow
+                        key={row.label}
+                        label={row.label}
+                        value={row.value}
+                        max={awaitingAction}
+                        color={row.color}
+                        extra={
+                          <span className="text-[10px] font-mono text-[#475569]">
+                            {Math.round((row.value / awaitingAction) * 100)}%
+                          </span>
+                        }
+                      />
+                    ))}
+                  </div>
+                )}
+              </Section>
+            </div>
           </>
+        )}
+
+        {/* ═══ REGIONS (CLOA) TAB ═════════════════════════════════ */}
+        {activeTab === 'regions' && (
+          <Section
+            icon={MapPin}
+            title="Demandes par CLOA"
+            subtitle="CLOA d'exercice du membre concerné · demandes sur des membres uniquement"
+          >
+            {byRegion.length === 0 ? (
+              <EmptyChart icon={MapPin} message="Aucune donnée" />
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 divide-y lg:divide-y-0 divide-[rgba(255,255,255,0.04)]">
+                {byRegion.map((r) => (
+                  <BarRow
+                    key={r.region ?? 'none'}
+                    label={
+                      r.region
+                        ? REGION_LABELS[r.region] || `CLOA ${r.region}`
+                        : 'Non renseignée'
+                    }
+                    value={r.total}
+                    max={byRegion[0].total}
+                    extra={
+                      <span className="text-[10px] font-mono text-[#64748B]">
+                        {r.open} en cours · {r.approved} appr. · {r.rejected} rej.
+                      </span>
+                    }
+                  />
+                ))}
+              </div>
+            )}
+          </Section>
         )}
 
         {/* ═══ MODELS & SCHEMAS TAB ══════════════════════════════ */}
@@ -901,9 +1035,11 @@ export default function ValidationStats() {
                                 <p className="text-[#F8FAFC] font-medium truncate">
                                   {s.name}
                                 </p>
-                                {s.version != null && (
+                                {s.versions?.length > 0 && (
                                   <p className="text-[10px] text-[#475569]">
-                                    v{s.version}
+                                    {s.versions.length > 1
+                                      ? `v${s.versions.join(', v')}`
+                                      : `v${s.versions[0]}`}
                                   </p>
                                 )}
                               </div>
@@ -1025,10 +1161,7 @@ export default function ValidationStats() {
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
-                          data={preparePieData(byCreatorType, {
-                            admin: 'Administrateur',
-                            user: 'Membre',
-                          })}
+                          data={preparePieData(byCreatorType, CREATOR_LABELS)}
                           cx="50%"
                           cy="50%"
                           labelLine={false}
