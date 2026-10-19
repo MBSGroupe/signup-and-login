@@ -548,17 +548,196 @@ function PayloadFieldEditor({ field, onChange, onDelete, stepOptions = [] }) {
 }
 
 // ─── Post-validation action editor ──────────────────────────────────
+// First dropdown: the group (registry `category`). Email and États de
+// sortie hold one service each; Call service lists every other registered
+// service. Parameters are rendered from the service's paramsSchema.
+const ACTION_CATEGORIES = [
+  { value: 'email', label: 'Email' },
+  { value: 'document', label: 'États de sortie' },
+  { value: 'service', label: 'Call service' },
+];
+
+// Year-less actions saved before « États de sortie » existed: shown as a
+// document action whose template must be chosen before saving.
+const LEGACY_DOCUMENT_ACTIONS = { createDegree: 'generate', sendDegreeByEmail: 'email' };
+
+const upgradeLegacyAction = (action) => {
+  if (!action || typeof action !== 'object') return action;
+  const name = action.serviceName || action.action || '';
+  const mode = LEGACY_DOCUMENT_ACTIONS[name];
+  if (mode) {
+    return {
+      serviceName: 'document',
+      order: action.order ?? 0,
+      params: { mode, templateKey: '', entity: 'targetUser' },
+    };
+  }
+  if (name === 'callService' && action.params?.target) {
+    return { serviceName: action.params.target, order: action.order ?? 0, params: action.params.payload || {} };
+  }
+  return action;
+};
+
+const upgradeActionList = (list) => (Array.isArray(list) ? list.map(upgradeLegacyAction) : list);
+
+const upgradeStepHooks = (steps) =>
+  (Array.isArray(steps) ? steps : []).map((s) => ({
+    ...s,
+    ...(s.onApprove !== undefined ? { onApprove: upgradeActionList(s.onApprove) } : {}),
+    ...(s.onReject !== undefined ? { onReject: upgradeActionList(s.onReject) } : {}),
+  }));
+
+const defaultParams = (service) =>
+  Object.fromEntries(
+    Object.entries(service?.paramsSchema || {})
+      .filter(([, d]) => d.default !== undefined)
+      .map(([k, d]) => [k, d.default]),
+  );
+
+/** Required parameters left empty, as readable labels. */
+const missingParams = (action, catalog) => {
+  const service = catalog.find((s) => s.name === (action.serviceName || action.action));
+  if (!service) return [];
+  return Object.entries(service.paramsSchema || {})
+    .filter(([k, d]) => d.required && (action.params?.[k] === undefined || action.params?.[k] === ''))
+    .map(([, d]) => d.label);
+};
+
+function JsonParamInput({ value, onChange, placeholder }) {
+  // Own text state: invalid JSON while typing stays visible instead of
+  // being replaced by the last valid value.
+  const [text, setText] = useState(() => (value === undefined ? '' : JSON.stringify(value, null, 2)));
+  const [error, setError] = useState(null);
+  return (
+    <div>
+      <textarea
+        className={inputCls + ' font-mono text-xs'}
+        rows={3}
+        value={text}
+        placeholder={placeholder}
+        onChange={(e) => {
+          const next = e.target.value;
+          setText(next);
+          if (!next.trim()) {
+            setError(null);
+            onChange(undefined);
+            return;
+          }
+          try {
+            onChange(JSON.parse(next));
+            setError(null);
+          } catch {
+            setError('JSON invalide');
+          }
+        }}
+      />
+      {error && <p className="text-[11px] text-rose-400 mt-1">{error}</p>}
+    </div>
+  );
+}
+
+function ParamInput({ name, descriptor, value, onChange }) {
+  const d = descriptor;
+  if (d.type === 'documentTemplate') {
+    const options = d.options || [];
+    const current = options.find((o) => o.value === value);
+    return (
+      <div>
+        <select className={inputCls} value={value || ''} onChange={(e) => onChange(e.target.value || undefined)}>
+          <option value="">— choisir un modèle —</option>
+          {options.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+          {value && !current && <option value={value}>{value} (introuvable)</option>}
+        </select>
+        {current && current.isActive === false && (
+          <p className="text-[11px] text-amber-400 mt-1">
+            Modèle inactif : activez-le dans « Gestion des modèles PDF » avant que les demandes soient approuvées.
+          </p>
+        )}
+      </div>
+    );
+  }
+  if (Array.isArray(d.enum)) {
+    return (
+      <select className={inputCls} value={value ?? ''} onChange={(e) => onChange(e.target.value || undefined)}>
+        {!d.required && <option value="">—</option>}
+        {d.enum.map((v) => (
+          <option key={v} value={v}>{d.enumLabels?.[v] || v}</option>
+        ))}
+      </select>
+    );
+  }
+  if (d.type === 'boolean') {
+    return (
+      <label className="flex items-center gap-2 text-sm text-[#CBD5E1] py-2">
+        <input
+          type="checkbox"
+          className="w-4 h-4 accent-emerald-500"
+          checked={value === true}
+          onChange={(e) => onChange(e.target.checked)}
+        />
+        Oui
+      </label>
+    );
+  }
+  if (d.type === 'number') {
+    return (
+      <input
+        type="number"
+        className={inputCls}
+        value={value ?? ''}
+        placeholder={d.placeholder}
+        onChange={(e) => onChange(e.target.value === '' ? undefined : Number(e.target.value))}
+      />
+    );
+  }
+  if (d.type === 'json') {
+    return <JsonParamInput key={name} value={value} onChange={onChange} placeholder={d.placeholder || d.help} />;
+  }
+  return (
+    <input
+      className={inputCls}
+      value={value ?? ''}
+      placeholder={d.placeholder}
+      onChange={(e) => onChange(e.target.value === '' ? undefined : e.target.value)}
+    />
+  );
+}
+
 function ActionEditor({ action, onChange, onDelete, serviceCatalog }) {
   const serviceName = action.serviceName || action.action || '';
   const selected = serviceCatalog.find((s) => s.name === serviceName);
+  const [category, setCategory] = useState(selected?.category || '');
+  useEffect(() => {
+    if (selected?.category) setCategory(selected.category);
+  }, [selected?.category]);
 
   const set = (patch) => onChange({ ...action, ...patch });
+  const setParam = (key, value) => {
+    const params = { ...(action.params || {}) };
+    if (value === undefined) delete params[key];
+    else params[key] = value;
+    set({ params });
+  };
+
+  const servicesInCategory = serviceCatalog.filter((s) => s.category === category);
+  const pickCategory = (value) => {
+    setCategory(value);
+    const services = serviceCatalog.filter((s) => s.category === value);
+    // Email and États de sortie have a single service: select it directly.
+    if (services.length === 1) set({ serviceName: services[0].name, params: defaultParams(services[0]) });
+    else set({ serviceName: '', params: {} });
+  };
+
+  const unknown = serviceName && serviceCatalog.length > 0 && !selected;
+  const missing = missingParams(action, serviceCatalog);
 
   return (
     <div className="bg-[#111827] rounded-xl border border-[rgba(255,255,255,0.06)] p-4 space-y-3">
       <div className="flex items-center justify-between">
         <span className="text-xs font-mono text-emerald-400">
-          {serviceName || 'service'}
+          {selected?.label || serviceName || 'action'}
         </span>
         <button
           type="button"
@@ -569,23 +748,37 @@ function ActionEditor({ action, onChange, onDelete, serviceCatalog }) {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div className="md:col-span-2">
-          <label className={labelCls}>Service</label>
-          <select
-            className={inputCls}
-            value={serviceName}
-            onChange={(e) => set({ serviceName: e.target.value, params: {} })}
-          >
-            <option value="">— choisir un service —</option>
-            {serviceCatalog.map((s) => (
-              <option key={s.name} value={s.name}>
-                {s.label} ({s.name})
-              </option>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <div>
+          <label className={labelCls}>Type</label>
+          <select className={inputCls} value={category} onChange={(e) => pickCategory(e.target.value)}>
+            <option value="">— choisir —</option>
+            {ACTION_CATEGORIES.map((c) => (
+              <option key={c.value} value={c.value}>{c.label}</option>
             ))}
           </select>
         </div>
-        <div>
+
+        {category === 'service' && (
+          <div className="md:col-span-2">
+            <label className={labelCls}>Service</label>
+            <select
+              className={inputCls}
+              value={serviceName}
+              onChange={(e) => {
+                const svc = serviceCatalog.find((s) => s.name === e.target.value);
+                set({ serviceName: e.target.value, params: defaultParams(svc) });
+              }}
+            >
+              <option value="">— choisir un service —</option>
+              {servicesInCategory.map((s) => (
+                <option key={s.name} value={s.name}>{s.label}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        <div className={category === 'service' ? '' : 'md:col-start-4'}>
           <label className={labelCls}>Ordre</label>
           <input
             type="number"
@@ -596,26 +789,41 @@ function ActionEditor({ action, onChange, onDelete, serviceCatalog }) {
         </div>
       </div>
 
+      {unknown && (
+        <p className="text-xs text-amber-400">
+          Action « {serviceName} » inconnue ou obsolète : choisissez un type pour la remplacer.
+        </p>
+      )}
+
       {selected?.description && (
         <p className="text-xs text-[#64748B] italic">{selected.description}</p>
       )}
 
-      <div>
-        <label className={labelCls}>Paramètres (JSON)</label>
-        <textarea
-          className={inputCls + ' font-mono text-xs'}
-          rows={4}
-          value={JSON.stringify(action.params || {}, null, 2)}
-          onChange={(e) => {
-            try {
-              set({ params: e.target.value ? JSON.parse(e.target.value) : {} });
-            } catch {
-              /* keep last valid while typing */
-            }
-          }}
-          placeholder='{ "field": "isVerified", "value": true }'
-        />
-      </div>
+      {selected && Object.keys(selected.paramsSchema || {}).length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {Object.entries(selected.paramsSchema).map(([key, descriptor]) => (
+            <div key={key} className={descriptor.type === 'json' ? 'md:col-span-2' : ''}>
+              <label className={labelCls}>
+                {descriptor.label}
+                {descriptor.required && <span className="text-rose-400"> *</span>}
+              </label>
+              <ParamInput
+                name={`${serviceName}.${key}`}
+                descriptor={descriptor}
+                value={action.params?.[key]}
+                onChange={(value) => setParam(key, value)}
+              />
+              {descriptor.help && descriptor.type !== 'json' && (
+                <p className="text-[11px] text-[#64748B] mt-1">{descriptor.help}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {missing.length > 0 && (
+        <p className="text-[11px] text-rose-400">À renseigner : {missing.join(', ')}</p>
+      )}
     </div>
   );
 }
@@ -725,12 +933,12 @@ export default function ValidationSchemaForm({
     payloadSchema: Array.isArray(initialData?.payloadSchema)
       ? initialData.payloadSchema
       : [],
-    steps: initialData?.steps || [],
+    steps: upgradeStepHooks(initialData?.steps),
     globalTimeout: initialData?.globalTimeout || { duration: 0, action: 'reject' },
     notificationConfig:
       initialData?.notificationConfig || { methods: { email: true, system: false } },
-    onApproval: normalizeActions(initialData?.onApproval),
-    onRejection: normalizeActions(initialData?.onRejection),
+    onApproval: upgradeActionList(normalizeActions(initialData?.onApproval)),
+    onRejection: upgradeActionList(normalizeActions(initialData?.onRejection)),
   });
 
   // ── Fetch roles ─────────────────────────────────────────────────
@@ -1102,6 +1310,28 @@ export default function ValidationSchemaForm({
       );
       if (badStep !== -1) {
         throw new Error(`Étape #${badStep + 1} : le nom est obligatoire`);
+      }
+
+      // Post-validation actions: a type must be chosen and required
+      // parameters filled (e.g. the template of an État de sortie).
+      const actionGroups = [
+        ['Actions en cas d’approbation', formData.onApproval],
+        ['Actions en cas de rejet', formData.onRejection],
+        ...formData.steps.flatMap((s, i) => [
+          [`Étape #${i + 1} (approbation)`, s.onApprove || []],
+          [`Étape #${i + 1} (rejet)`, s.onReject || []],
+        ]),
+      ];
+      for (const [where, actions] of actionGroups) {
+        for (const action of actions) {
+          if (!(action.serviceName || action.action)) {
+            throw new Error(`${where} : choisissez le type de chaque action (ou supprimez-la)`);
+          }
+          const missing = missingParams(action, serviceCatalog);
+          if (missing.length) {
+            throw new Error(`${where} : ${missing.join(', ')} à renseigner`);
+          }
+        }
       }
 
       const method = isEdit ? 'PUT' : 'POST';

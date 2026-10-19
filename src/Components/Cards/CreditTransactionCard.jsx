@@ -1,9 +1,10 @@
 import { useContext, useState } from "react";
 import { UserContext } from "../../Context/dataCont";
-import { fetchWithRefresh } from "../../Components/api";
-import PDFPreviewModal from '../Modals/pdfPreviexModal';   // fixed import
+import { previewDocument, emailDocument, downloadBlob } from "../documents";
+import PDFPreviewModal from '../Modals/pdfPreviexModal';
 
-const API_URL = import.meta.env.VITE_NEST_API_URL;
+// DocumentTemplate key of the credit-transaction receipt.
+const VERSEMENT_TEMPLATE = 'versement';
 
 // ─── Design Tokens (Banking Theme) ──────────────────────────────────────────
 
@@ -19,6 +20,7 @@ const BTN_INFO =
 export default function CreditTransactionCard({ transaction, handlePopup }) {
   const { authData, setAuthData } = useContext(UserContext);
   const [showPreview, setShowPreview] = useState(false);
+  const [previewData, setPreviewData] = useState(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
 
@@ -35,35 +37,40 @@ export default function CreditTransactionCard({ transaction, handlePopup }) {
     repayment: 'Retrait'
   };
 
+  const auth = { token: authData.token, setAuthData };
+
   const handleDownloadVersementReceipt = async () => {
     if (transaction.amount <= 0) return;
     setIsDownloading(true);
     try {
-      const response = await fetchWithRefresh(
-        `${API_URL}/pdf/versement/${transaction.id}/receipt`,
-        { method: 'GET' },
-        authData.token,
-        setAuthData
-      );
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || 'Erreur lors du téléchargement');
-      }
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `recu_versement_${transaction.id}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+      const blob = await previewDocument(VERSEMENT_TEMPLATE, transaction.id, auth);
+      downloadBlob(blob, `recu_versement_${transaction.id}.pdf`);
     } catch (err) {
       console.error(err);
-      if (handlePopup) handlePopup('error', 'Impossible de télécharger le reçu');
+      if (handlePopup) handlePopup('error', err.message || 'Impossible de télécharger le reçu');
     } finally {
       setIsDownloading(false);
     }
+  };
+
+  const handlePreview = async () => {
+    if (transaction.amount <= 0) return;
+    setPreviewData({ title: 'Reçu de versement' });
+    setShowPreview(true);
+    try {
+      const blob = await previewDocument(VERSEMENT_TEMPLATE, transaction.id, auth);
+      setPreviewData({ title: 'Reçu de versement', blobUrl: URL.createObjectURL(blob) });
+    } catch (err) {
+      console.error(err);
+      setShowPreview(false);
+      if (handlePopup) handlePopup('error', err.message || "Impossible de charger l'aperçu");
+    }
+  };
+
+  const closePreview = () => {
+    if (previewData?.blobUrl) URL.revokeObjectURL(previewData.blobUrl);
+    setPreviewData(null);
+    setShowPreview(false);
   };
 
   const handleEmailVersementReceipt = async () => {
@@ -74,20 +81,7 @@ export default function CreditTransactionCard({ transaction, handlePopup }) {
 
     setIsSendingEmail(true);
     try {
-      const res = await fetchWithRefresh(
-        `${API_URL}/pdf/versement/${transaction.id}/email`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ recipientEmail: recipient }),
-        },
-        authData.token,
-        setAuthData
-      );
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ message: 'Échec de l\'envoi' }));
-        throw new Error(err.message);
-      }
+      await emailDocument(VERSEMENT_TEMPLATE, transaction.id, recipient, auth);
       if (handlePopup) handlePopup('success', 'Reçu envoyé par email avec succès');
     } catch (err) {
       console.error(err);
@@ -137,7 +131,7 @@ export default function CreditTransactionCard({ transaction, handlePopup }) {
             {isDownloading ? 'Téléchargement...' : 'Télécharger'}
           </button>
           <button
-            onClick={() => setShowPreview(true)}
+            onClick={handlePreview}
             className={`${BTN_WARNING} w-full`}
           >
             Aperçu
@@ -154,9 +148,9 @@ export default function CreditTransactionCard({ transaction, handlePopup }) {
         {showPreview && (
           <PDFPreviewModal
             type="versement"
-            data={transaction}
-            onClose={() => setShowPreview(false)}
-            authData={authData}
+            data={previewData}
+            isGenerating={!previewData?.blobUrl}
+            onClose={closePreview}
           />
         )}
       </div>

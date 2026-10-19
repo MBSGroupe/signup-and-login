@@ -6,8 +6,12 @@ import { useError } from "../../../Context/ErrorContext";
 import { useModal } from "../../../Context/ModalContext";
 import BackButton from "../../../Components/Buttons/BackButton";
 import { fetchWithRefresh } from "../../../Components/api"; // ✅ IMPORT
+import { previewDocument } from "../../../Components/documents";
+import PDFPreviewModal from "../../../Components/Modals/pdfPreviexModal";
 
 import {
+  Eye,
+  BookOpen,
   FileText,
   Upload,
   Trash2,
@@ -40,13 +44,40 @@ export default function BackgroundManager() {
   const [refreshing, setRefreshing] = useState(null);
   const [expanded, setExpanded] = useState({});
 
+  // Authoring reference (models + fields, helpers, enrichers) from the backend.
+  const [authoring, setAuthoring] = useState(null);
+  // "New template" form.
+  const [newTemplate, setNewTemplate] = useState(null);
+  const [creating, setCreating] = useState(false);
+  // Preview: record id typed per template, and the modal.
+  const [previewIds, setPreviewIds] = useState({});
+  const [previewing, setPreviewing] = useState(null);
+  const [pdfPreview, setPdfPreview] = useState(null);
+
   // ============================================================
   // LOAD ALL TEMPLATES FROM DATABASE
   // ============================================================
 
   useEffect(() => {
     loadTemplates();
+    loadAuthoring();
   }, []);
+
+  const loadAuthoring = async () => {
+    try {
+      const response = await fetchWithRefresh(
+        `${NEST_API_URL}/pdf/documents/authoring`,
+        { method: "GET" },
+        authData.token,
+        setAuthData
+      );
+      if (!response.ok) return;
+      const result = await response.json();
+      setAuthoring(result?.data || null);
+    } catch (error) {
+      console.error("Failed to load authoring reference:", error);
+    }
+  };
 
   const loadTemplates = async () => {
     setLoading(true);
@@ -178,7 +209,11 @@ export default function BackgroundManager() {
       setTemplates((current) =>
         current.map((item) =>
           item.key === template.key
-            ? { ...item, ...(updated && typeof updated === "object" ? updated : {}) }
+            ? {
+                ...item,
+                ...(updated && typeof updated === "object" ? updated : {}),
+                origin: "database",
+              }
             : item
         )
       );
@@ -227,10 +262,10 @@ export default function BackgroundManager() {
 
   const handleDelete = async (template) => {
     const confirmed = await confirm({
-      title: "Supprimer le modèle",
-      message:
-        `Voulez-vous vraiment supprimer le modèle "${template.key}" ? ` +
-        "Le système utilisera alors le template fallback intégré.",
+      title: template.hasBuiltin ? "Réinitialiser le modèle" : "Supprimer le modèle",
+      message: template.hasBuiltin
+        ? `Supprimer la version personnalisée de "${template.key}" ? Le modèle intégré sera de nouveau utilisé.`
+        : `Voulez-vous vraiment supprimer le modèle "${template.key}" ? Les documents de ce type ne pourront plus être générés.`,
     });
 
     if (!confirmed) return;
@@ -251,9 +286,14 @@ export default function BackgroundManager() {
         throw new Error(result?.message || "Échec de la suppression.");
       }
 
-      setTemplates((current) =>
-        current.filter((item) => item.key !== template.key)
-      );
+      if (template.hasBuiltin) {
+        // The built-in definition takes over again.
+        await loadTemplates();
+      } else {
+        setTemplates((current) =>
+          current.filter((item) => item.key !== template.key)
+        );
+      }
 
       showSuccess(`Modèle "${template.key}" supprimé.`);
     } catch (error) {
@@ -342,6 +382,80 @@ export default function BackgroundManager() {
   };
 
   // ============================================================
+  // CREATE TEMPLATE
+  // ============================================================
+
+  const handleCreate = async () => {
+    const key = (newTemplate?.key || "").trim();
+    const model = newTemplate?.model || "";
+    if (!key || !newTemplate?.name?.trim() || !model) {
+      showError("Clé, nom et modèle source sont obligatoires.");
+      return;
+    }
+
+    setCreating(true);
+    try {
+      const response = await fetchWithRefresh(
+        `${NEST_API_URL}/pdf/templates`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            key,
+            name: newTemplate.name.trim(),
+            orientation: newTemplate.orientation || "portrait",
+            paperSize: "A4",
+            customHtml: starterHtml(model),
+            metadata: { source: { model } },
+          }),
+        },
+        authData.token,
+        setAuthData
+      );
+      const result = await response.json().catch(() => null);
+      if (!response.ok) {
+        const message = Array.isArray(result?.message) ? result.message.join(", ") : result?.message;
+        throw new Error(message || "Échec de la création.");
+      }
+
+      setNewTemplate(null);
+      await loadTemplates();
+      setExpanded((current) => ({ ...current, [key]: true }));
+      showSuccess(`Modèle "${key}" créé.`);
+    } catch (error) {
+      showError(error.message || "Échec de la création.");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  // ============================================================
+  // PREVIEW (saved version, with a real record)
+  // ============================================================
+
+  const handlePreview = async (template) => {
+    const entityId = (previewIds[template.key] || "").trim();
+    if (!entityId) {
+      showError("Indiquez l'identifiant d'un enregistrement pour l'aperçu.");
+      return;
+    }
+    setPreviewing(template.key);
+    try {
+      const blob = await previewDocument(template.key, entityId, { token: authData.token, setAuthData });
+      setPdfPreview({ title: `Aperçu — ${template.name || template.key}`, blobUrl: URL.createObjectURL(blob) });
+    } catch (error) {
+      showError(error.message || "Échec de l'aperçu.");
+    } finally {
+      setPreviewing(null);
+    }
+  };
+
+  const closePreview = () => {
+    if (pdfPreview?.blobUrl) URL.revokeObjectURL(pdfPreview.blobUrl);
+    setPdfPreview(null);
+  };
+
+  // ============================================================
   // TOGGLE
   // ============================================================
 
@@ -394,14 +508,74 @@ export default function BackgroundManager() {
               </div>
             </div>
           </div>
-          <button
-            onClick={loadTemplates}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#111827] border border-white/10 text-[#CBD5E1] hover:bg-[#1F2937] transition"
-          >
-            <RefreshCw className="w-4 h-4" />
-            Actualiser
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setNewTemplate(newTemplate ? null : { key: "", name: "", model: "User", orientation: "portrait" })}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white transition"
+            >
+              <Plus className="w-4 h-4" />
+              Nouveau modèle
+            </button>
+            <button
+              onClick={loadTemplates}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#111827] border border-white/10 text-[#CBD5E1] hover:bg-[#1F2937] transition"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Actualiser
+            </button>
+          </div>
         </div>
+
+        {/* NEW TEMPLATE */}
+        {newTemplate && (
+          <div className="bg-[#111827] border border-emerald-500/20 rounded-2xl p-6 mb-6">
+            <SectionTitle icon={<Plus />} title="Nouveau modèle" />
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <Input
+                label="Clé (ex. carte-membre)"
+                value={newTemplate.key}
+                onChange={(value) => setNewTemplate((t) => ({ ...t, key: value.toLowerCase() }))}
+              />
+              <Input
+                label="Nom"
+                value={newTemplate.name}
+                onChange={(value) => setNewTemplate((t) => ({ ...t, name: value }))}
+              />
+              <Select
+                label="Modèle source"
+                value={newTemplate.model}
+                options={(authoring?.models || [{ name: "User" }]).map((m) => m.name)}
+                onChange={(value) => setNewTemplate((t) => ({ ...t, model: value }))}
+              />
+              <Select
+                label="Orientation"
+                value={newTemplate.orientation}
+                options={["portrait", "landscape"]}
+                onChange={(value) => setNewTemplate((t) => ({ ...t, orientation: value }))}
+              />
+            </div>
+            <p className="text-xs text-[#64748B] mt-3">
+              Le document est construit à partir d'un enregistrement du modèle source ({"{{record.*}}"}).
+              Le HTML, les champs, le stockage et l'email se configurent ensuite dans le modèle — sans code.
+            </p>
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={handleCreate}
+                disabled={creating}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white disabled:opacity-50"
+              >
+                {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                Créer
+              </button>
+              <button
+                onClick={() => setNewTemplate(null)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1F2937] text-[#CBD5E1]"
+              >
+                Annuler
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* EMPTY */}
         {templates.length === 0 && (
@@ -456,6 +630,16 @@ export default function BackgroundManager() {
                               Active
                             </span>
                           )}
+                          {template.origin === "builtin" && (
+                            <span className="px-2 py-1 rounded-lg bg-blue-500/10 text-blue-300 text-xs">
+                              Intégré — sera enregistré à la première modification
+                            </span>
+                          )}
+                          {template.metadata?.source?.model && (
+                            <span className="px-2 py-1 rounded-lg bg-white/5 text-[#94A3B8] text-xs font-mono">
+                              {template.metadata.source.model}
+                            </span>
+                          )}
                         </div>
                         {template.description && (
                           <p className="text-sm text-[#64748B] mt-1">
@@ -476,18 +660,20 @@ export default function BackgroundManager() {
                         />
                         Recharger
                       </button>
-                      <button
-                        onClick={() => handleDelete(template)}
-                        disabled={isDeleting}
-                        className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 hover:bg-rose-500/20 disabled:opacity-50"
-                      >
-                        {isDeleting ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Trash2 className="w-4 h-4" />
-                        )}
-                        Supprimer
-                      </button>
+                      {template.origin !== "builtin" && (
+                        <button
+                          onClick={() => handleDelete(template)}
+                          disabled={isDeleting}
+                          className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 hover:bg-rose-500/20 disabled:opacity-50"
+                        >
+                          {isDeleting ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-4 h-4" />
+                          )}
+                          {template.hasBuiltin ? "Réinitialiser" : "Supprimer"}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -760,10 +946,44 @@ export default function BackgroundManager() {
                           )
                         }
                         spellCheck={false}
-                        rows={10}
+                        rows={16}
                         className="w-full bg-[#0A0F1C] border border-white/[0.06] rounded-xl p-4 text-sm text-[#E2E8F0] font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-emerald-500/50 resize-y"
-                        placeholder={`{\n  "description": "Template PDF"\n}`}
+                        placeholder={METADATA_PLACEHOLDER}
                       />
+                      <p className="text-xs text-[#64748B] mt-2">
+                        Décrit le document : source (modèle + relations), champs calculés, stockage, certification (QR),
+                        email et permissions. Pour un modèle intégré, seules les clés indiquées ici remplacent la configuration intégrée.
+                      </p>
+                      <ReferencePanel
+                        authoring={authoring}
+                        model={template.metadata?.source?.model}
+                      />
+                    </section>
+
+                    {/* PREVIEW */}
+                    <section>
+                      <SectionTitle icon={<Eye />} title="Aperçu" />
+                      <div className="flex flex-col md:flex-row gap-2">
+                        <input
+                          value={previewIds[template.key] || ""}
+                          onChange={(e) =>
+                            setPreviewIds((current) => ({ ...current, [template.key]: e.target.value }))
+                          }
+                          className="flex-1 bg-[#0A0F1C] border border-white/[0.06] rounded-xl px-4 py-3 text-sm text-white font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                          placeholder={`Identifiant ${template.metadata?.source?.model || "de l'enregistrement"} (ex. cm...)`}
+                        />
+                        <button
+                          onClick={() => handlePreview(template)}
+                          disabled={previewing === template.key}
+                          className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-blue-500/10 text-blue-300 border border-blue-500/20 hover:bg-blue-500/20 disabled:opacity-50"
+                        >
+                          {previewing === template.key ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
+                          Aperçu
+                        </button>
+                      </div>
+                      <p className="text-xs text-[#64748B] mt-2">
+                        L'aperçu utilise la version enregistrée du modèle — enregistrez d'abord vos modifications.
+                      </p>
                     </section>
 
                     {/* SAVE */}
@@ -793,6 +1013,14 @@ export default function BackgroundManager() {
           })}
         </div>
       </div>
+
+      {pdfPreview && (
+        <PDFPreviewModal
+          type="template"
+          data={pdfPreview}
+          onClose={closePreview}
+        />
+      )}
     </div>
   );
 }
@@ -800,6 +1028,86 @@ export default function BackgroundManager() {
 // ================================================================
 // HELPERS
 // ================================================================
+
+const METADATA_PLACEHOLDER = `{
+  "source": { "model": "User", "include": { "fees": true } },
+  "fields": {
+    "fullName": "{{record.name}} {{record.lastname}}",
+    "wilayaAr": "{{wilayaArabic record.wilaya}}"
+  },
+  "output": { "store": true, "fileRecord": true, "mode": "replace" },
+  "email": { "subject": "Votre document", "attachment": "storedOrGenerate" },
+  "aliases": []
+}
+// Accès : permission "Pdf" (preview / generate / email), sauf si
+// "permission": { "resource": "...", "operations": { ... } } est indiqué.`;
+
+/** Starting HTML for a new template: lists the source record's fields. */
+function starterHtml(model) {
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body { font-family: Arial, sans-serif; font-size: 12px; }
+    {{{customStyles}}}
+  </style>
+</head>
+<body>
+  <h1>{{companyName}}</h1>
+  <p>Document généré le {{generatedAt}} à partir de ${model} {{record.id}}.</p>
+  <!-- Variables : {{record.*}}, {{owner.*}}, {{params.*}}, champs de metadata.fields -->
+</body>
+</html>`;
+}
+
+/** Fields of the source model + helpers/enrichers, for template authors. */
+function ReferencePanel({ authoring, model }) {
+  const [open, setOpen] = useState(false);
+  if (!authoring) return null;
+  const description = authoring.models?.find((m) => m.name.toLowerCase() === (model || "").toLowerCase());
+
+  return (
+    <div className="mt-4 bg-[#0A0F1C] border border-white/[0.06] rounded-xl">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center gap-2 px-4 py-3 text-sm text-[#CBD5E1]"
+      >
+        <BookOpen className="w-4 h-4 text-emerald-400" />
+        Référence {model ? `(${model})` : ""}
+        {open ? <ChevronUp className="w-4 h-4 ml-auto" /> : <ChevronDown className="w-4 h-4 ml-auto" />}
+      </button>
+      {open && (
+        <div className="px-4 pb-4 space-y-3 text-xs text-[#94A3B8]">
+          {description ? (
+            <div>
+              <p className="font-semibold text-[#CBD5E1] mb-1">Champs de {"{{record}}"}</p>
+              <p className="font-mono leading-relaxed">
+                {description.fields
+                  .map((f) => (f.relation ? `${f.name} → ${f.type}${f.isList ? "[]" : ""} (include)` : f.name))
+                  .join(" · ")}
+              </p>
+            </div>
+          ) : (
+            <p>Définissez metadata.source.model pour voir les champs disponibles.</p>
+          )}
+          <div>
+            <p className="font-semibold text-[#CBD5E1] mb-1">Variables</p>
+            <p className="font-mono">{(authoring.variables || []).join(" · ")}</p>
+          </div>
+          <div>
+            <p className="font-semibold text-[#CBD5E1] mb-1">Helpers</p>
+            <p className="font-mono">{(authoring.helpers || []).join(" · ")}</p>
+          </div>
+          <div>
+            <p className="font-semibold text-[#CBD5E1] mb-1">Enrichers (metadata.enrichers)</p>
+            <p className="font-mono">{(authoring.enrichers || []).join(" · ") || "—"}</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function normalizeJsonValue(value) {
   if (value === null || value === undefined || value === "") {

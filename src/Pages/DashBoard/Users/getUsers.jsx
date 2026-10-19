@@ -22,6 +22,7 @@ import {
   Loader2
 } from "lucide-react";
 import { fetchWithRefresh } from '../../../Components/api';
+import { previewDocument } from '../../../Components/documents';
 import UserDetailsModal from '../../../Components/Modals/userDetailsModal';
 import PDFPreviewModal from '../../../Components/Modals/pdfPreviexModal';
 import { useNavigate } from 'react-router-dom';
@@ -287,40 +288,20 @@ export default function GetUsers({ mode }) {
     if (!userId) return showError('Identifiant utilisateur manquant');
 
     try {
-      const response = await fetchWithRefresh(
-        `${NEST_API_URL}/pdf/preview/situation`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId }),
-        },
-        authData.token,
-        setAuthData
-      );
-
-      if (!response.ok) {
-        let errorMessage = 'Failed to generate preview';
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.message || errorMessage;
-        } catch (_) {}
-        showError(errorMessage);
-        return;
-      }
-
-      const blob = await response.blob();
+      const blob = await previewDocument('situation', userId, { token: authData.token, setAuthData });
       const blobUrl = window.URL.createObjectURL(blob);
+      const memberName = `${user.name} ${user.lastname}`;
 
       setPdfPreview({
         isOpen: true,
         type: 'situation',
-        data: { blobUrl, memberName: `${user.name} ${user.lastname}` },
+        data: { blobUrl, memberName, title: `Situation du membre — ${memberName}` },
       });
 
       showSuccess('Aperçu généré avec succès!');
     } catch (error) {
       console.error('❌ Preview error:', error);
-      showError('Network error. Please check your connection.');
+      showError(error.message || 'Network error. Please check your connection.');
     }
   };
 

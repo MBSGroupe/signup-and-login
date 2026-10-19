@@ -15,6 +15,7 @@ import CreditTransactionCard from '../Components/Cards/CreditTransactionCard';
 import PaymentCard from '../Components/Cards/PayementCard';
 
 import { fetchWithRefresh } from '../Components/api';
+import { listDocuments, previewDocument, generateDocument, emailDocument } from '../Components/documents';
 import { wilayaLabel } from '../Utils/wilayas';
 
 import {
@@ -614,151 +615,60 @@ export default function ProfilePage({ user }) {
   };
 
 
-  // ─── PDF plumbing ─────────────────────────────────────────────────
-  const waitForPdfJob = async (jobId) => {
-    let attempts = 0;
-    const maxAttempts = 30;
-
-    while (attempts < maxAttempts) {
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      let statusRes;
-      try {
-        statusRes = await fetchWithRefresh(
-          `${NEST_API_URL}/pdf/jobs/${jobId}`,
-          { method: 'GET' },
-          authData.token,
-          setAuthData
-        );
-      } catch { attempts++; continue; }
-      if (!statusRes.ok) { attempts++; continue; }
-      const statusData = await statusRes.json();
-      const jobData = statusData?.data?.data || statusData?.data || statusData;
-      if (!jobData) { attempts++; continue; }
-
-      if (jobData.status === 'completed' || jobData.state === 'completed') {
-        const finalPdfUrl = jobData.downloadUrl || jobData.cloudinaryUrl || jobData.result?.downloadUrl;
-        if (!finalPdfUrl) throw new Error("La génération est terminée mais aucun lien PDF n'a été retourné.");
-        return { finalPdfUrl, cloudinaryUrl: jobData.cloudinaryUrl || jobData.result?.cloudinaryUrl || null };
-      }
-      if (jobData.status === 'failed' || jobData.state === 'failed') {
-        throw new Error('La génération a échoué : ' + (jobData.error || jobData.failedReason || 'Erreur inconnue'));
-      }
-      attempts++;
-    }
-    throw new Error('Délai dépassé – la génération a pris trop de temps.');
-  };
-
-  const fetchPdfBlob = async (finalPdfUrl) => {
-    const isAbsolute = finalPdfUrl.startsWith('http://') || finalPdfUrl.startsWith('https://');
-    const fullUrl = isAbsolute ? finalPdfUrl : `${NEST_API_URL}${finalPdfUrl.startsWith('/') ? '' : '/'}${finalPdfUrl}`;
-    const isCloudinary = fullUrl.startsWith('https://res.cloudinary.com');
-
-    const pdfRes = isCloudinary
-      ? await fetch(fullUrl)
-      : await fetchWithRefresh(fullUrl, { method: 'GET' }, authData.token, setAuthData);
-
-    if (!pdfRes.ok) throw new Error('Impossible de récupérer le PDF final');
-    return await pdfRes.blob();
-  };
-
-  const generateQueuedPdf = async (endpoint, extraBody = {}) => {
-    let jobRes;
-    try {
-      jobRes = await fetchWithRefresh(
-        `${NEST_API_URL}${endpoint}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: targetUserId, ...extraBody }),
-        },
-        authData.token,
-        setAuthData
-      );
-    } catch {
-      throw new Error('Erreur réseau – impossible de contacter le serveur.');
-    }
-
-    if (!jobRes.ok) {
-      let errorMsg = 'Échec de la création de la tâche';
-      try { const errData = await jobRes.json(); errorMsg = errData.message || errorMsg; } catch (_) { }
-      throw new Error(errorMsg);
-    }
-
-    const jobData = await jobRes.json();
-    const jobId = jobData?.jobId || jobData?.data?.jobId;
-    if (!jobData?.success || !jobId) {
-      throw new Error(jobData?.message || 'Réponse inattendue du serveur');
-    }
-
-    const { finalPdfUrl, cloudinaryUrl } = await waitForPdfJob(jobId);
-    const finalBlob = await fetchPdfBlob(finalPdfUrl);
-    const finalBlobUrl = URL.createObjectURL(finalBlob);
-
-    return { blobUrl: finalBlobUrl, downloadUrl: finalPdfUrl, cloudinaryUrl };
-  };
-
-
-
+  // ─── Documents ────────────────────────────────────────────────────
+  // Every document template whose source is a User is offered here; the
+  // template decides whether it is stored (generate) or only rendered.
   const revokeBlobUrl = (url) => {
     if (url && typeof url === 'string' && url.startsWith('blob:')) {
       try { URL.revokeObjectURL(url); } catch (_) { }
     }
   };
 
-const openPdf = async (type) => {
-  const finalEndpoint = type === 'degree' ? '/pdf/degree' : '/pdf/situation';
+  const openDocument = async (doc) => {
+    const auth = { token: authData.token, setAuthData };
+    const memberName = `${displayUser?.name || ''} ${displayUser?.lastname || ''}`.trim();
 
-  const memberName = `${displayUser?.name || ''} ${displayUser?.lastname || ''}`.trim();
-
-  // Open the modal immediately in a loading state so the user gets
-  // instant feedback. Only the real (stored) PDF is ever shown or
-  // downloadable — no preview phase.
-  setPdfPreview({
-    isOpen: true,
-    type,
-    isGenerating: true,
-    data: {
-      memberName,
-      userId: targetUserId,
-      memberEmail: displayUser?.email || '',
-    },
-  });
-
-  try {
-    const finalPdf = await generateQueuedPdf(finalEndpoint);
-
-    setPdfPreview((prev) => {
-      // User closed the modal or switched types while we were waiting.
-      if (!prev.isOpen || prev.type !== type) {
-        revokeBlobUrl(finalPdf.blobUrl);
-        return prev;
-      }
-      return {
-        ...prev,
-        isGenerating: false,
-        data: {
-          ...prev.data,
-          blobUrl: finalPdf.blobUrl,
-          downloadUrl: finalPdf.downloadUrl,
-          cloudinaryUrl: finalPdf.cloudinaryUrl,
-        },
-      };
+    // Open the modal immediately in a loading state for instant feedback.
+    setPdfPreview({
+      isOpen: true,
+      type: doc.key,
+      isGenerating: true,
+      data: {
+        title: memberName ? `${doc.name} — ${memberName}` : doc.name,
+        templateKey: doc.key,
+        memberName,
+        userId: targetUserId,
+        memberEmail: displayUser?.email || '',
+      },
     });
 
-    showSuccess(type === 'degree' ? 'Diplôme généré ✅' : 'Situation générée ✅');
-    if (type === 'degree') await fetchFiles();
-  } catch (err) {
-    console.error(`❌ Generation error (${type}):`, err);
-    setPdfPreview((prev) =>
-      prev.isOpen && prev.type === type
-        ? { ...prev, isGenerating: false }
-        : prev,
-    );
-    showError(err.message || 'Erreur lors de la génération');
-  }
-};
-const handlePrintSituation = () => openPdf('situation');
-const handleGenerateDegree  = () => openPdf('degree');
+    try {
+      const { blob, downloadUrl } = doc.canStore
+        ? await generateDocument(doc.key, targetUserId, auth)
+        : { blob: await previewDocument(doc.key, targetUserId, auth), downloadUrl: null };
+      const blobUrl = URL.createObjectURL(blob);
+
+      setPdfPreview((prev) => {
+        // User closed the modal or opened another document meanwhile.
+        if (!prev.isOpen || prev.type !== doc.key) {
+          revokeBlobUrl(blobUrl);
+          return prev;
+        }
+        return { ...prev, isGenerating: false, data: { ...prev.data, blobUrl, downloadUrl } };
+      });
+
+      if (doc.canStore) {
+        showSuccess(`${doc.name} généré ✅`);
+        await fetchFiles();
+      }
+    } catch (err) {
+      console.error(`❌ Document error (${doc.key}):`, err);
+      setPdfPreview((prev) =>
+        prev.isOpen && prev.type === doc.key ? { ...prev, isGenerating: false } : prev,
+      );
+      showError(err.message || 'Erreur lors de la génération');
+    }
+  };
 
   // ─── Validation data ──────────────────────────────────────────────
   const fetchValidationRequests = async () => {
@@ -1233,6 +1143,17 @@ const handleGenerateDegree  = () => openPdf('degree');
 
   const canGeneratePdf = can("pdf.generate", isAdmin);
 
+  // Document templates built from a User (degree, situation, any new one).
+  const [userDocuments, setUserDocuments] = useState([]);
+  useEffect(() => {
+    if (!canGeneratePdf || !authData?.token) return;
+    let cancelled = false;
+    listDocuments('User', { token: authData.token, setAuthData })
+      .then((docs) => { if (!cancelled) setUserDocuments(docs); })
+      .catch((err) => console.error('❌ Documents list error:', err));
+    return () => { cancelled = true; };
+  }, [canGeneratePdf, authData?.token, setAuthData]);
+
   const tabs = useMemo(() => {
     const list = [];
     if (canReadUsers || isOwner || isAdmin) {
@@ -1398,21 +1319,21 @@ const handleGenerateDegree  = () => openPdf('degree');
                             </>
                           )}
 
-                          {canGeneratePdf && (
+                          {canGeneratePdf && userDocuments.length > 0 && (
                             <>
                               <div className="border-t border-white/5 my-1" />
-                              <button
-                                onClick={() => { setMenuOpen(false); handlePrintSituation(); }}
-                                className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
-                              >
-                                <FileText className="w-4 h-4 text-emerald-400" /> Attestation de situation
-                              </button>
-                              <button
-                                onClick={() => { setMenuOpen(false); handleGenerateDegree(); }}
-                                className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
-                              >
-                                <Award className="w-4 h-4 text-amber-400" /> Générer le diplôme
-                              </button>
+                              {userDocuments.map((doc) => (
+                                <button
+                                  key={doc.key}
+                                  onClick={() => { setMenuOpen(false); openDocument(doc); }}
+                                  className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
+                                >
+                                  {doc.certified
+                                    ? <Award className="w-4 h-4 text-amber-400" />
+                                    : <FileText className="w-4 h-4 text-emerald-400" />}
+                                  {doc.name}
+                                </button>
+                              ))}
                             </>
                           )}
                         </div>
@@ -2061,23 +1982,12 @@ const handleGenerateDegree  = () => openPdf('degree');
             isGenerating={pdfPreview.isGenerating}
             onClose={() => {
               revokeBlobUrl(pdfPreview.data?.blobUrl);
-              setPdfPreview({ isOpen: false, type: 'degree', data: null, isGenerating: false });
+              setPdfPreview({ isOpen: false, type: null, data: null, isGenerating: false });
           }}
           onEmail={
-            pdfPreview.type === 'degree'
-              ? async (userId, recipientEmail) => {
-                  const res = await fetchWithRefresh(
-                    `${NEST_API_URL}/pdf/send-degree-email`,
-                    {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ userId, recipientEmail }),
-                    },
-                    authData.token,
-                    setAuthData
-                  );
-                  if (!res.ok) throw new Error("Échec de l'envoi");
-                }
+            pdfPreview.data?.templateKey
+              ? (userId, recipientEmail) =>
+                  emailDocument(pdfPreview.data.templateKey, userId, recipientEmail, { token: authData.token, setAuthData })
               : undefined
           }
         />

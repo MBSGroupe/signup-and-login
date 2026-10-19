@@ -1,10 +1,11 @@
 import { useContext, useState } from "react";
 import { UserContext } from "../../Context/dataCont";
-import { fetchWithRefresh } from "../../Components/api";
+import { previewDocument, emailDocument } from "../documents";
 import PDFPreviewModal from '../Modals/pdfPreviexModal';
 import { Download, Eye, Mail, CreditCard, Calendar, AlertCircle } from "lucide-react";
 
-const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
+// DocumentTemplate key of the payment receipt.
+const RECEIPT_TEMPLATE = 'receipt';
 
 export default function PaymentCard({ payment, handlePopup }) {
   const { authData, setAuthData } = useContext(UserContext);
@@ -17,27 +18,10 @@ export default function PaymentCard({ payment, handlePopup }) {
   const dateTime = new Date(payment.date || payment.createdAt).toLocaleString('fr-FR');
   const isReversed = payment.reversed === true;
 
-  // Common function: fetch PDF preview blob from the backend
-  const fetchReceiptBlob = async () => {
-    const response = await fetchWithRefresh(
-      `${NEST_API_URL}/pdf/preview/receipt`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paymentId }),
-      },
-      authData.token,
-      setAuthData
-    );
+  const auth = { token: authData.token, setAuthData };
 
-    if (!response.ok) {
-      let errorMsg = 'Échec de la génération du reçu';
-      try { const err = await response.json(); errorMsg = err.message || errorMsg; } catch (_) {}
-      throw new Error(errorMsg);
-    }
-
-    return await response.blob();
-  };
+  // Common function: render the receipt PDF (not stored)
+  const fetchReceiptBlob = () => previewDocument(RECEIPT_TEMPLATE, paymentId, auth);
 
   // Download the receipt directly (no modal)
   const handleDownloadReceipt = async () => {
@@ -89,20 +73,7 @@ export default function PaymentCard({ payment, handlePopup }) {
 
     setIsSendingEmail(true);
     try {
-      const res = await fetchWithRefresh(
-        `${NEST_API_URL}/pdf/send-receipt-email`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ paymentId, recipientEmail: recipient }),
-        },
-        authData.token,
-        setAuthData
-      );
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ message: 'Échec de l\'envoi' }));
-        throw new Error(err.message);
-      }
+      await emailDocument(RECEIPT_TEMPLATE, paymentId, recipient, auth);
       if (handlePopup) handlePopup('success', 'Reçu envoyé avec succès ✅');
     } catch (err) {
       console.error('❌ Email error:', err);

@@ -225,13 +225,13 @@ export default function ValidationRequestDetail() {
     if (file.url && (file.url.startsWith('http://') || file.url.startsWith('https://'))) {
       return file.url;
     }
-    // Otherwise fall back to the storage endpoint by ID
-    if (file.fileId) {
-      return `${BACKEND_BASE_URL}/storage/${encodeURIComponent(file.fileId)}`;
-    }
-    // Last resort — a relative url/path
+    // A relative url/path (e.g. "/storage/declaration/<user>/<name>.pdf")
     let urlPath = file.url || file.path || '';
-    if (!urlPath) return null;
+    if (!urlPath) {
+      // Bare file ID — /storage/ is keyed by path, not ID, so the real
+      // path is resolved via /api/files/:fileId when the document loads.
+      return file.fileId ? `file-id:${file.fileId}` : null;
+    }
     const cleanPath = urlPath.startsWith('/') ? urlPath : `/${urlPath}`;
     return `${BACKEND_BASE_URL}${cleanPath}`;
   };
@@ -326,8 +326,26 @@ export default function ValidationRequestDetail() {
 
       setBlobLoading(true);
       try {
+        let targetUrl = fileUrl;
+        if (fileUrl.startsWith('file-id:')) {
+          const fileId = fileUrl.slice('file-id:'.length);
+          const metaRes = await fetchWithRefresh(
+            `${API_URL}/files/${encodeURIComponent(fileId)}`,
+            { method: 'GET' },
+            authData.token,
+            setAuthData,
+          );
+          const meta = metaRes.ok ? await metaRes.json().catch(() => null) : null;
+          const record = meta?.data || meta;
+          const storedUrl = record?.url || record?.path;
+          if (!storedUrl) throw new Error('Fichier introuvable sur le serveur.');
+          targetUrl = /^https?:\/\//.test(storedUrl)
+            ? storedUrl
+            : `${BACKEND_BASE_URL}${storedUrl.startsWith('/') ? '' : '/'}${storedUrl}`;
+        }
+
         const res = await fetchWithRefresh(
-          fileUrl,
+          targetUrl,
           { method: 'GET' },
           authData.token,
           setAuthData,
@@ -338,6 +356,11 @@ export default function ValidationRequestDetail() {
             : res.status === 404 ? 'Fichier introuvable sur le serveur.'
             : `Erreur ${res.status} lors du chargement du document.`,
           );
+        }
+        // A misrouted proxy answers 200 with the SPA's index.html instead of
+        // the file — surface that instead of rendering a broken blob.
+        if ((res.headers.get('content-type') || '').includes('text/html')) {
+          throw new Error('Le serveur a renvoyé une page HTML au lieu du fichier.');
         }
         const blob = await res.blob();
         if (revoked) return;

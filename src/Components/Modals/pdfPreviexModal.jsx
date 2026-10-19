@@ -23,10 +23,8 @@ export default function PDFPreviewModal({
   const [error, setError] = useState(null);
   const [sendingEmail, setSendingEmail] = useState(false);
 
-  let title = 'Aperçu du document';
-  if (type === 'payment') title = data?.title || 'Aperçu du reçu de paiement';
-  else if (type === 'situation') title = data?.title || 'Situation du membre';
-  else if (type === 'degree') title = data?.title || 'Aperçu du Diplôme';
+  let title = data?.title || 'Aperçu du document';
+  if (!data?.title && type === 'payment') title = 'Aperçu du reçu de paiement';
 
   // Sync local blob with incoming data. When the parent swaps the blob in,
   // this re-runs and replaces the loading state with the actual PDF.
@@ -113,7 +111,7 @@ export default function PDFPreviewModal({
               </button>
             )}
 
-            {showPdf && data?.downloadUrl && onEmail && (
+            {showPdf && onEmail && (
               <button
                 onClick={handleEmail}
                 disabled={sendingEmail}

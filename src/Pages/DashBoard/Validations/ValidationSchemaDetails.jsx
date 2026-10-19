@@ -63,6 +63,30 @@ const asArray = (value) => {
   return Array.isArray(value) ? value : [value];
 };
 
+// ─── Helpers: readable post-validation action names ───────────────────
+const DOCUMENT_MODE_LABELS = {
+  generate: 'Générer',
+  email: 'Envoyer par email',
+  generate_email: 'Générer et envoyer',
+};
+const ACTION_LABELS = {
+  sendEmail: 'Email',
+  payUserFee: 'Call service · Payer une cotisation',
+  setField: 'Call service · Définir un champ',
+  markUserVerified: 'Call service · Marquer le membre comme vérifié',
+  markFeePaid: 'Call service · Marquer la cotisation comme payée',
+  createDegree: 'Ancien : créer le diplôme (sans modèle)',
+  sendDegreeByEmail: 'Ancien : envoyer le diplôme (sans modèle)',
+};
+const actionLabel = (action) => {
+  const name = action?.serviceName || action?.action || '';
+  if (name === 'document') {
+    const p = action.params || {};
+    return `État de sortie · ${DOCUMENT_MODE_LABELS[p.mode] || p.mode || '?'} · ${p.templateKey || 'modèle non défini'}`;
+  }
+  return ACTION_LABELS[name] || name || '—';
+};
+
 // ─── Helpers: payload field visual metadata ────────────────────────────
 const FIELD_TYPE_META = {
   text:     { Icon: Type,        label: 'Texte' },
@@ -363,7 +387,7 @@ export default function ValidationSchemaDetails() {
                         </span>
                         <div className="min-w-0">
                           <p className="text-[#F8FAFC] font-medium truncate">
-                            {hook.serviceName || hook.action || '—'}
+                            {actionLabel(hook)}
                           </p>
                           {hook.params && Object.keys(hook.params).length > 0 && (
                             <pre className="text-[#94A3B8] mt-0.5 whitespace-pre-wrap break-all">
@@ -391,7 +415,7 @@ export default function ValidationSchemaDetails() {
                         </span>
                         <div className="min-w-0">
                           <p className="text-[#F8FAFC] font-medium truncate">
-                            {hook.serviceName || hook.action || '—'}
+                            {actionLabel(hook)}
                           </p>
                           {hook.params && Object.keys(hook.params).length > 0 && (
                             <pre className="text-[#94A3B8] mt-0.5 whitespace-pre-wrap break-all">
@@ -804,7 +828,7 @@ export default function ValidationSchemaDetails() {
                             </span>
                             <div className="min-w-0">
                               <p className="text-[#F8FAFC] font-medium">
-                                {action.serviceName || action.action || '—'}
+                                {actionLabel(action)}
                               </p>
                               {action.params &&
                                 Object.keys(action.params).length > 0 && (
@@ -840,7 +864,7 @@ export default function ValidationSchemaDetails() {
                             </span>
                             <div className="min-w-0">
                               <p className="text-[#F8FAFC] font-medium">
-                                {action.serviceName || action.action || '—'}
+                                {actionLabel(action)}
                               </p>
                               {action.params &&
                                 Object.keys(action.params).length > 0 && (
