@@ -303,7 +303,10 @@ export default function RoleForm({ mode }) {
                 className={INPUT}
                 disabled={isSystemRole}
               >
-                {GRADE_OPTIONS.map((g) => (
+                {GRADE_OPTIONS.filter(
+                  // Only a super_admin may create super_admin roles (also enforced server side)
+                  (g) => authData?.user?.grade === "super_admin" || g.value !== "super_admin" || formData.grade === "super_admin",
+                ).map((g) => (
                   <option key={g.value} value={g.value}>
                     {g.label}
                   </option>

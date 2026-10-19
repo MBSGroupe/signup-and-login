@@ -420,8 +420,21 @@ export default function AdminForm({ mode }) {
       label: r.name,
     }));
 
+    // Only a super_admin may give the super_admin grade (also enforced server side)
+    const viewerIsSuper = authData?.user?.grade === "super_admin";
+    const gradeConfig = fieldConfigs.grade || FIELD_CONFIGS.grade;
+
     return {
       ...fieldConfigs,
+      grade: {
+        ...gradeConfig,
+        validation: {
+          ...gradeConfig.validation,
+          options: (gradeConfig.validation?.options || GRADE_OPTIONS).filter(
+            (o) => viewerIsSuper || o.value !== "super_admin",
+          ),
+        },
+      },
       roleId: {
         ...(fieldConfigs.roleId || FIELD_CONFIGS.roleId),
         label: "Rôle",
@@ -436,7 +449,7 @@ export default function AdminForm({ mode }) {
         validation: { options: roleIdOptions },
       },
     };
-  }, [fieldConfigs, availableRoles, rolesLoading, rolesError]);
+  }, [fieldConfigs, availableRoles, rolesLoading, rolesError, authData?.user?.grade]);
 
   const roleFieldDisabled = rolesLoading || availableRoles.length === 0;
 

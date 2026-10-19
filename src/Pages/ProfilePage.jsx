@@ -1066,16 +1066,22 @@ const handleGenerateDegree  = () => openPdf('degree');
       try {
         setLoading(true);
 
+        // Own profile (no :id) loads the member's full record too; the
+        // session object only carries a short summary.
         let userData = user;
-        if (!userData && id) {
+        const fetchId = id || authData.user?.id;
+        if (!userData && fetchId) {
           const userRes = await fetchWithRefresh(
-            `${NEST_API_URL}/users/${id}`,
+            `${NEST_API_URL}/users/${fetchId}`,
             { method: 'GET' },
             authData.token,
             setAuthData
           );
-          const result = await userRes.json();
-          userData = result.data;
+          if (userRes.ok) {
+            const result = await userRes.json();
+            userData = result.data?.user ?? result.data;
+            if (!id) userData = { ...authData.user, ...userData };
+          }
         }
 
         setDisplayUser(userData || authData.user);
