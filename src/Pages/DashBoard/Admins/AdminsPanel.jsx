@@ -27,6 +27,7 @@ import {
   ShieldCheck,
   Activity,
 } from "lucide-react";
+import { wilayaLabel } from '../../../Utils/wilayas';
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
@@ -49,14 +50,8 @@ const BTN_DANGER_CLS =
   "inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-rose-400 hover:text-rose-300 bg-rose-500/5 hover:bg-rose-500/10 border border-rose-500/20 rounded-lg transition-all duration-200";
 
 // ─── Lookups ────────────────────────────────────────────────────────
-const WILAYA_BY_CODE = new Map(
-  (wilayasData || []).map((w) => [String(w.code), w.name]),
-);
 
-const regionLabel = (code) => {
-  if (code === null || code === undefined || code === "") return "—";
-  return WILAYA_BY_CODE.get(String(code)) || String(code);
-};
+const regionLabel = (code) => wilayaLabel(code);
 
 // ─── Constants ──────────────────────────────────────────────────────
 const STATUS_OPTIONS = [
@@ -580,7 +575,7 @@ export default function AdminsPanel() {
                     <option value="all">Toutes les CLOA</option>
                     {wilayasData.map((w) => (
                       <option key={w.code} value={w.code}>
-                        {w.code} — {w.name}
+                        {w.code} - {w.name}
                       </option>
                     ))}
                   </select>

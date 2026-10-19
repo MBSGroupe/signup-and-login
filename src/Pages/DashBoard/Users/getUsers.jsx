@@ -26,6 +26,7 @@ import UserDetailsModal from '../../../Components/Modals/userDetailsModal';
 import PDFPreviewModal from '../../../Components/Modals/pdfPreviexModal';
 import { useNavigate } from 'react-router-dom';
 import wilayasData from '../../../assets/data/wilayas.json';
+import { wilayaLabel } from '../../../Utils/wilayas';
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
@@ -544,7 +545,7 @@ export default function GetUsers({ mode }) {
                   >
                     <option value="all">Toutes les CLOA</option>
                     {wilayasData.map(w => (
-                      <option key={w.code} value={`${w.code} - ${w.name}`}>
+                      <option key={w.code} value={w.code}>
                         {w.code} - {w.name}
                       </option>
                     ))}
@@ -702,7 +703,7 @@ export default function GetUsers({ mode }) {
                               <td className="py-3 px-6 text-[#F8FAFC] font-medium">{user.name || '-'}</td>
                               <td className="py-3 px-6 text-[#F8FAFC]">{user.lastname || '-'}</td>
                               <td className="py-3 px-6 text-[#94A3B8] truncate max-w-[150px]">{user.email || '-'}</td>
-                              <td className="py-3 px-6 text-[#F8FAFC]">{user.region || '-'}</td>
+                              <td className="py-3 px-6 text-[#F8FAFC]">{wilayaLabel(user.region, '-')}</td>
                               {/* <td className="py-3 px-6">
                                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                                   user.status === 'active' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :

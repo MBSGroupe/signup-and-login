@@ -5,7 +5,6 @@ import { UserContext } from "../../../Context/dataCont";
 import { fetchWithRefresh } from "../../../Components/api";
 import { useError } from "../../../Context/ErrorContext";
 import BackButton from "../../../Components/Buttons/BackButton";
-import wilayasData from "../../../assets/data/wilayas.json";
 import {
   Lock,
   KeyRound,
@@ -26,6 +25,7 @@ import {
   UserCheck,
   AlertTriangle,
 } from "lucide-react";
+import { wilayaLabel } from '../../../Utils/wilayas';
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
@@ -55,13 +55,7 @@ const RULES = [
 const allRulesPass = (password) => RULES.every((r) => r.test(password));
 
 // ─── Wilaya lookup ─────────────────────────────────────────────────
-const WILAYA_BY_CODE = new Map(
-  (wilayasData || []).map((w) => [String(w.code), w.name]),
-);
-const regionLabel = (code) => {
-  if (code === null || code === undefined || code === "") return "—";
-  return WILAYA_BY_CODE.get(String(code)) || String(code);
-};
+const regionLabel = (code) => wilayaLabel(code);
 
 // ─── Grade metadata ────────────────────────────────────────────────
 const GRADE_META = {

@@ -253,7 +253,9 @@ function InfoTabContent({ displayUser, permissions }) {
                 );
               }
 
-              const display = formatScalar(field.raw);
+              const display = ['region', 'wilaya'].includes(field.name)
+                ? wilayaLabel(field.raw, null)
+                : formatScalar(field.raw);
               if (display === null) return null;
 
               return (

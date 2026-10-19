@@ -249,7 +249,7 @@ export default function CreateUser() {
             <option value="">Sélectionner une wilaya</option>
             {wilayasData?.map(w => (
               <option key={w.code} value={w.code}>
-                {w.name} ({w.code})
+                {w.code} - {w.name}
               </option>
             ))}
           </select>

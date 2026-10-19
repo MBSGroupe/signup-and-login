@@ -34,6 +34,7 @@ import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 
 import cnoaLogo from "../assets/LOGOCLOA.png";
+import { WILAYA_OPTIONS } from '../Utils/wilayas';
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -44,24 +45,6 @@ L.Icon.Default.mergeOptions({
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
-const WILAYAS = [
-  "01 - Adrar", "02 - Chlef", "03 - Laghouat", "04 - Oum El Bouaghi",
-  "05 - Batna", "06 - Béjaïa", "07 - Biskra", "08 - Béchar",
-  "09 - Blida", "10 - Bouira", "11 - Tamanrasset", "12 - Tébessa",
-  "13 - Tlemcen", "14 - Tiaret", "15 - Tizi Ouzou", "16",
-  "17 - Djelfa", "18 - Jijel", "19 - Sétif", "20 - Saïda",
-  "21 - Skikda", "22 - Sidi Bel Abbès", "23 - Annaba", "24 - Guelma",
-  "25 - Constantine", "26 - Médéa", "27 - Mostaganem", "28 - M'Sila",
-  "29 - Mascara", "30 - Ouargla", "31", "32 - El Bayadh",
-  "33 - Illizi", "34 - Bordj Bou Arréridj", "35 - Boumerdès",
-  "36 - El Tarf", "37 - Tindouf", "38 - Tissemsilt", "39 - El Oued",
-  "40 - Khenchela", "41 - Souk Ahras", "42 - Tipaza", "43 - Mila",
-  "44 - Aïn Defla", "45 - Naâma", "46 - Aïn Témouchent",
-  "47 - Ghardaïa", "48 - Relizane", "49 - El M'ghair",
-  "50 - El Meniaa", "51 - Ouled Djellal", "52 - Bordj Badji Mokhtar",
-  "53 - Béni Abbès", "54 - Timimoun", "55 - Touggourt",
-  "56 - Djanet", "57 - El M'ghair", "58 - El Meniaa"
-];
 
 const BASE_FILE_TYPES = [
   { key: 'photo', label: 'Photo', required: true },
@@ -1004,7 +987,7 @@ const [formData, setFormData] = useState({
                   <h3 className="text-lg font-semibold text-[#F8FAFC]">CLOA d'exercice</h3>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  {renderField("CLOA d'exercice", "region", "select", WILAYAS.map(w => ({ value: w, label: w })), true, "", <MapPin className="w-4 h-4 text-emerald-400" />)}
+                  {renderField("CLOA d'exercice", "region", "select", WILAYA_OPTIONS, true, "", <MapPin className="w-4 h-4 text-emerald-400" />)}
                 </div>
               </div>
 
@@ -1028,7 +1011,7 @@ const [formData, setFormData] = useState({
                   {renderField("Adresse personnelle", "adressePersonnelle", "text", null, true, "Adresse", <Home className="w-4 h-4 text-emerald-400" />)}
                   {renderField("Adresse personnelle (Arabe)", "adressePersonnelleArabe", "text", null, true, "العنوان الشخصي", <Home className="w-4 h-4 text-emerald-400" />)}
                   {renderField("Commune de résidence", "commune", "text", null, true, "Commune", <MapPin className="w-4 h-4 text-emerald-400" />)}
-                  {renderField("Wilaya De résidence", "wilaya", "select", WILAYAS.map(w => ({ value: w, label: w })), true, "", <MapPin className="w-4 h-4 text-emerald-400" />)}
+                  {renderField("Wilaya De résidence", "wilaya", "select", WILAYA_OPTIONS, true, "", <MapPin className="w-4 h-4 text-emerald-400" />)}
                    {renderField("Situation familiale", "maritalStatus", "select", [
                     { value: "Célibataire", label: "Célibataire" },
                     { value: "Marié(e)", label: "Marié(e)" },
@@ -1372,7 +1355,7 @@ const [formData, setFormData] = useState({
                             {renderField("Adresse professionnelle (Arabe)", "employerAdresseArabe", "text", null, true, "العنوان المهني", <MapPin className="w-4 h-4 text-emerald-400" />)}
                           </div>
                           {renderField("Commune", "employerCommune", "text", null, true, "Commune", <MapPin className="w-4 h-4 text-emerald-400" />)}
-                          {renderField("Wilaya", "employerWilaya", "select", WILAYAS.map(w => ({ value: w, label: w })), true, "", <MapPin className="w-4 h-4 text-emerald-400" />)}
+                          {renderField("Wilaya", "employerWilaya", "select", WILAYA_OPTIONS, true, "", <MapPin className="w-4 h-4 text-emerald-400" />)}
                         </>
                       )}
                     </div>

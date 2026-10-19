@@ -339,7 +339,7 @@ export default function CreateBulkCotisation() {
                     <option value="all">Toutes les wilayas</option>
                     {wilayasData.map((w) => (
                       <option key={w.code} value={w.code}>
-                        {w.name} ({w.code})
+                        {w.code} - {w.name}
                       </option>
                     ))}
                   </select>

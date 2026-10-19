@@ -6,7 +6,6 @@ import { fetchWithRefresh } from "../../../Components/api";
 import { useError } from "../../../Context/ErrorContext";
 import { useModal } from "../../../Context/ModalContext";
 import BackButton from "../../../Components/Buttons/BackButton";
-import wilayasData from "../../../assets/data/wilayas.json";
 import {
   Mail,
   MapPin,
@@ -32,6 +31,7 @@ import {
   User,
   Fingerprint,
 } from "lucide-react";
+import { wilayaLabel } from '../../../Utils/wilayas';
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
@@ -46,14 +46,8 @@ const BTN_DANGER_CLS =
   "inline-flex items-center gap-2 px-3.5 py-2 text-sm font-medium text-rose-400 hover:text-rose-300 bg-rose-500/5 hover:bg-rose-500/10 border border-rose-500/20 rounded-lg transition-all duration-200";
 
 // ─── Wilaya lookup ──────────────────────────────────────────────
-const WILAYA_BY_CODE = new Map(
-  (wilayasData || []).map((w) => [String(w.code), w.name]),
-);
 
-const regionLabel = (code) => {
-  if (code === null || code === undefined || code === "") return "—";
-  return WILAYA_BY_CODE.get(String(code)) || String(code);
-};
+const regionLabel = (code) => wilayaLabel(code);
 
 // ─── Grade metadata ─────────────────────────────────────────────
 const GRADE_META = {
@@ -561,7 +555,7 @@ export default function AdminProfile() {
             <Section icon={MapPin} title="Localisation">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-4">
                 <Field label="CLOA / Région" value={regionLabel(admin.region)} />
-                <Field label="Wilaya" value={admin.wilaya} />
+                <Field label="Wilaya" value={wilayaLabel(admin.wilaya)} />
                 <Field label="Commune" value={admin.commune} />
               </div>
             </Section>
