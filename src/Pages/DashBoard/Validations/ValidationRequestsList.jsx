@@ -92,6 +92,17 @@ function toSchemaFamilies(list) {
   return Array.from(families.values());
 }
 
+// This list only holds requests whose current step the viewer may handle
+// (checked by role on the backend, including admins created after the
+// request), so mass validation only depends on the step allowing it.
+function canMassValidate(req) {
+  if (!['pending', 'partial'].includes(req.status)) return false;
+  const firstPending = req.steps
+    ?.filter((s) => s.status === 'pending')
+    .sort((a, b) => a.order - b.order)[0];
+  return !!firstPending?.massValidation;
+}
+
 function getPageNumbers(current, total) {
   if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
   const pages = new Set([1, total, current, current - 1, current + 1]);
@@ -229,18 +240,7 @@ export default function ValidationRequestsList() {
   };
 
   const handleSelectAll = () => {
-    const eligibleIds = requests
-      .filter((req) => {
-        const firstPendingStep = req.steps
-          ?.filter((s) => s.status === 'pending')
-          .sort((a, b) => a.order - b.order)[0];
-        return (
-          firstPendingStep &&
-          firstPendingStep.massValidation &&
-          firstPendingStep.allowedUserIds?.some((u) => (u.id || u) === authData.user?.id)
-        );
-      })
-      .map((req) => req.id);
+    const eligibleIds = requests.filter(canMassValidate).map((req) => req.id);
     setSelectedRequests(eligibleIds);
   };
 
@@ -589,16 +589,7 @@ export default function ValidationRequestsList() {
         </div>
 
         {/* MASS ACTIONS */}
-        {requests.some((req) => {
-          const firstPending = req.steps
-            ?.filter((s) => s.status === 'pending')
-            .sort((a, b) => a.order - b.order)[0];
-          return (
-            firstPending &&
-            firstPending.massValidation &&
-            firstPending.allowedUserIds?.some((u) => (u.id || u) === authData.user?.id)
-          );
-        }) && (
+        {requests.some(canMassValidate) && (
           <div className="flex items-center gap-3 mb-4">
             {selectedRequests.length > 0 && (
               <button
@@ -647,14 +638,7 @@ export default function ValidationRequestsList() {
           <>
             <div className={`space-y-4 transition-opacity duration-150 ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
               {requests.map((req, idx) => {
-                const firstPendingStep = req.steps
-                  ?.filter((s) => s.status === 'pending')
-                  .sort((a, b) => a.order - b.order)[0];
-
-                const canMassValidate =
-                  firstPendingStep &&
-                  firstPendingStep.massValidation &&
-                  firstPendingStep.allowedUserIds?.some((u) => (u.id || u) === authData.user?.id);
+                const canMassValidateReq = canMassValidate(req);
 
                 const isSelected = selectedRequests.includes(req.id);
 
@@ -664,7 +648,7 @@ export default function ValidationRequestsList() {
                     className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] p-5 hover:border-[rgba(255,255,255,0.12)] hover:bg-[#182233] transition-all duration-200 shadow-lg group"
                   >
                     <div className="flex items-center gap-4">
-                      {canMassValidate && (
+                      {canMassValidateReq && (
                         <div className="flex-shrink-0">
                           <div
                             onClick={() => toggleRequestSelection(req.id)}
@@ -719,7 +703,7 @@ export default function ValidationRequestsList() {
                             {getStatusIcon(req.status)}
                             {req.status}
                           </span>
-                          {canMassValidate && (
+                          {canMassValidateReq && (
                             <span className="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
                               Validation en masse
                             </span>
