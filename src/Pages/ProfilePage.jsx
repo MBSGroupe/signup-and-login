@@ -15,6 +15,7 @@ import CreditTransactionCard from '../Components/Cards/CreditTransactionCard';
 import PaymentCard from '../Components/Cards/PayementCard';
 
 import { fetchWithRefresh } from '../Components/api';
+import { wilayaLabel } from '../Utils/wilayas';
 
 import {
   User,
