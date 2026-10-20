@@ -17,6 +17,7 @@ import PaymentCard from '../Components/Cards/PayementCard';
 import { fetchWithRefresh } from '../Components/api';
 import { listDocuments, previewDocument, generateDocument, emailDocument } from '../Components/documents';
 import { wilayaLabel } from '../Utils/wilayas';
+import ProtectedImg from '../Components/ProtectedImg';
 
 import {
   User,
@@ -1215,8 +1216,9 @@ export default function ProfilePage({ user }) {
           <div className="max-w-7xl mx-auto flex flex-col lg:flex-row lg:items-center gap-6">
             <div className="flex items-center gap-5">
               <div className="relative shrink-0">
-                <img
+                <ProtectedImg
                   src={PROFILE_URL}
+                  fallback={sabAvatar}
                   alt="Profile"
                   className="w-16 h-16 md:w-20 md:h-20 object-cover rounded-full border-2 border-white/10 shadow-xl"
                 />

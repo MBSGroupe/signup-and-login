@@ -1,4 +1,6 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useContext } from "react";
+import { UserContext } from "../../Context/dataCont";
+import { useProtectedFileUrl, openProtectedFile } from "../../Hooks/useProtectedFileUrl";
 
 // ─── Design Tokens ──────────────────────────────────────────────────────────
 
@@ -62,6 +64,9 @@ export default function FileCard({
   const imageFormats = ["jpg", "jpeg", "png", "gif", "svg", "webp", "bmp"];
   const isImage = imageFormats.includes(extension);
 
+  const { authData, setAuthData } = useContext(UserContext);
+  const { src: imageSrc } = useProtectedFileUrl(file.url, isImage);
+
   const typeLabel = TYPE_LABELS[file.type] || TYPE_LABELS.default;
 
   function FileIcon({ ext }) {
@@ -72,7 +77,8 @@ export default function FileCard({
     return <span className="text-4xl">📁</span>;
   }
 
-  const handlePreview = () => window.open(file.url, "_blank");
+  const handlePreview = () =>
+    openProtectedFile(file.url, authData, setAuthData).catch((err) => alert(err.message));
   const handleClick = () => inputRef.current.click();
   const handleChange = (e) => {
     const newFile = e.target.files[0];
@@ -93,11 +99,15 @@ export default function FileCard({
     <div className={FILE_CARD_BASE}>
       {/* Preview */}
       {isImage ? (
-        <img
-          src={file.url}
-          alt={file.fileName}
-          className="w-full h-full object-cover"
-        />
+        imageSrc ? (
+          <img
+            src={imageSrc}
+            alt={file.fileName}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="w-full h-full animate-pulse bg-[#1F2937]" />
+        )
       ) : (
         <div className="flex flex-col items-center justify-center h-full text-[#94A3B8]">
           <FileIcon ext={extension} />

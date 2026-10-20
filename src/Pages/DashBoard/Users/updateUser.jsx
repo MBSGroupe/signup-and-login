@@ -4,6 +4,7 @@ import Title from "../../../Components/Title";
 import { useParams, useNavigate } from "react-router-dom";
 import BackButton from "../../../Components/Buttons/BackButton";
 import { fetchWithRefresh } from "../../../Components/api";
+import ProtectedImg from "../../../Components/ProtectedImg";
 import wilayasData from "../../../assets/data/wilayas.json";
 import {
   User,
@@ -454,7 +455,7 @@ export default function UpdateUser() {
               className="relative w-24 h-24 rounded-xl overflow-hidden border border-[rgba(255,255,255,0.06)] mb-2 cursor-pointer"
               onClick={() => setShowProfilePicker(true)}
             >
-              <img src={value} alt="Preview" className="w-full h-full object-cover" />
+              <ProtectedImg src={value} alt="Preview" className="w-full h-full object-cover" />
               <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
                 <span className="text-xs text-white">Changer</span>
               </div>
@@ -614,11 +615,10 @@ export default function UpdateUser() {
                   <div className="flex items-center gap-6">
                     {formData.profilePicture ? (
                       <div className="relative w-24 h-24 rounded-full overflow-hidden border-2 border-emerald-500/30">
-                        <img
+                        <ProtectedImg
                           src={formData.profilePicture}
                           alt="Profile"
                           className="w-full h-full object-cover"
-                          onError={(e) => { e.target.src = ''; }}
                         />
                       </div>
                     ) : (

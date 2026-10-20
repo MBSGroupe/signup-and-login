@@ -6,6 +6,7 @@ import NotificationBell from "../NotificationBell/NotificationBell";
 import AVATAR from '../../assets/ChatGPT Image Jul 13, 2026, 03_44_20 PM.png';
 import Title from '../Title';
 import { fetchWithRefresh } from "../api";
+import ProtectedImg from "../ProtectedImg";
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
@@ -103,8 +104,9 @@ export default function Navbar() {
                 className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[#182233] transition-all"
               >
                 <span className="text-[#F8FAFC] font-medium text-sm">{user?.name}</span>
-                <img
+                <ProtectedImg
                   src={PROFILE_URL}
+                  fallback={AVATAR}
                   alt="Avatar"
                   className="w-8 h-8 rounded-full border-2 border-[#22C55E]/30 object-cover"
                 />

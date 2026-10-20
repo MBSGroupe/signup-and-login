@@ -1,8 +1,11 @@
 import { useState } from 'react';
 import { ZoomIn, ZoomOut, Maximize, ExternalLink, File, Image, FileText } from 'lucide-react';
+import { useProtectedFileUrl } from '../Hooks/useProtectedFileUrl';
 
 export default function FilePreviewWithZoom({ file }) {
   const [zoom, setZoom] = useState(1);
+  // /storage/* needs the JWT: preview through a blob: URL.
+  const { src: fileSrc, loading: fileLoading, error: fileError } = useProtectedFileUrl(file.url);
 
   const zoomIn = () => setZoom(prev => Math.min(prev + 0.25, 3));
   const zoomOut = () => setZoom(prev => Math.max(prev - 0.25, 0.25));
@@ -60,10 +63,14 @@ export default function FilePreviewWithZoom({ file }) {
 
         {/* Preview area */}
         <div className="flex items-center justify-center min-h-[200px] p-4">
-          {isImage ? (
+          {fileError ? (
+            <p className="text-sm text-rose-400">{fileError}</p>
+          ) : fileLoading || !fileSrc ? (
+            <p className="text-sm text-[#64748B]">Chargement…</p>
+          ) : isImage ? (
             <div className="overflow-auto max-h-[400px] w-full flex items-center justify-center">
               <img
-                src={file.url}
+                src={fileSrc}
                 alt={file.fileName}
                 className="transition-transform duration-200 ease-out"
                 style={{
@@ -78,7 +85,7 @@ export default function FilePreviewWithZoom({ file }) {
             </div>
           ) : isPdf ? (
             <iframe
-              src={file.url}
+              src={fileSrc}
               title={file.fileName}
               className="w-full h-[400px] rounded-lg"
               frameBorder="0"
@@ -88,7 +95,7 @@ export default function FilePreviewWithZoom({ file }) {
               <File className="w-12 h-12 mb-3 opacity-30" />
               <p className="text-sm">Prévisualisation non disponible</p>
               <a
-                href={file.url}
+                href={fileSrc}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 mt-3 px-4 py-2 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-lg hover:bg-blue-500/20 transition-all text-sm font-medium"

@@ -8,6 +8,7 @@ import BackButton from "../../../Components/Buttons/BackButton";
 import { fetchWithRefresh } from "../../../Components/api"; // ✅ IMPORT
 import { previewDocument } from "../../../Components/documents";
 import PDFPreviewModal from "../../../Components/Modals/pdfPreviexModal";
+import { useProtectedFileUrl } from "../../../Hooks/useProtectedFileUrl";
 
 import {
   Eye,
@@ -836,10 +837,9 @@ export default function BackgroundManager() {
 
                         <div className="h-64 rounded-xl bg-[#0A0F1C] border border-white/[0.06] overflow-hidden flex items-center justify-center">
                           {template.backgroundUrl ? (
-                            <img
-                              src={template.backgroundUrl}
+                            <BackgroundImage
+                              url={template.backgroundUrl}
                               alt={`Background ${template.key}`}
-                              className="max-w-full max-h-full object-contain"
                             />
                           ) : (
                             <div className="text-center text-[#475569]">
@@ -1126,6 +1126,14 @@ function normalizeJsonValue(value) {
 // ================================================================
 // UI COMPONENTS
 // ================================================================
+
+// /storage/* needs the JWT, so the background is shown through a blob: URL.
+function BackgroundImage({ url, alt }) {
+  const { src, error } = useProtectedFileUrl(url);
+  if (error) return <p className="text-sm text-rose-400">{error}</p>;
+  if (!src) return <Loader2 className="w-6 h-6 animate-spin text-[#475569]" />;
+  return <img src={src} alt={alt} className="max-w-full max-h-full object-contain" />;
+}
 
 function SectionTitle({ icon, title }) {
   return (
