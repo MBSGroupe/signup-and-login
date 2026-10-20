@@ -7,7 +7,7 @@ import SchemaFormModal from '../Components/Modals/SchemaFormModal';
 import { useError } from '../Context/ErrorContext';
 import { useModal } from '../Context/ModalContext';
 
-import sabAvatar from '../assets/ChatGPT Image Jul 13, 2026, 03_44_20 PM.png';
+import sabAvatar from '../assets/default-avatar.webp';
 import FileCard from '../Components/Cards/FileCrad';
 import CotisationCard from '../Components/Cards/CotisationCard';
 import AddFileCard from '../Components/Cards/AddFileCard';

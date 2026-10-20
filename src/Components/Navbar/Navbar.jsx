@@ -3,7 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { UserContext } from "../../Context/dataCont";
 import { logoutContext } from "../../Context/logoutContext";
 import NotificationBell from "../NotificationBell/NotificationBell";
-import AVATAR from '../../assets/ChatGPT Image Jul 13, 2026, 03_44_20 PM.png';
+import AVATAR from '../../assets/default-avatar.webp';
 import Title from '../Title';
 import { fetchWithRefresh } from "../api";
 import ProtectedImg from "../ProtectedImg";

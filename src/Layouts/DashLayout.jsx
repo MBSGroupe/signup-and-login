@@ -1,5 +1,5 @@
 // Layouts/AdminLayout.jsx
-import { Outlet } from "react-router-dom";
+import PageOutlet from "../Components/PageOutlet";
 import SideBar from "../Components/Navbar/SideBar";
 import AdminHeader from "../Components/Navbar/AdminHeader";
 export default function DashLayout() {
@@ -8,7 +8,7 @@ export default function DashLayout() {
      <AdminHeader />
       <SideBar /> {/* admin sidebar */}
       <main className="ml-[220px] min-h-screen">
-        <Outlet />
+        <PageOutlet />
       </main>
     </>
   );

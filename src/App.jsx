@@ -1,60 +1,65 @@
+import { lazy } from "react";
 import { Routes, Route } from "react-router-dom";
+
+// Every page except the login screen is code-split: it downloads when first
+// visited (see PageOutlet for the loader / error boundary).
 import MainLayout from './Layouts/MainLayout';
 import AuthLayout from './Layouts/AuthLayout';
 import DashLayout from './Layouts/DashLayout';
 
 import ProtectedRoute from './Layouts/ProtectedRoute';
 import AdminRoute from './Layouts/AdminRoute';
-import ResetAdminPassword from './Pages/DashBoard/Admins/ResetAdminPassword'
-import ChangePassword from './Pages/DashBoard/Users/changePassword';
+const ResetAdminPassword = lazy(() => import("./Pages/DashBoard/Admins/ResetAdminPassword"));
+const ChangePassword = lazy(() => import("./Pages/DashBoard/Users/changePassword"));
 import LoginForm from './Pages/Login';
-import FormulaireCNOA from './Pages/Sign-up';
-import SignupClosed from './Pages/SignupClosed';
-import ProfilePage from './Pages/ProfilePage';
-import OnboardingPage from './Pages/OnboardingPage';
-import VerifyPage from './Pages/VerificationPage';
-import VerifyPendingPage from './Pages/VerifyPending';
-import NotificationsPage from './Pages/NotificationPage'
-import PreferencesPage from './Pages/PreferencesPage'
-import VerifyDegree from './Pages/DashBoard/EtatsDeSortie/VerificationPage';
-import AdminDashboard from './Pages/DashBoard/Admin Dashboard';
-import GetUsers from './Pages/DashBoard/Users/getUsers';
-import CreateUser from './Pages/DashBoard/Users/createUser';
-import UpdateUser from './Pages/DashBoard/Users/updateUser';
-import EditCotisation from "./Pages/DashBoard/Cotisations/EditCotisation";
-import DeleteItem from './Components/deleteItem';
-import AdminUserView from './Pages/DashBoard/Users/AdminView/AdminUserView';
-import GetCotisations from "./Pages/DashBoard/Cotisations/getCotisations";
-import FeeStats from "./Pages/DashBoard/Stats/FeeStats";
-import UserStats from "./Pages/DashBoard/Stats/UserStats";
-import ValidationStats from './Pages/DashBoard/Stats/ValidationStats';
-import CreateBulkCotisation from "./Pages/DashBoard/Cotisations/CreateBulkCotisations";
-import PermissionManager from "./Pages/DashBoard/Permissions/PermissionConfig";
-import PermissionDetails from "./Pages/DashBoard/Permissions/getSchema";
-import NewVersion from "./Pages/DashBoard/Permissions/createVersion";
-import EditVersion from "./Pages/DashBoard/Permissions/EditVersion";
-import ValidationRequestDetail from "./Pages/DashBoard/Validations/ValidationRequestsDetail";
-import ValidationRequestsList from "./Pages/DashBoard/Validations/ValidationRequestsList";
-import ValidationSchemasList from "./Pages/DashBoard/Validations/ValidationSchemasAdmin";
-import NewValidationSchema from "./Pages/DashBoard/Validations/NewValidationSchema";
-import EditValidationSchema from "./Pages/DashBoard/Validations/EditValidationSchema";
-import ValidationSchemaVersions from "./Pages/DashBoard/Validations/ValidationSchemasVersions";
-import AllValidationRequests from "./Pages/DashBoard/Validations/allValidationRequests";
-import ValidationSchemaDetails from './Pages/DashBoard/Validations/ValidationSchemaDetails'
-import ValidationRequestProgress from './Pages/DashBoard/Validations/ValidationRequestsProgress';
-import AdminsPanel from "./Pages/DashBoard/Admins/AdminsPanel";
-import AdminForm from "./Pages/DashBoard/Admins/AdminForm";
-import AdminProfile from "./Pages/DashBoard/Admins/AdminsProfile";
-import AdminLogin from "./Pages/adminLogin";
-import RoleDetails from "./Pages/DashBoard/Roles/RoleDetails";
-import RolesPanel from "./Pages/DashBoard/Roles/RolesPanel";
-import RoleForm from "./Pages/DashBoard/Roles/RoleForm";
-import BackgroundManager from './Pages/DashBoard/EtatsDeSortie/BackgroundManager'
-import ForgotPassword from './Pages/ForgotPassword';
-import ResetPassword from './Pages/ResetPassword';
-import SiteApplication from "./Pages/siteapplication";
-import PixelNo from './Components/NO';
-import AdminStats from "./Pages/DashBoard/Stats/AdminStats";
+const FormulaireCNOA = lazy(() => import("./Pages/Sign-up"));
+const SignupClosed = lazy(() => import("./Pages/SignupClosed"));
+const ProfilePage = lazy(() => import("./Pages/ProfilePage"));
+const OnboardingPage = lazy(() => import("./Pages/OnboardingPage"));
+const VerifyPage = lazy(() => import("./Pages/VerificationPage"));
+const VerifyPendingPage = lazy(() => import("./Pages/VerifyPending"));
+const NotificationsPage = lazy(() => import("./Pages/NotificationPage"));
+const PreferencesPage = lazy(() => import("./Pages/PreferencesPage"));
+const VerifyDegree = lazy(() => import("./Pages/DashBoard/EtatsDeSortie/VerificationPage"));
+const AdminDashboard = lazy(() => import("./Pages/DashBoard/Admin Dashboard"));
+const GetUsers = lazy(() => import("./Pages/DashBoard/Users/getUsers"));
+const CreateUser = lazy(() => import("./Pages/DashBoard/Users/createUser"));
+const UpdateUser = lazy(() => import("./Pages/DashBoard/Users/updateUser"));
+const EditCotisation = lazy(() => import("./Pages/DashBoard/Cotisations/EditCotisation"));
+const DeleteItem = lazy(() => import("./Components/deleteItem"));
+const AdminUserView = lazy(() => import("./Pages/DashBoard/Users/AdminView/AdminUserView"));
+const GetCotisations = lazy(() => import("./Pages/DashBoard/Cotisations/getCotisations"));
+const FeeStats = lazy(() => import("./Pages/DashBoard/Stats/FeeStats"));
+const UserStats = lazy(() => import("./Pages/DashBoard/Stats/UserStats"));
+const ValidationStats = lazy(() => import("./Pages/DashBoard/Stats/ValidationStats"));
+const CreateBulkCotisation = lazy(() => import("./Pages/DashBoard/Cotisations/CreateBulkCotisations"));
+const PermissionManager = lazy(() => import("./Pages/DashBoard/Permissions/PermissionConfig"));
+const PermissionDetails = lazy(() => import("./Pages/DashBoard/Permissions/getSchema"));
+const NewVersion = lazy(() => import("./Pages/DashBoard/Permissions/createVersion"));
+const EditVersion = lazy(() => import("./Pages/DashBoard/Permissions/EditVersion"));
+const ValidationRequestDetail = lazy(() => import("./Pages/DashBoard/Validations/ValidationRequestsDetail"));
+const ValidationRequestsList = lazy(() => import("./Pages/DashBoard/Validations/ValidationRequestsList"));
+const ValidationSchemasList = lazy(() => import("./Pages/DashBoard/Validations/ValidationSchemasAdmin"));
+const NewValidationSchema = lazy(() => import("./Pages/DashBoard/Validations/NewValidationSchema"));
+const EditValidationSchema = lazy(() => import("./Pages/DashBoard/Validations/EditValidationSchema"));
+const ValidationSchemaVersions = lazy(() => import("./Pages/DashBoard/Validations/ValidationSchemasVersions"));
+const AllValidationRequests = lazy(() => import("./Pages/DashBoard/Validations/allValidationRequests"));
+const ValidationSchemaDetails = lazy(() => import("./Pages/DashBoard/Validations/ValidationSchemaDetails"));
+const ValidationRequestProgress = lazy(() => import("./Pages/DashBoard/Validations/ValidationRequestsProgress"));
+const AdminsPanel = lazy(() => import("./Pages/DashBoard/Admins/AdminsPanel"));
+const AdminForm = lazy(() => import("./Pages/DashBoard/Admins/AdminForm"));
+const AdminProfile = lazy(() => import("./Pages/DashBoard/Admins/AdminsProfile"));
+const AdminLogin = lazy(() => import("./Pages/adminLogin"));
+const RoleDetails = lazy(() => import("./Pages/DashBoard/Roles/RoleDetails"));
+const RolesPanel = lazy(() => import("./Pages/DashBoard/Roles/RolesPanel"));
+const RoleForm = lazy(() => import("./Pages/DashBoard/Roles/RoleForm"));
+const BackgroundManager = lazy(() => import("./Pages/DashBoard/EtatsDeSortie/BackgroundManager"));
+const ForgotPassword = lazy(() => import("./Pages/ForgotPassword"));
+const ResetPassword = lazy(() => import("./Pages/ResetPassword"));
+const SiteApplication = lazy(() => import("./Pages/siteapplication"));
+
+import NotFound from "./Pages/NotFound";
+const AdminStats = lazy(() => import("./Pages/DashBoard/Stats/AdminStats"));
 
 // Signup can be closed per environment with VITE_SIGNUP_ENABLED=false (open by default)
 const SIGNUP_ENABLED = import.meta.env.VITE_SIGNUP_ENABLED !== 'false';
@@ -76,21 +81,6 @@ export default function App() {
          <Route path="verify/degree/:token" element={<VerifyDegree />} />
         <Route path="verify-pending" element={<VerifyPendingPage />} />
         <Route path="verify" element={<VerifyPage />} />
-        <Route 
-          path="pixel-no" 
-          element={
-            <PixelNo 
-              rows={25}
-              cols={50}
-              pixelSize={20}
-              gap={2}
-              color="#facc15"
-              bgColor="#0f0f1a"
-              speed={2}
-              onComplete={() => console.log('Pixel NO complete!')}
-            />
-          } 
-        />
       </Route>
 
       {/* AUTH LAYOUT (logged in pages) */}
@@ -156,6 +146,10 @@ export default function App() {
         <Route path="validationStats" element={<ValidationStats />} />
         <Route path="/dash/adminStats" element={<AdminStats />} />
       </Route>
+
+
+      {/* Anything else */}
+      <Route path="*" element={<NotFound />} />
 
     </Routes>
   );

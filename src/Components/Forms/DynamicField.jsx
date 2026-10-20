@@ -1,5 +1,4 @@
 // Components/Forms/DynamicField.jsx
-import { useEffect, useMemo } from "react";
 
 /**
  * Renders a single form field based on its config.
@@ -56,12 +55,11 @@ export default function DynamicField({
 
   // ── Commune (filtered by parent wilaya) ──────────────────────────
   if (type === "commune" || name === "commune" || name === "communePro" || name === "employerCommune") {
-    const communes = useMemo(
-      () => (parentWilayaCode
-        ? wilayasData.find((w) => w.code === parentWilayaCode)?.communes || []
-        : []),
-      [parentWilayaCode, wilayasData],
-    );
+    // Plain lookup (58 wilayas): a hook here would run only for commune
+    // fields, breaking React's rule that hooks run in the same order.
+    const communes = parentWilayaCode
+      ? wilayasData.find((w) => w.code === parentWilayaCode)?.communes || []
+      : [];
 
     return (
       <FieldWrapper label={label} required={required}>
