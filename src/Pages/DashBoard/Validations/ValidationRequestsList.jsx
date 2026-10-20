@@ -497,10 +497,6 @@ export default function ValidationRequestsList() {
                 <option value="all">Tous les statuts</option>
                 <option value="pending">En attente</option>
                 <option value="partial">Partielles</option>
-                <option value="approved">Approuvées</option>
-                <option value="rejected">Rejetées</option>
-                <option value="cancelled">Annulées</option>
-                <option value="expired">Expirées</option>
               </select>
             </div>
 
