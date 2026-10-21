@@ -1,5 +1,5 @@
 // Components/Permissions/RuleEditor.jsx
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus, Trash2, ChevronDown, ChevronRight } from "lucide-react";
 
 // ─── Constants ─────────────────────────────────────────────────────────
@@ -97,6 +97,36 @@ function ScopeSelect({ value, onChange }) {
         ))}
       </optgroup>
     </select>
+  );
+}
+
+// ─── Comma-separated list input ────────────────────────────────────────
+// Keeps the typed text and reports the parsed list. Rendering the parsed
+// list directly ate the comma as it was typed ("a, b" became "ab").
+
+const parseList = (raw) => raw.split(",").map((s) => s.trim()).filter(Boolean);
+
+function ListInput({ value, onChange, className }) {
+  const list = Array.isArray(value) ? value : [];
+  const [raw, setRaw] = useState(list.join(", "));
+  // Follow outside changes (e.g. a different rule loaded) without
+  // clobbering what is being typed.
+  useEffect(() => {
+    if (parseList(raw).join("\u0000") !== list.join("\u0000")) setRaw(list.join(", "));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [list.join("\u0000")]);
+
+  return (
+    <input
+      type="text"
+      value={raw}
+      onChange={(e) => {
+        setRaw(e.target.value);
+        onChange(parseList(e.target.value));
+      }}
+      placeholder="v1, v2"
+      className={className}
+    />
   );
 }
 
@@ -200,6 +230,9 @@ function ScopeNode({ scope, onChange, onDelete, depth = 0 }) {
       set({
         type: value,
         scopes: children.length ? children : [{ type: "same_region" }],
+        field: undefined,
+        relation: undefined,
+        value: undefined,
       });
     } else {
       set({
@@ -220,8 +253,7 @@ function ScopeNode({ scope, onChange, onDelete, depth = 0 }) {
   };
   const removeChild = (i) => setChildren(children.filter((_, j) => j !== i));
 
-  const setList = (raw) =>
-    set({ value: raw.split(",").map((s) => s.trim()).filter(Boolean) });
+  const setList = (list) => set({ value: list });
 
   return (
     <div
@@ -263,21 +295,17 @@ function ScopeNode({ scope, onChange, onDelete, depth = 0 }) {
               placeholder="champ"
               className={INPUT_CLS + " w-32"}
             />
-            <input
-              type="text"
-              value={
-                scope.type === "field_in"
-                  ? (scope.value || []).join(", ")
-                  : scope.value ?? ""
-              }
-              onChange={(e) =>
-                scope.type === "field_in"
-                  ? setList(e.target.value)
-                  : set({ value: e.target.value })
-              }
-              placeholder={scope.type === "field_in" ? "v1, v2" : "valeur"}
-              className={INPUT_CLS + " w-40"}
-            />
+            {scope.type === "field_in" ? (
+              <ListInput value={scope.value} onChange={setList} className={INPUT_CLS + " w-40"} />
+            ) : (
+              <input
+                type="text"
+                value={scope.value ?? ""}
+                onChange={(e) => set({ value: e.target.value })}
+                placeholder="valeur"
+                className={INPUT_CLS + " w-40"}
+              />
+            )}
           </>
         )}
 
@@ -297,21 +325,17 @@ function ScopeNode({ scope, onChange, onDelete, depth = 0 }) {
               placeholder="champ"
               className={INPUT_CLS + " w-28"}
             />
-            <input
-              type="text"
-              value={
-                scope.type === "relation_field_in"
-                  ? (scope.value || []).join(", ")
-                  : scope.value ?? ""
-              }
-              onChange={(e) =>
-                scope.type === "relation_field_in"
-                  ? setList(e.target.value)
-                  : set({ value: e.target.value })
-              }
-              placeholder={scope.type === "relation_field_in" ? "v1, v2" : "valeur"}
-              className={INPUT_CLS + " w-40"}
-            />
+            {scope.type === "relation_field_in" ? (
+              <ListInput value={scope.value} onChange={setList} className={INPUT_CLS + " w-40"} />
+            ) : (
+              <input
+                type="text"
+                value={scope.value ?? ""}
+                onChange={(e) => set({ value: e.target.value })}
+                placeholder="valeur"
+                className={INPUT_CLS + " w-40"}
+              />
+            )}
           </>
         )}
 

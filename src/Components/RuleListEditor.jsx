@@ -15,7 +15,10 @@ export default function RuleListEditor({
   };
 
   const remove = (i) => onChange(rules.filter((_, j) => j !== i));
-  const add = () => onChange([...rules, { grade: "user", condition: "any" }]);
+  // A new rule must not grant anything until it is edited: "every member,
+  // any condition" was one click away from opening the operation to all.
+  // super_admin already passes, so this default adds no access.
+  const add = () => onChange([...rules, { grade: "super_admin", condition: "any" }]);
 
   return (
     <div className="flex flex-col gap-2">

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Mail, ArrowLeft, Loader2, AlertCircle, CheckCircle } from "lucide-react";
 
@@ -15,12 +15,21 @@ export default function ForgotPassword() {
   const [cooldownUntil, setCooldownUntil] = useState(0);
   const [now, setNow] = useState(Date.now());
 
-  // Tick while a cooldown is active so the button label counts down.
-  // Uses a local interval rather than a global timer so it stops when done.
-  useState(() => {
+  // Tick while a cooldown is active so the button label counts down, and
+  // stop when it ends or the page is left. (This used to be a useState
+  // initializer: its cleanup never ran and every visit leaked an interval.)
+  const cooling = cooldownUntil > now;
+  useEffect(() => {
+    if (!cooling) return undefined;
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
-  });
+  }, [cooling]);
+
+  const startCooldown = () => {
+    const t = Date.now();
+    setNow(t);
+    setCooldownUntil(t + COOLDOWN_MS);
+  };
 
   const cooldownRemaining = Math.max(0, Math.ceil((cooldownUntil - now) / 1000));
   const isOnCooldown = cooldownRemaining > 0;
@@ -63,10 +72,10 @@ export default function ForgotPassword() {
             data?.data?.message ||
             "Si cet email existe, un lien de réinitialisation a été envoyé.",
         );
-        setCooldownUntil(Date.now() + COOLDOWN_MS);
+        startCooldown();
       } else if (response.status === 429) {
         setError("Trop de tentatives. Veuillez réessayer dans une minute.");
-        setCooldownUntil(Date.now() + COOLDOWN_MS);
+        startCooldown();
       } else if (response.status === 400) {
         setError(data?.message || "Adresse email invalide.");
       } else {
