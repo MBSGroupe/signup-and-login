@@ -1,6 +1,8 @@
 import { createPortal } from "react-dom";
 import { useEffect, useState } from "react";
 import { FileText, Loader2 } from 'lucide-react';
+import { useModal } from '../../Context/ModalContext';
+import { useError } from '../../Context/ErrorContext';
 
 const BTN_PRIMARY =
   "inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg transition-colors shadow-lg shadow-emerald-600/20";
@@ -22,6 +24,8 @@ export default function PDFPreviewModal({
   const [blobUrl, setBlobUrl] = useState(null);
   const [error, setError] = useState(null);
   const [sendingEmail, setSendingEmail] = useState(false);
+  const { prompt } = useModal();
+  const { showSuccess, showError: notifyError } = useError();
 
   let title = data?.title || 'Aperçu du document';
   if (!data?.title && type === 'payment') title = 'Aperçu du reçu de paiement';
@@ -66,15 +70,23 @@ export default function PDFPreviewModal({
   const handleEmail = async () => {
     if (!onEmail || !data?.userId) return;
     const defaultEmail = data?.memberEmail || '';
-    const recipient = window.prompt('Adresse email du destinataire :', defaultEmail);
+    const entered = await prompt({
+      title: 'Envoyer par email',
+      message: defaultEmail
+        ? `Adresse du destinataire (laisser vide pour ${defaultEmail}) :`
+        : 'Adresse email du destinataire :',
+      placeholder: defaultEmail || 'nom@exemple.com',
+    });
+    if (entered === null) return;
+    const recipient = entered.trim() || defaultEmail;
     if (!recipient) return;
     setSendingEmail(true);
     try {
       await onEmail(data.userId, recipient);
-      alert('Email envoyé avec succès ✅');
+      showSuccess('Email envoyé avec succès');
     } catch (err) {
       console.error('Email sending failed:', err);
-      alert("Échec de l'envoi de l'email");
+      notifyError(err?.message || "Échec de l'envoi de l'email");
     } finally {
       setSendingEmail(false);
     }

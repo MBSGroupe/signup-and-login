@@ -1,5 +1,6 @@
 import { useState, useRef, useContext } from "react";
 import { UserContext } from "../../Context/dataCont";
+import { useError } from "../../Context/ErrorContext";
 import { useProtectedFileUrl, openProtectedFile } from "../../Hooks/useProtectedFileUrl";
 
 // ─── Design Tokens ──────────────────────────────────────────────────────────
@@ -87,6 +88,7 @@ export default function FileCard({
   const isImage = imageFormats.includes(extension);
 
   const { authData, setAuthData } = useContext(UserContext);
+  const { showError } = useError();
   const { src: imageSrc } = useProtectedFileUrl(file.url, isImage);
 
   const typeLabel = TYPE_LABELS[file.type] || TYPE_LABELS.default;
@@ -100,7 +102,7 @@ export default function FileCard({
   }
 
   const handlePreview = () =>
-    openProtectedFile(file.url, authData, setAuthData).catch((err) => alert(err.message));
+    openProtectedFile(file.url, authData, setAuthData).catch((err) => showError(err.message));
   const handleClick = () => inputRef.current.click();
   const handleChange = (e) => {
     const newFile = e.target.files[0];

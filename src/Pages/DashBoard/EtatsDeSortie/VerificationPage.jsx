@@ -22,6 +22,7 @@ import {
   Upload,
   Loader2,
 } from 'lucide-react';
+import { sha256Hex } from '../../../Utils/sha256';
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL || 'http://localhost:3000';
 
@@ -82,13 +83,6 @@ function formatDate(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '—';
   return date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
-}
-
-async function sha256Hex(file) {
-  const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
-  return Array.from(new Uint8Array(digest))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
 }
 
 const unwrap = (body) => body?.data ?? body;
@@ -340,7 +334,6 @@ function Field({ icon, label, value, strong = false, mono = false }) {
  */
 function FileCheck({ token }) {
   const [state, setState] = useState({ phase: 'idle' }); // idle | checking | match | mismatch | unknown | error
-  const supported = typeof window !== 'undefined' && !!window.crypto?.subtle;
 
   const onFile = async (event) => {
     const file = event.target.files?.[0];
@@ -379,15 +372,11 @@ function FileCheck({ token }) {
         pas être vérifiée ainsi ; comparez alors les informations ci-dessus.
       </p>
 
-      {!supported ? (
-        <p className="text-xs text-amber-400">Cette vérification nécessite une connexion sécurisée (HTTPS).</p>
-      ) : (
-        <label className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition cursor-pointer text-sm font-medium">
-          {state.phase === 'checking' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-          Choisir le PDF
-          <input type="file" accept="application/pdf,.pdf" hidden onChange={onFile} disabled={state.phase === 'checking'} />
-        </label>
-      )}
+      <label className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition cursor-pointer text-sm font-medium">
+        {state.phase === 'checking' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+        Choisir le PDF
+        <input type="file" accept="application/pdf,.pdf" hidden onChange={onFile} disabled={state.phase === 'checking'} />
+      </label>
 
       {state.phase === 'match' && (
         <p className="mt-4 flex items-start gap-2 text-sm text-emerald-300 bg-emerald-950/40 border border-emerald-800/40 rounded-xl p-3">

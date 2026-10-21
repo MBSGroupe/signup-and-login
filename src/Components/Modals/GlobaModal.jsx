@@ -26,7 +26,7 @@ export default function GlobalModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
       <div 
         className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] shadow-2xl shadow-black/50 max-w-md w-full mx-4 p-6 animate-fadeIn"
         onClick={(e) => e.stopPropagation()}
