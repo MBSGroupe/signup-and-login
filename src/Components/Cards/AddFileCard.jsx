@@ -27,7 +27,17 @@ export default function AddFileCard({ onUpload }) {
         <span className={PLUS_ICON}>+</span>
       </div>
 
-      <input ref={inputRef} type="file" hidden onChange={handleChange} />
+      {/* Same formats the backend accepts for documents */}
+      <input
+        ref={inputRef}
+        type="file"
+        hidden
+        accept="application/pdf,.pdf,image/jpeg,.jpg,.jpeg,image/png,.png,image/webp,.webp,image/gif,.gif,image/heic,.heic,image/heif,.heif"
+        onChange={(e) => {
+          handleChange(e);
+          e.target.value = "";
+        }}
+      />
     </>
   );
 }

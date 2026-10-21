@@ -1462,6 +1462,12 @@ export default function ProfilePage({ user }) {
                     </div>
                   </div>
 
+                  {canCreateFile && (
+                    <div className="mb-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                      <AddFileCard onUpload={handleUpload} />
+                    </div>
+                  )}
+
                   {filesLoading && nonProfileFiles.length === 0 ? (
                     <div className="flex justify-center py-12">
                       <Loader2 className="w-8 h-8 text-emerald-400 animate-spin" />
