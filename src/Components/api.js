@@ -90,11 +90,20 @@ export const fetchWithRefresh = async (
   setAuthData,
   authHint = {},
 ) => {
+  // FormData / Blob bodies: the browser sets Content-Type itself (multipart
+  // boundary included). Forcing JSON there makes the backend parse the
+  // upload as JSON and reject it.
+  const body = options?.body;
+  const browserSetsType =
+    (typeof FormData !== 'undefined' && body instanceof FormData) ||
+    (typeof Blob !== 'undefined' && body instanceof Blob) ||
+    (typeof URLSearchParams !== 'undefined' && body instanceof URLSearchParams);
+
   const makeRequest = (accessToken) =>
     fetch(url, {
       ...options,
       headers: {
-        'Content-Type': 'application/json',
+        ...(browserSetsType ? {} : { 'Content-Type': 'application/json' }),
         ...(options?.headers || {}),
         Authorization: `Bearer ${accessToken}`,
       },
