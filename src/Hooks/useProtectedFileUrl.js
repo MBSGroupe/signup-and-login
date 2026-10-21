@@ -7,16 +7,11 @@
 import { useContext, useEffect, useState } from "react";
 import { UserContext } from "../Context/dataCont";
 import { fetchWithRefresh } from "../Components/api";
+import { isStorageUrl as isProtected, resolveStorageUrl as toBackendUrl } from "../Utils/storageUrl";
 
-const API_URL = import.meta.env.VITE_NEST_API_URL;
-const BACKEND_BASE_URL = API_URL.replace(/\/api.*$/, "");
-
-// Local storage serves files at /storage/<key>; anything else (Cloudinary,
-// bundled assets, data:/blob: URLs) is loaded directly.
-const isProtected = (url) => typeof url === "string" && url.includes("/storage/");
-
-const toBackendUrl = (url) =>
-  /^https?:\/\//.test(url) ? url : `${BACKEND_BASE_URL}${url.startsWith("/") ? "" : "/"}${url}`;
+// Local storage serves files at /storage/<key> (always from this
+// environment's backend, whatever host the stored URL names); anything else
+// (Cloudinary, bundled assets, data:/blob: URLs) is loaded directly.
 
 /** Fetch a protected file and return a blob: URL (caller revokes it). */
 export async function fetchProtectedFileUrl(url, authData, setAuthData) {

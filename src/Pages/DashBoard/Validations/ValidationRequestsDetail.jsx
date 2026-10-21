@@ -4,6 +4,7 @@ import { UserContext } from '../../../Context/dataCont';
 import { fetchWithRefresh } from '../../../Components/api';
 import { useError } from '../../../Context/ErrorContext';
 import BackButton from '../../../Components/Buttons/BackButton';
+import { resolveStorageUrl } from '../../../Utils/storageUrl';
 import {
   Loader2,
   AlertCircle,
@@ -221,9 +222,10 @@ export default function ValidationRequestDetail() {
   }, [id, authData?.token, setAuthData]);
 
   const getFilePreviewUrl = (file) => {
-    // Prefer an already-resolved absolute URL from the backend
+    // Absolute URL from the backend (a /storage/ one is sent to this
+    // environment's backend, whatever host it names)
     if (file.url && (file.url.startsWith('http://') || file.url.startsWith('https://'))) {
-      return file.url;
+      return resolveStorageUrl(file.url);
     }
     // A relative url/path (e.g. "/storage/declaration/<user>/<name>.pdf")
     let urlPath = file.url || file.path || '';
@@ -339,9 +341,7 @@ export default function ValidationRequestDetail() {
           const record = meta?.data || meta;
           const storedUrl = record?.url || record?.path;
           if (!storedUrl) throw new Error('Fichier introuvable sur le serveur.');
-          targetUrl = /^https?:\/\//.test(storedUrl)
-            ? storedUrl
-            : `${BACKEND_BASE_URL}${storedUrl.startsWith('/') ? '' : '/'}${storedUrl}`;
+          targetUrl = resolveStorageUrl(storedUrl);
         }
 
         const res = await fetchWithRefresh(

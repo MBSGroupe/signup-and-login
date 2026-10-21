@@ -1,10 +1,9 @@
 // Generic document API. A document is identified by its template key; the
 // backend template decides the source model, layout, storage and email.
 import { fetchWithRefresh } from './api';
+import { resolveStorageUrl } from '../Utils/storageUrl';
 
 const API_URL = import.meta.env.VITE_NEST_API_URL;
-// /storage/* is served outside the /api prefix.
-const BACKEND_BASE_URL = API_URL.replace(/\/api.*$/, '');
 
 // The backend wraps every response as { success, data } (global
 // ResponseInterceptor); some handlers add their own envelope too.
@@ -142,7 +141,7 @@ export async function reinstateDocument(fileId, auth) {
 
 /** Fetch a stored PDF (absolute URL, or a /storage/… path on the backend). */
 export async function fetchStoredPdf(url, auth) {
-  const fullUrl = /^https?:\/\//.test(url) ? url : `${BACKEND_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
+  const fullUrl = resolveStorageUrl(url);
   const res = fullUrl.startsWith('https://res.cloudinary.com')
     ? await fetch(fullUrl)
     : await fetchWithRefresh(fullUrl, { method: 'GET' }, auth.token, auth.setAuthData);
