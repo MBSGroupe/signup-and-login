@@ -23,22 +23,13 @@ import {
   Eye,
   Info,
   ArrowRight,
-  Check,
-  X,
-  Mail,
-  Phone,
-  MapPin,
-  Briefcase,
-  Shield,
-  BookOpen,
-  Award,
   Save,
-  Edit3,
   ChevronLeft,
   ChevronRight,
   Circle,
   CircleDot,
-  FileQuestion
+  FileQuestion,
+  Hourglass,
 } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_NEST_API_URL;
@@ -57,35 +48,6 @@ const PREBUILT_COMMENTS = [
   "Dossier en attente de pièces supplémentaires.",
 ];
 
-const USER_FIELDS = [
-  { key: 'name', label: 'Nom', icon: User },
-  { key: 'lastname', label: 'Prénom', icon: User },
-  { key: 'email', label: 'Email', icon: Mail },
-  { key: 'phone', label: 'Téléphone', icon: Phone },
-  { key: 'sexe', label: 'Sexe', icon: User },
-  { key: 'dateOfBirth', label: 'Date de naissance', icon: Calendar },
-  { key: 'lieuNaissance', label: 'Lieu de naissance', icon: MapPin },
-  { key: 'profession', label: 'Profession', icon: Briefcase },
-  { key: 'specialty', label: 'Spécialité', icon: Award },
-  { key: 'registrationNumber', label: "N° d'inscription", icon: BookOpen },
-  { key: 'wilaya', label: 'CLOA', icon: MapPin },
-  { key: 'commune', label: 'Commune', icon: MapPin },
-  { key: 'adressePersonnelle', label: 'Adresse personnelle', icon: MapPin },
-  { key: 'adressePro', label: 'Adresse professionnelle', icon: MapPin },
-  { key: 'civility', label: 'Civilité', icon: User },
-  { key: 'maritalStatus', label: 'Situation familiale', icon: User },
-  { key: 'nationality', label: 'Nationalité', icon: User },
-  { key: 'serviceNationalStatus', label: 'Service national', icon: Shield },
-  { key: 'professionalMode', label: "Mode d'exercice", icon: Briefcase },
-  { key: 'registrationStatus', label: "Statut d'inscription", icon: CheckCircle },
-  { key: 'role', label: 'Rôle', icon: Shield },
-  { key: 'status', label: 'Statut', icon: CheckCircle },
-  { key: 'nin', label: 'NIN', icon: Shield },
-  { key: 'installationDate', label: "Date d'installation", icon: Calendar },
-  { key: 'recruitmentDate', label: 'Date de recrutement', icon: Calendar },
-  { key: 'numeroActeNaissance', label: 'N° acte de naissance', icon: FileText },
-];
-
 // ─── Helper: unwrap the ResponseInterceptor envelope ────────────────────
 const unwrap = (body) => (body && typeof body === 'object' && 'data' in body && 'success' in body)
   ? body.data
@@ -93,7 +55,21 @@ const unwrap = (body) => (body && typeof body === 'object' && 'data' in body && 
 
 // ─── Helper: is this payloadSchema entry a file field? ──────────────────
 const isFileField = (f) =>
-  f?.ui?.widget === 'file' || f?.ui?.widget === 'image' || f?.type === 'file';
+  f?.ui?.widget === 'file' || f?.ui?.widget === 'image' || f?.type === 'file' || f?.type === 'image';
+
+// ─── Helper: value typed by the reviewer → value sent to the server ─────
+const toPayloadValue = (field, raw) => {
+  if (field.type === 'boolean') return !!raw;
+  if (field.type === 'number') return raw === '' || raw === null || raw === undefined ? null : Number(raw);
+  return raw;
+};
+
+// ─── Helper: value stored in the payload → value shown in an input ──────
+const toInputValue = (field, v) => {
+  if (v === undefined || v === null) return field.type === 'boolean' ? false : '';
+  if (field.type === 'date' && typeof v === 'string') return v.slice(0, 10);
+  return v;
+};
 
 // ─── Helper: extract a human-readable message from an error response ────
 const extractErrorMessage = (payload, resBody, fallbackStatus) => {
@@ -129,13 +105,9 @@ export default function ValidationRequestDetail() {
   const [actionLoading, setActionLoading] = useState(false);
   const [comments, setComments] = useState({});
   const [isCustomComment, setIsCustomComment] = useState({});
-  const [targetUserData, setTargetUserData] = useState(null);
-  const [targetLoading, setTargetLoading] = useState(false);
-  const [editingField, setEditingField] = useState(null);
-  const [editValue, setEditValue] = useState('');
-  const [localEdits, setLocalEdits] = useState({});
+  // Reviewer corrections: { main: { field: value }, steps: { [order]: { field: value } } }
+  const [payloadEdits, setPayloadEdits] = useState({ main: {}, steps: {} });
   const [savingEdits, setSavingEdits] = useState(false);
-  const [allowedFields, setAllowedFields] = useState([]);
   const [currentDocIndex, setCurrentDocIndex] = useState(0);
   const [imageErrors, setImageErrors] = useState({});
 
@@ -159,50 +131,8 @@ export default function ValidationRequestDetail() {
         const body = await res.json();
         const reqData = unwrap(body);
         setRequest(reqData);
-
-        // ─── 2. If target is a User, fetch their data + permissions ──
-        if (reqData?.targetType === 'User') {
-          setTargetLoading(true);
-          const targetUserId = reqData.targetId?.id || reqData.targetId;
-          if (!targetUserId) {
-            setTargetLoading(false);
-            return;
-          }
-
-          const userRes = await fetchWithRefresh(
-            `${API_URL}/users/${targetUserId}`,
-            { method: 'GET' },
-            authData.token,
-            setAuthData
-          );
-          const userBody = await userRes.json();
-          const userPayload = unwrap(userBody);
-          const userObj = userPayload?.user || userPayload;
-
-          if (userObj) {
-            setTargetUserData(userObj);
-            setCurrentDocIndex(0);
-            setImageErrors({});
-
-            // Permissions — viewable fields for this target
-            try {
-              const permRes = await fetchWithRefresh(
-                `${API_URL}/permissions/user/${targetUserId}/viewable-fields?model=User`,
-                { method: 'GET' },
-                authData.token,
-                setAuthData
-              );
-              const permBody = await permRes.json();
-              const permPayload = unwrap(permBody);
-              const fields = permPayload?.fields || (Array.isArray(permPayload) ? permPayload : []);
-              setAllowedFields(Array.isArray(fields) ? fields : []);
-            } catch (permErr) {
-              console.error('Failed to load permissions for target user', permErr);
-              setAllowedFields([]);
-            }
-          }
-          setTargetLoading(false);
-        }
+        setCurrentDocIndex(0);
+        setImageErrors({});
       } catch (err) {
         console.error('Failed to load validation request:', err);
         setError(
@@ -248,17 +178,39 @@ export default function ValidationRequestDetail() {
     return false;
   };
 
-  // ─── Payload-driven file list ───────────────────────────────────────────
+  // ─── Request data: the main form + each step form the requester sent ────
   const payloadSchema = Array.isArray(request?.validationSchema?.payloadSchema)
     ? request.validationSchema.payloadSchema
     : [];
   const payload = request?.payload || {};
 
-  const filePayloadFields = payloadSchema.filter(isFileField);
+  const dataSections = [
+    {
+      key: 'main',
+      stepOrder: null,
+      label: 'Formulaire de la demande',
+      fields: payloadSchema,
+      data: payload,
+    },
+    ...(request?.steps || [])
+      .filter((s) => s.waitForUser && request?.stepPayloads?.[String(s.order)])
+      .map((s) => ({
+        key: `step-${s.order}`,
+        stepOrder: s.order,
+        label: s.stepName || `Étape ${s.order}`,
+        fields: Array.isArray(s.payloadSchema) ? s.payloadSchema : [],
+        data: request.stepPayloads[String(s.order)].data || {},
+      })),
+  ];
 
-  const declarationFiles = filePayloadFields
-    .map((f) => {
-      const raw = payload[f.name];
+  const declarationFiles = dataSections
+    .flatMap((section) =>
+      section.fields.filter(isFileField).map((f) => ({
+        f: section.stepOrder == null ? f : { ...f, label: `${section.label} — ${f.label || f.name}` },
+        raw: section.data[f.name],
+      })),
+    )
+    .map(({ f, raw }) => {
       if (raw === undefined || raw === null || raw === '') return null;
 
       // Array of files
@@ -382,9 +334,25 @@ export default function ValidationRequestDetail() {
     };
   }, [fileUrl, authData.token, setAuthData]);
 
-  // Scalar payload fields (everything that's not a file) — used in the
-  // fallback "Données de la demande" panel when there is no user target.
-  const scalarPayloadFields = payloadSchema.filter((f) => !isFileField(f));
+  const editCount =
+    Object.keys(payloadEdits.main).length +
+    Object.values(payloadEdits.steps).reduce((n, patch) => n + Object.keys(patch).length, 0);
+
+  const sectionEdits = (section) =>
+    section.stepOrder == null ? payloadEdits.main : payloadEdits.steps[section.stepOrder] || {};
+
+  const setSectionEdit = (section, name, value) =>
+    setPayloadEdits((prev) =>
+      section.stepOrder == null
+        ? { ...prev, main: { ...prev.main, [name]: value } }
+        : {
+            ...prev,
+            steps: {
+              ...prev.steps,
+              [section.stepOrder]: { ...(prev.steps[section.stepOrder] || {}), [name]: value },
+            },
+          },
+    );
 
   const goToPrev = () => {
     if (currentDocIndex > 0) setCurrentDocIndex(currentDocIndex - 1);
@@ -487,6 +455,7 @@ export default function ValidationRequestDetail() {
       expired: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
       skipped: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
       changes_requested: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+      awaiting_user: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
     };
     return colors[status] || 'bg-gray-500/10 text-gray-400 border-gray-500/20';
   };
@@ -499,23 +468,19 @@ export default function ValidationRequestDetail() {
       case 'expired': return <AlertCircle className="w-3.5 h-3.5" />;
       case 'skipped': return <SkipForward className="w-3.5 h-3.5" />;
       case 'changes_requested': return <AlertCircle className="w-3.5 h-3.5" />;
+      case 'awaiting_user': return <Hourglass className="w-3.5 h-3.5" />;
       default: return null;
     }
   };
 
   const getTargetIcon = (type) => {
     switch (type) {
-      case 'User': return <User className="w-4 h-4" />;
+      case 'User':
+      case 'Admin': return <User className="w-4 h-4" />;
       case 'File': return <FileText className="w-4 h-4" />;
       case 'Cotisation': return <CreditCard className="w-4 h-4" />;
       default: return <FileText className="w-4 h-4" />;
     }
-  };
-
-  const getSexeLabel = (value) => {
-    if (value === 'M') return 'Homme';
-    if (value === 'F') return 'Femme';
-    return value || '-';
   };
 
   const getTargetDisplay = (targetType, target, fullReq = null) => {
@@ -527,6 +492,7 @@ export default function ValidationRequestDetail() {
     }
     switch (targetType) {
       case 'User':
+      case 'Admin':
         return target.fullName || `${target.name || ''} ${target.lastname || ''}`.trim() || target.id;
       case 'File':
         return target.fileName || target.name || `Document (${target.folder || 'unknown'})`;
@@ -552,28 +518,52 @@ export default function ValidationRequestDetail() {
     return String(v);
   };
 
-  const handleBatchSave = async () => {
-    if (Object.keys(localEdits).length === 0) return;
-    const targetId = request?.targetId?.id || request?.targetId;
-    if (!targetId) return;
+  // ─── Save reviewer corrections to the request data ─────────────────
+  const handleSavePayloadEdits = async () => {
+    if (editCount === 0) return;
+    const fieldsOf = (stepOrder) =>
+      dataSections.find((s) => s.stepOrder === stepOrder)?.fields || [];
+    const typed = (fields, patch) =>
+      Object.fromEntries(
+        Object.entries(patch).map(([name, raw]) => {
+          const field = fields.find((f) => f.name === name) || {};
+          return [name, toPayloadValue(field, raw)];
+        }),
+      );
+    const body = {
+      payload: typed(fieldsOf(null), payloadEdits.main),
+      stepPayloads: Object.fromEntries(
+        Object.entries(payloadEdits.steps).map(([order, patch]) => [
+          order,
+          typed(fieldsOf(Number(order)), patch),
+        ]),
+      ),
+    };
+
     setSavingEdits(true);
     try {
       const res = await fetchWithRefresh(
-        `${API_URL}/users/${targetId}`,
+        `${API_URL}/validation/requests/${id}/payload`,
         {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(localEdits),
+          body: JSON.stringify(body),
         },
         authData.token,
-        setAuthData
+        setAuthData,
       );
-      const body = await res.json();
-      const payload = unwrap(body);
-      setTargetUserData(prev => ({ ...prev, ...(payload?.user || payload) }));
-      setLocalEdits({});
+      const resBody = await res.json().catch(() => null);
+      const data = unwrap(resBody);
+      if (!res.ok) {
+        showError(extractErrorMessage(data, resBody, res.status));
+        return;
+      }
+      if (data?.id) setRequest(data);
+      else await refetchRequest();
+      setPayloadEdits({ main: {}, steps: {} });
     } catch (err) {
-      console.error('Failed to update user fields', err);
+      console.error('Failed to save request data', err);
+      showError(err?.message || "Erreur réseau lors de l'enregistrement.");
     } finally {
       setSavingEdits(false);
     }
@@ -677,9 +667,129 @@ export default function ValidationRequestDetail() {
     (step) => step.isActive === true && stepMatchesViewer(step),
   );
 
-  const visibleFields = allowedFields
-    ? USER_FIELDS.filter(f => allowedFields.includes(f.key))
-    : USER_FIELDS;
+  const inputCls =
+    'w-full px-2 py-1.5 bg-[#111827] border border-[rgba(255,255,255,0.08)] rounded-lg text-[#F8FAFC] text-sm focus:outline-none focus:border-emerald-500';
+
+  // One request-data field: an input when the reviewer may edit, else text.
+  const renderDataField = (section, field, editable) => {
+    const edits = sectionEdits(section);
+    const edited = Object.prototype.hasOwnProperty.call(edits, field.name);
+    const value = edited ? edits[field.name] : section.data[field.name];
+    const label = field.label || field.name;
+    const onChange = (v) => setSectionEdit(section, field.name, v);
+    const enumValues = Array.isArray(field.validation?.enum) ? field.validation.enum : null;
+
+    let control;
+    if (!editable || field.type === 'json') {
+      control = (
+        <span className="text-sm text-[#F8FAFC] font-medium break-words">{renderScalarValue(value)}</span>
+      );
+    } else if (field.type === 'boolean') {
+      control = (
+        <input
+          type="checkbox"
+          checked={!!toInputValue(field, value)}
+          onChange={(e) => onChange(e.target.checked)}
+          className="w-4 h-4 accent-emerald-500"
+        />
+      );
+    } else if (enumValues) {
+      control = (
+        <select value={toInputValue(field, value)} onChange={(e) => onChange(e.target.value)} className={inputCls}>
+          <option value="">—</option>
+          {enumValues.map((opt) => (
+            <option key={String(opt)} value={opt}>{String(opt)}</option>
+          ))}
+        </select>
+      );
+    } else if (field.ui?.widget === 'textarea') {
+      control = (
+        <textarea
+          rows={3}
+          value={toInputValue(field, value)}
+          onChange={(e) => onChange(e.target.value)}
+          className={`${inputCls} resize-y`}
+        />
+      );
+    } else {
+      const type = field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text';
+      control = (
+        <input
+          type={type}
+          value={toInputValue(field, value)}
+          onChange={(e) => onChange(e.target.value)}
+          className={inputCls}
+        />
+      );
+    }
+
+    return (
+      <div
+        key={`${section.key}-${field.name}`}
+        className={`p-3 bg-[#111827] rounded-lg border ${edited ? 'border-emerald-500/40' : 'border-[rgba(255,255,255,0.04)]'}`}
+      >
+        <span className="text-xs text-[#64748B] uppercase tracking-wider block mb-1">
+          {label}
+          {field.validation?.required && <span className="text-rose-400"> *</span>}
+        </span>
+        {control}
+      </div>
+    );
+  };
+
+  // Left panel: the request's own data (main form + step forms), files aside.
+  const renderDataPanel = (editable) => {
+    const sections = dataSections
+      .map((section) => ({ ...section, scalars: section.fields.filter((f) => !isFileField(f)) }))
+      .filter((section) => section.scalars.length > 0);
+
+    return (
+      <div className="bg-[#0A0F1C] rounded-xl border border-[rgba(255,255,255,0.06)] p-4">
+        <h6 className="text-xs font-semibold text-[#94A3B8] uppercase tracking-wider mb-3 flex items-center gap-2">
+          <FileText className="w-4 h-4 text-emerald-400" />
+          Données de la demande
+        </h6>
+        {sections.length === 0 ? (
+          <p className="text-sm text-[#64748B]">
+            {getTargetDisplay(request.targetType, request.targetId, request)} — aucune donnée saisie.
+          </p>
+        ) : (
+          <div className="space-y-5">
+            {sections.map((section) => (
+              <div key={section.key}>
+                {dataSections.length > 1 && (
+                  <p className="text-xs font-semibold text-emerald-400 mb-2">{section.label}</p>
+                )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {section.scalars.map((f) => renderDataField(section, f, editable))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {editable && editCount > 0 && (
+          <div className="mt-4 flex items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => setPayloadEdits({ main: {}, steps: {} })}
+              disabled={savingEdits}
+              className="px-3 py-2 text-xs text-[#94A3B8] hover:text-white bg-white/5 hover:bg-white/10 rounded-xl"
+            >
+              Annuler
+            </button>
+            <button
+              onClick={handleSavePayloadEdits}
+              disabled={savingEdits}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl shadow-lg shadow-emerald-500/20 transition-all text-sm font-medium disabled:opacity-50"
+            >
+              {savingEdits ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              {savingEdits ? 'Enregistrement…' : `Enregistrer (${editCount})`}
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-[#0A0F1C] p-6 md:p-8 ml-[30px] mt-16">
@@ -781,6 +891,20 @@ export default function ValidationRequestDetail() {
                   </div>
                 </div>
 
+                {step.status === 'awaiting_user' && (
+                  <div className="mt-4 pt-4 border-t border-[rgba(255,255,255,0.06)]">
+                    <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-start gap-3">
+                      <Hourglass className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                      <div className="text-sm text-amber-100">
+                        <p className="font-semibold">En attente du demandeur</p>
+                        <p className="text-xs text-amber-200/80 mt-1">
+                          {step.userInstructions || 'Le demandeur doit compléter cette étape avant votre validation.'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {step.status === 'pending' && (
                   <>
                     <div className="mt-4 pt-4 border-t border-[rgba(255,255,255,0.06)]">
@@ -790,79 +914,16 @@ export default function ValidationRequestDetail() {
                           ? 'Vérification du dossier & des données'
                           : 'Dossier & données de la demande'}
                       </h5>
-                      {targetLoading ? (
-                        <Loader2 className="w-5 h-5 text-emerald-400 animate-spin mx-auto my-4" />
-                      ) : targetUserData ? (
-                        <div className={`grid grid-cols-1 gap-6 ${stepType === 'verification' ? 'md:grid-cols-2' : ''}`}>
-                          {stepType === 'verification' && (
-                            <div className="bg-[#0A0F1C] rounded-xl border border-[rgba(255,255,255,0.06)] p-4">
-                              <h6 className="text-xs font-semibold text-[#94A3B8] uppercase tracking-wider mb-3">
-                                Informations du membre
-                              </h6>
-                              <div className="grid grid-cols-1 gap-3">
-                                {visibleFields.map(field => {
-                                  const value = targetUserData[field.key];
-                                  if (value === null || value === undefined || value === '') return null;
-                                  const Icon = field.icon;
-                                  const isEditing = editingField === field.key;
-                                  const currentValue = Object.prototype.hasOwnProperty.call(localEdits, field.key)
-                                    ? localEdits[field.key]
-                                    : value;
-                                  let display = currentValue;
-                                  if (field.key === 'sexe') display = getSexeLabel(currentValue);
-
-                                  return (
-                                    <div
-                                      key={field.key}
-                                      className="flex items-center gap-2 text-sm group cursor-pointer hover:bg-[#1F2937] rounded-lg transition-colors px-2 -ml-2"
-                                      onClick={() => {
-                                        setEditingField(field.key);
-                                        setEditValue(currentValue);
-                                      }}
-                                    >
-                                      <Icon className="w-4 h-4 text-[#64748B] flex-shrink-0" />
-                                      <span className="text-[#64748B] w-28">{field.label}:</span>
-                                      {isEditing ? (
-                                        <input
-                                          type="text"
-                                          value={editValue}
-                                          onChange={(e) => setEditValue(e.target.value)}
-                                          onBlur={() => {
-                                            setLocalEdits(prev => ({ ...prev, [field.key]: editValue }));
-                                            setEditingField(null);
-                                          }}
-                                          onKeyDown={(e) => {
-                                            if (e.key === 'Enter') {
-                                              setLocalEdits(prev => ({ ...prev, [field.key]: editValue }));
-                                              setEditingField(null);
-                                            }
-                                            if (e.key === 'Escape') setEditingField(null);
-                                          }}
-                                          autoFocus
-                                          className="flex-1 px-2 py-1 bg-[#111827] border border-emerald-500 rounded text-[#F8FAFC] focus:outline-none text-sm"
-                                        />
-                                      ) : (
-                                        <span className="text-[#F8FAFC]">{display}</span>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                              {Object.keys(localEdits).length > 0 && (
-                                <div className="mt-3 flex justify-end">
-                                  <button
-                                    onClick={handleBatchSave}
-                                    disabled={savingEdits}
-                                    className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl shadow-lg shadow-emerald-500/20 transition-all text-sm font-medium disabled:opacity-50"
-                                  >
-                                    {savingEdits ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                                    {savingEdits ? 'Enregistrement…' : 'Enregistrer les modifications'}
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          )}
-
+                      {(() => {
+                        // Verification: data (editable) left, documents right.
+                        // Validation: documents, or the data when there are none.
+                        const isVerification = stepType === 'verification';
+                        const showData = isVerification || totalDocs === 0;
+                        const showDocs = isVerification || totalDocs > 0;
+                        return (
+                        <div className={`grid grid-cols-1 gap-6 ${showData && showDocs ? 'md:grid-cols-2' : ''}`}>
+                          {showData && renderDataPanel(isVerification)}
+                          {showDocs && (
                           <div className="bg-[#0A0F1C] rounded-xl border border-[rgba(255,255,255,0.06)] p-4">
                             <h6 className="text-xs font-semibold text-[#94A3B8] uppercase tracking-wider mb-3">
                               Documents fournis ({totalDocs})
@@ -974,40 +1035,10 @@ export default function ValidationRequestDetail() {
                               Veuillez examiner le dossier puis approuver ou rejeter.
                             </p>
                           </div>
-                        </div>
-                      ) : (
-                        <div className="bg-[#0A0F1C] rounded-xl border border-[rgba(255,255,255,0.06)] p-5">
-                          <h6 className="text-xs font-semibold text-[#94A3B8] uppercase tracking-wider mb-3 flex items-center gap-2">
-                            <FileText className="w-4 h-4 text-emerald-400" />
-                            Données de la demande ({request.validationSchema?.name || request.schemaName || request.targetType})
-                          </h6>
-                          {scalarPayloadFields.length > 0 ? (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                              {scalarPayloadFields.map((f) => {
-                                const v = payload[f.name];
-                                if (v === undefined || v === null || v === '') return null;
-                                return (
-                                  <div
-                                    key={f.name}
-                                    className="p-3 bg-[#111827] rounded-lg border border-[rgba(255,255,255,0.04)]"
-                                  >
-                                    <span className="text-xs text-[#64748B] uppercase tracking-wider block mb-1">
-                                      {f.label || f.name}
-                                    </span>
-                                    <span className="text-sm text-[#F8FAFC] font-medium break-words">
-                                      {renderScalarValue(v)}
-                                    </span>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          ) : (
-                            <p className="text-sm text-[#94A3B8]">
-                              {getTargetDisplay(request.targetType, request.targetId, request)}
-                            </p>
                           )}
                         </div>
-                      )}
+                        );
+                      })()}
                     </div>
 
                     <div className="mt-4 pt-4 border-t border-[rgba(255,255,255,0.06)]">

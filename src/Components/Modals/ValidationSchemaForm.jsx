@@ -21,15 +21,27 @@ const REJECT_ACTIONS = [
   'reject_request', 'escalate', 'skip_step',
   'notify_only', 'wait_for_another', 'cancel_request', 'go_back',
 ];
+// Only on a step that waits for the requester: its form goes back to them.
+const RETURN_TO_USER_ACTION = 'return_to_user';
+const USER_TIMEOUT_ACTIONS = [
+  { value: 'cancel_request', label: 'Annuler la demande' },
+  { value: 'reject_request', label: 'Rejeter la demande' },
+];
 const STEP_TYPES = [
   { value: 'validation', label: 'Validation' },
   { value: 'verification', label: 'Verification' },
 ];
+// `grades` = grades whose roles can be chosen as audience for the type.
 const TARGET_TYPES = [
-  { value: 'User', label: 'User (membre)' },
-  { value: 'File', label: 'File (fichier)' },
-  { value: 'Cotisation', label: 'Cotisation (frais)' },
+  { value: 'User', label: 'User (membre)', grades: ['user'] },
+  { value: 'File', label: 'File (fichier)', grades: ['user'] },
+  { value: 'Cotisation', label: 'Cotisation (frais)', grades: ['user'] },
+  { value: 'Admin', label: 'Admin (administrateur)', grades: ['admin', 'super_admin'] },
 ];
+const audienceGrades = (targetType) =>
+  TARGET_TYPES.find((t) => t.value === targetType)?.grades || ['user'];
+const isFilePayloadField = (f) =>
+  f?.type === 'file' || f?.type === 'image' || f?.ui?.widget === 'file' || f?.ui?.widget === 'image';
 const GRADES = ['user', 'admin', 'super_admin'];
 const CONDITION_TYPES = [
   { value: 'file_exists', label: 'Fichier existe', params: { folder: '' } },
@@ -83,6 +95,7 @@ const PAYLOAD_TARGET_ENTITIES = [
   { value: 'User', label: 'User' },
   { value: 'File', label: 'File' },
   { value: 'Cotisation', label: 'Cotisation' },
+  { value: 'Admin', label: 'Admin' },
 ];
 const PAYLOAD_COERCIONS = [
   { value: '', label: 'Auto (déduit du modèle)' },
@@ -153,7 +166,7 @@ function EmailContentTextarea({ value = '', onChange, ringColor, placeholder }) 
   );
 }
 
-function MultiSelect({ options, value = [], onChange, placeholder }) {
+function MultiSelect({ options, value = [], onChange, placeholder, emptyLabel = 'Aucun utilisateur' }) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef(null);
 
@@ -186,7 +199,7 @@ function MultiSelect({ options, value = [], onChange, placeholder }) {
       {isOpen && (
         <div className="absolute z-20 mt-1 w-full bg-[#182233] border border-[rgba(255,255,255,0.06)] rounded-xl shadow-2xl shadow-black/50 max-h-60 overflow-y-auto">
           {options.length === 0 && (
-            <div className="px-3 py-2 text-xs text-[#64748B]">Aucun utilisateur</div>
+            <div className="px-3 py-2 text-xs text-[#64748B]">{emptyLabel}</div>
           )}
           {options.map((opt) => (
             <label
@@ -928,6 +941,7 @@ export default function ValidationSchemaForm({
 
   const [formData, setFormData] = useState({
     targetType: initialData?.targetType || 'User',
+    targetRoles: Array.isArray(initialData?.targetRoles) ? initialData.targetRoles : [],
     name: initialData?.name || '',
     description: initialData?.description || '',
     payloadSchema: Array.isArray(initialData?.payloadSchema)
@@ -1082,6 +1096,44 @@ export default function ValidationSchemaForm({
       ...prev,
       payloadSchema: prev.payloadSchema.filter((_, j) => j !== i),
     }));
+
+  // ── Requester step form (fields the requester fills at that step) ──
+  const setStepFields = (stepIndex, updater) =>
+    setFormData((prev) => {
+      const steps = [...prev.steps];
+      const current = Array.isArray(steps[stepIndex].payloadSchema)
+        ? steps[stepIndex].payloadSchema
+        : [];
+      steps[stepIndex] = { ...steps[stepIndex], payloadSchema: updater(current) };
+      return { ...prev, steps };
+    });
+
+  const addStepField = (stepIndex) =>
+    setStepFields(stepIndex, (fields) => [
+      ...fields,
+      {
+        name: '',
+        label: '',
+        labelAr: '',
+        type: 'text',
+        ui: { group: 'custom', colSpan: 12, placeholder: '' },
+        validation: { required: false },
+      },
+    ]);
+
+  const toggleWaitForUser = (stepIndex, on) =>
+    setFormData((prev) => {
+      const steps = [...prev.steps];
+      const step = { ...steps[stepIndex], waitForUser: on };
+      if (on) {
+        step.payloadSchema = Array.isArray(step.payloadSchema) ? step.payloadSchema : [];
+        step.userTimeout = step.userTimeout || { duration: 0, action: 'cancel_request' };
+      } else if (step.rejectAction === RETURN_TO_USER_ACTION) {
+        step.rejectAction = 'reject_request';
+      }
+      steps[stepIndex] = step;
+      return { ...prev, steps };
+    });
 
   // ── Step actions ────────────────────────────────────────────────
   const addStep = () =>
@@ -1312,6 +1364,42 @@ export default function ValidationSchemaForm({
         throw new Error(`Étape #${badStep + 1} : le nom est obligatoire`);
       }
 
+      // Steps that wait for the requester (same rules as the server).
+      formData.steps.forEach((s, i) => {
+        if (!s.waitForUser) return;
+        if (i === 0) {
+          throw new Error("Étape #1 : la première étape ne peut pas attendre le demandeur");
+        }
+        const fields = Array.isArray(s.payloadSchema) ? s.payloadSchema : [];
+        if (fields.length === 0 && !(s.userInstructions || '').trim()) {
+          throw new Error(`Étape #${i + 1} : indiquez des instructions ou des champs pour le demandeur`);
+        }
+        const unnamed = fields.findIndex((f) => !f.name || f.name.trim() === '');
+        if (unnamed !== -1) {
+          throw new Error(`Étape #${i + 1}, champ #${unnamed + 1} : le nom est obligatoire`);
+        }
+      });
+
+      if (formData.targetType === 'Admin') {
+        const allFields = [
+          ...formData.payloadSchema,
+          ...formData.steps.flatMap((s) => (s.waitForUser ? s.payloadSchema || [] : [])),
+        ];
+        if (allFields.some(isFilePayloadField)) {
+          throw new Error(
+            'Les schémas ciblant un administrateur ne peuvent pas encore contenir de champ fichier',
+          );
+        }
+      }
+
+      // Step-form settings only travel with steps that wait for the requester.
+      const REQUESTER_KEYS = ['payloadSchema', 'userInstructions', 'userTimeout', 'waitForUser'];
+      const cleanSteps = formData.steps.map((s) =>
+        s.waitForUser
+          ? s
+          : Object.fromEntries(Object.entries(s).filter(([k]) => !REQUESTER_KEYS.includes(k))),
+      );
+
       // Post-validation actions: a type must be chosen and required
       // parameters filled (e.g. the template of an État de sortie).
       const actionGroups = [
@@ -1341,10 +1429,11 @@ export default function ValidationSchemaForm({
 
       const payload = {
         targetType: formData.targetType,
+        targetRoles: formData.targetRoles,
         name: formData.name.trim(),
         description: formData.description?.trim() || undefined,
         payloadSchema: formData.payloadSchema,
-        steps: formData.steps,
+        steps: cleanSteps,
         onApproval: formData.onApproval.length ? formData.onApproval : null,
         onRejection: formData.onRejection.length ? formData.onRejection : null,
         globalTimeout: formData.globalTimeout,
@@ -1468,7 +1557,21 @@ export default function ValidationSchemaForm({
                 <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Type de cible</label>
                 <select
                   value={formData.targetType}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, targetType: e.target.value }))}
+                  onChange={(e) => {
+                    const nextType = e.target.value;
+                    setFormData((prev) => {
+                      // Keep only roles that still fit the new type.
+                      const grades = audienceGrades(nextType);
+                      const fitting = new Set(
+                        rolesList.filter((r) => grades.includes(r.grade || 'user')).map((r) => r.name),
+                      );
+                      return {
+                        ...prev,
+                        targetType: nextType,
+                        targetRoles: prev.targetRoles.filter((name) => fitting.has(name)),
+                      };
+                    });
+                  }}
                   className="w-full px-3 py-2 bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
                 >
                   {TARGET_TYPES.map((t) => (
@@ -1476,6 +1579,29 @@ export default function ValidationSchemaForm({
                   ))}
                 </select>
               </div>
+            </div>
+            <div className="mt-4 space-y-1">
+              <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">
+                Rôles concernés
+              </label>
+              <MultiSelect
+                options={rolesList
+                  .filter((r) => audienceGrades(formData.targetType).includes(r.grade || 'user'))
+                  .map((r) => ({ value: r.name, label: `${r.label || r.name} (${r.name})` }))}
+                value={formData.targetRoles}
+                onChange={(selected) => setFormData((prev) => ({ ...prev, targetRoles: selected }))}
+                emptyLabel="Aucun rôle pour ce type de cible"
+                placeholder={
+                  formData.targetType === 'Admin'
+                    ? 'Tous les administrateurs'
+                    : 'Tous les membres'
+                }
+              />
+              <p className="text-xs text-[#64748B]">
+                {formData.targetType === 'Admin'
+                  ? 'Rôles administrateur pouvant faire cette demande. Laissez vide pour tous.'
+                  : 'Rôles membre (ex. architecte, stagiaire) pouvant faire cette demande. Laissez vide pour tous.'}
+              </p>
             </div>
             <div className="mt-4 space-y-1">
               <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Description</label>
@@ -1659,6 +1785,11 @@ export default function ValidationSchemaForm({
                         {REJECT_ACTIONS.map((a) => (
                           <option key={a} value={a}>{a}</option>
                         ))}
+                        {step.waitForUser && (
+                          <option value={RETURN_TO_USER_ACTION}>
+                            {RETURN_TO_USER_ACTION} — renvoyer au demandeur
+                          </option>
+                        )}
                       </select>
                     </div>
                     <div className="space-y-1">
@@ -1694,6 +1825,122 @@ export default function ValidationSchemaForm({
                         ))}
                       </select>
                     </div>
+                  </div>
+
+                  {/* ── Requester step: they fill a form first, then the approvers act ── */}
+                  <div className="mt-5 pt-4 border-t border-[rgba(255,255,255,0.06)]">
+                    <label
+                      className={`flex items-center gap-2 text-sm ${idx === 0 ? 'text-[#64748B]' : 'text-[#CBD5E1]'}`}
+                      title={idx === 0 ? 'La première étape commence dès la création de la demande' : ''}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={step.waitForUser === true}
+                        disabled={idx === 0}
+                        onChange={(e) => toggleWaitForUser(idx, e.target.checked)}
+                        className="accent-amber-500"
+                      />
+                      Attendre le demandeur avant cette étape
+                      {idx === 0 && (
+                        <span className="text-xs">(impossible pour la première étape)</span>
+                      )}
+                    </label>
+
+                    {step.waitForUser && (
+                      <div className="mt-4 space-y-4 p-4 rounded-xl bg-amber-500/5 border border-amber-500/20">
+                        <p className="text-xs text-amber-200 leading-relaxed">
+                          Quand la demande arrive à cette étape, le demandeur reçoit une notification
+                          et remplit le formulaire ci-dessous. Les approbateurs de l'étape ne la voient
+                          qu'ensuite. Un champ non requis (fichier compris) peut être laissé vide.
+                        </p>
+                        <div className="space-y-1">
+                          <label className={labelCls}>Instructions pour le demandeur</label>
+                          <textarea
+                            value={step.userInstructions || ''}
+                            onChange={(e) => updateStep(idx, 'userInstructions', e.target.value)}
+                            rows="2"
+                            placeholder="Merci de fournir l'attestation de stage signée."
+                            className="w-full px-3 py-2 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-amber-500/40 resize-y"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <label className={labelCls}>Délai du demandeur (secondes)</label>
+                            <input
+                              type="number"
+                              value={step.userTimeout?.duration ?? 0}
+                              onChange={(e) =>
+                                updateStep(idx, 'userTimeout', {
+                                  ...(step.userTimeout || { action: 'cancel_request' }),
+                                  duration: parseInt(e.target.value, 10) || 0,
+                                })
+                              }
+                              className="w-full px-3 py-2 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-amber-500/40"
+                            />
+                            <p className="text-xs text-[#64748B]">0 = pas de délai</p>
+                          </div>
+                          <div className="space-y-1">
+                            <label className={labelCls}>Sans réponse dans le délai</label>
+                            <select
+                              value={step.userTimeout?.action || 'cancel_request'}
+                              onChange={(e) =>
+                                updateStep(idx, 'userTimeout', {
+                                  ...(step.userTimeout || { duration: 0 }),
+                                  action: e.target.value,
+                                })
+                              }
+                              className="w-full px-3 py-2 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-amber-500/40"
+                            >
+                              {USER_TIMEOUT_ACTIONS.map((a) => (
+                                <option key={a.value} value={a.value}>{a.label}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="flex items-center justify-between mb-3">
+                            <h4 className="text-sm font-semibold text-[#F8FAFC] flex items-center gap-2">
+                              <Layers className="w-4 h-4 text-amber-400" />
+                              Formulaire de l'étape
+                              <span className="text-xs text-[#64748B]">
+                                ({(step.payloadSchema || []).length})
+                              </span>
+                            </h4>
+                            <button
+                              type="button"
+                              onClick={() => addStepField(idx)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-lg hover:bg-amber-500/20 text-xs font-medium"
+                            >
+                              <Plus className="w-3.5 h-3.5" /> Ajouter un champ
+                            </button>
+                          </div>
+                          {(step.payloadSchema || []).length === 0 && (
+                            <p className="text-xs text-[#64748B] italic">
+                              Aucun champ : le demandeur confirmera simplement après avoir lu les instructions.
+                            </p>
+                          )}
+                          <div className="space-y-3">
+                            {(step.payloadSchema || []).map((f, fi) => (
+                              <PayloadFieldEditor
+                                key={fi}
+                                field={f}
+                                stepOptions={stepOptions.filter((o) => o.value >= step.order)}
+                                onChange={(next) =>
+                                  setStepFields(idx, (fields) =>
+                                    fields.map((x, j) => (j === fi ? next : x)),
+                                  )
+                                }
+                                onDelete={() =>
+                                  setStepFields(idx, (fields) => fields.filter((_, j) => j !== fi))
+                                }
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Conditions */}

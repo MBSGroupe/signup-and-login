@@ -355,6 +355,8 @@ export default function ProfilePage({ user }) {
   const [activeSchema, setActiveSchema] = useState(null);
   const [activeRequestId, setActiveRequestId] = useState(null);
   const [isFormResubmitMode, setIsFormResubmitMode] = useState(false);
+  // Step waiting for the requester, opened in the form modal.
+  const [stepFormContext, setStepFormContext] = useState(null);
 
   const resubmissionMapRef = useRef({});
   const [resubmissionMap, setResubmissionMap] = useState({});
@@ -798,6 +800,10 @@ export default function ProfilePage({ user }) {
     if (['APPROVED', 'VALIDATED', 'VALIDE', 'VALIDÉ', 'DONE', 'ACTIVE'].includes(s)) return 'Validé';
     if (['REJECTED', 'REJETÉ', 'REJETE', 'CANCELLED', 'ANNULÉ', 'REFUSED'].includes(s)) return 'Rejeté';
     if (['EXPIRED', 'EXPIRÉ'].includes(s)) return 'Expiré';
+    // A step waits for the requester's own form (not a full resubmission).
+    if (Array.isArray(rawObj?.steps) && rawObj.steps.some((st) => st.status === 'awaiting_user')) {
+      return 'Action requise';
+    }
     if (isResubmittedItem(itemOrStatus)) return 'En cours';
 
     const isDirectChangesRequested = [
@@ -842,6 +848,25 @@ export default function ProfilePage({ user }) {
     setActiveSchema(null);
     setActiveRequestId(null);
     setIsFormResubmitMode(false);
+    setStepFormContext(null);
+  };
+
+  /** Opens the form of a step that waits for the requester. */
+  const openStepForm = (req, step) => {
+    setActiveSchema(null);
+    setActiveRequestId(req.id);
+    setIsFormResubmitMode(false);
+    setStepFormContext({
+      requestId: req.id,
+      step,
+      previousData: req.stepPayloads?.[String(step.order)]?.data || null,
+    });
+    setIsFormModalOpen(true);
+  };
+
+  const handleStepSubmitSuccess = async () => {
+    closeSchemaForm();
+    await fetchValidationRequests();
   };
 
   /**
@@ -904,8 +929,11 @@ export default function ProfilePage({ user }) {
 
   const fetchSchemas = async () => {
     try {
+      // Only what this member may start (target type and role).
+      const params = new URLSearchParams({ targetType: 'User' });
+      if (targetUserId) params.set('targetId', targetUserId);
       const res = await fetchWithRefresh(
-        `${NEST_API_URL}/validation/schemas`,
+        `${NEST_API_URL}/validation/schemas/available?${params}`,
         { method: 'GET' },
         authData.token,
         setAuthData
@@ -982,14 +1010,18 @@ export default function ProfilePage({ user }) {
         showSuccess(`Demande "${schemaName}" initiée avec succès !`);
         await fetchValidationRequests();
       } else {
-        const errMsg = (data.message || data.error || '').toLowerCase();
+        const rawMsg = data.message || data.error || '';
+        const errMsg = (Array.isArray(rawMsg) ? rawMsg.join(' ') : String(rawMsg)).toLowerCase();
         if (errMsg.includes('already') || errMsg.includes('exist') || errMsg.includes('déjà') || errMsg.includes('en cours') || res.status === 409) {
           await alert({
             title: 'Demande déjà existante',
             message: `Cette demande existe déjà. Vous pouvez suivre son avancement dans l'onglet "Validation".`,
           });
         } else {
-          showError(data.message || data.error || 'Erreur lors de la création de la demande');
+          showError(
+            (Array.isArray(rawMsg) ? rawMsg.join(' • ') : rawMsg) ||
+              'Erreur lors de la création de la demande',
+          );
         }
       }
     } catch (err) {
@@ -1602,8 +1634,8 @@ export default function ProfilePage({ user }) {
                                     if (displayStatus === 'Rejeté') {
                                       return <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border bg-rose-500/10 text-rose-400 border-rose-500/20">Rejetée</span>;
                                     }
-                                    if (displayStatus === 'Modifications requises') {
-                                      return <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border bg-amber-500/10 text-amber-400 border-amber-500/20">Modifications requises</span>;
+                                    if (displayStatus === 'Modifications requises' || displayStatus === 'Action requise') {
+                                      return <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border bg-amber-500/10 text-amber-400 border-amber-500/20">{displayStatus}</span>;
                                     }
                                     return <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border bg-blue-500/10 text-blue-400 border-blue-500/20">En cours</span>;
                                   })()}
@@ -1617,6 +1649,43 @@ export default function ProfilePage({ user }) {
                                   </button>
                                 </div>
                               </div>
+
+                              {displayStatus === 'Action requise' && (() => {
+                                const waitingStep = req.steps.find((s) => s.status === 'awaiting_user');
+                                return (
+                                  <div className="mb-4 p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl shadow-sm">
+                                    <div className="flex items-start justify-between gap-4 flex-wrap">
+                                      <div className="flex-1 min-w-[240px]">
+                                        <p className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                                          <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+                                          Action requise : {waitingStep.stepName || `Étape ${waitingStep.order}`}
+                                        </p>
+                                        <p className="text-sm text-[#F8FAFC] mt-1.5 leading-relaxed">
+                                          {waitingStep.userInstructions ||
+                                            'Des informations complémentaires sont attendues pour poursuivre votre demande.'}
+                                        </p>
+                                        {waitingStep.comments && (
+                                          <p className="text-xs text-amber-200 mt-1.5">
+                                            Motif : {waitingStep.comments}
+                                          </p>
+                                        )}
+                                      </div>
+                                      {canCreateValidation && (
+                                        <div className="flex items-center shrink-0">
+                                          <button
+                                            type="button"
+                                            onClick={() => openStepForm(req, waitingStep)}
+                                            className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-semibold transition-all flex items-center gap-2 shadow-lg shadow-amber-500/20 cursor-pointer"
+                                          >
+                                            <Edit className="w-4 h-4" />
+                                            Compléter
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })()}
 
                               {canCreateValidation && displayStatus === 'Modifications requises' && (() => {
                                 const verificationStepWithCorrection = req.steps?.find(s =>
@@ -1684,10 +1753,11 @@ export default function ProfilePage({ user }) {
                                     const isChangesRequested = isReqChangesRequested && (step.status === 'changes_requested' || idx === 0);
                                     const isRejected = step.status === 'rejected' || step.status === 'expired';
                                     const isSkipped = step.status === 'skipped';
+                                    const isAwaitingUser = step.status === 'awaiting_user';
 
                                     let icon = <Clock className="w-4 h-4 text-amber-400" />;
                                     let circleBg = 'bg-amber-500/20 border-amber-500/40';
-                                    if (isChangesRequested) {
+                                    if (isChangesRequested || isAwaitingUser) {
                                       icon = <AlertCircle className="w-4 h-4 text-amber-400" />;
                                       circleBg = 'bg-amber-500/20 border-amber-500/40';
                                     } else if (isDone) {
@@ -1701,7 +1771,9 @@ export default function ProfilePage({ user }) {
                                       circleBg = 'bg-gray-500/20 border-gray-500/40';
                                     }
 
-                                    const stepStatusLabel = isChangesRequested
+                                    const stepStatusLabel = isAwaitingUser
+                                      ? 'Votre action est attendue'
+                                      : isChangesRequested
                                       ? 'Modifications requises'
                                       : isDone ? 'Approuvée'
                                       : isRejected ? 'Rejetée'
@@ -1718,7 +1790,7 @@ export default function ProfilePage({ user }) {
                                               {step.stepName || step.name || `Étape ${step.stepOrder || idx + 1}`}
                                             </p>
                                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${
-                                              isChangesRequested ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                                              isChangesRequested || isAwaitingUser ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
                                               : isDone ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                                               : isRejected ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
                                               : isSkipped ? 'bg-gray-500/10 text-gray-400 border-gray-500/20'
@@ -2002,12 +2074,13 @@ export default function ProfilePage({ user }) {
         }}
         targetUserId={targetUserId}
         authToken={authData?.token}
-        onSuccess={handleRequestSubmitSuccess}
+        onSuccess={stepFormContext ? handleStepSubmitSuccess : handleRequestSubmitSuccess}
         schema={activeSchema}
         existingRequestId={activeRequestId}
         resubmitMode={isFormResubmitMode}
         user={displayUser}
         validationRequests={validationRequests}
+        stepContext={stepFormContext}
       />
 
       {pdfPreview.isOpen  && (

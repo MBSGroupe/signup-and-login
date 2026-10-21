@@ -198,11 +198,10 @@ export default function SideBar() {
   const showCotisationsGroup =
     permissions.cotisationsRead || permissions.cotisationsCreate;
 
-  // Validations — "Demandes à valider" (read_approver_requests)
-  // or "Toutes les demandes" (read_all). If neither, the
-  // "Validations" button is not rendered at all.
-  const showValidationsGroup =
-    permissions.validationsRead || permissions.validationsReadAll;
+  // Validations — "Mes demandes" for every admin (their own requests),
+  // plus "Demandes à valider" (read_approver_requests) and
+  // "Toutes les demandes" (read_all) when allowed.
+  const showValidationsGroup = true;
 
   // Statistiques
   const hasAnyStatsItem =
@@ -522,6 +521,11 @@ export default function SideBar() {
                       active={isActive("/dash/validation/all-requests")}
                     />
                   )}
+                  <SubItem
+                    label="Mes demandes"
+                    onClick={() => handleNavigation("/dash/validation/my-requests")}
+                    active={isActive("/dash/validation/my-requests")}
+                  />
                 </div>
               )}
             </div>

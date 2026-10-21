@@ -39,6 +39,13 @@ const defaultValueForField = (f) => {
   return '';
 };
 
+// Server messages can be a string or a list (field-by-field errors).
+const messageOf = (data, fallback = '') => {
+  const m = data?.message;
+  if (Array.isArray(m)) return m.join(' • ');
+  return m ? String(m) : fallback;
+};
+
 const formatBytes = (bytes) => {
   if (!bytes) return '0 B';
   const k = 1024;
@@ -109,13 +116,17 @@ export default function SchemaFormModal({
   resubmitMode = false,
   user = null,
   validationRequests = [],
+  // Step mode: the requester fills the form of a step waiting for them.
+  // { requestId, step, previousData } — previousData prefills a resend.
+  stepContext = null,
 }) {
   const { showSuccess } = useError();
+  const stepMode = !!stepContext?.step;
 
   const fields = useMemo(() => {
-    const arr = schema?.payloadSchema;
+    const arr = stepMode ? stepContext.step.payloadSchema : schema?.payloadSchema;
     return Array.isArray(arr) ? arr : [];
-  }, [schema]);
+  }, [schema, stepMode, stepContext]);
 
   const fileFields = useMemo(() => fields.filter(isFileField), [fields]);
 
@@ -140,8 +151,18 @@ export default function SchemaFormModal({
   useEffect(() => {
     if (!isOpen) return;
     const init = {};
+    const previous = stepMode ? stepContext.previousData || {} : null;
+    const initExisting = {};
     for (const f of fields) {
-      if (
+      if (previous && previous[f.name] !== undefined && previous[f.name] !== null) {
+        // Resending a step: start from what was sent last time.
+        if (isFileField(f)) {
+          initExisting[f.name] = previous[f.name];
+          init[f.name] = defaultValueForField(f);
+        } else {
+          init[f.name] = previous[f.name];
+        }
+      } else if (
         !isFileField(f) &&
         user &&
         user[f.name] !== undefined &&
@@ -154,7 +175,7 @@ export default function SchemaFormModal({
     }
     setValues(init);
     setNewFiles({});
-    setExistingFiles({});
+    setExistingFiles(initExisting);
     setErrorMessage(null);
     setAlreadyExists(false);
     setSuccessRef(null);
@@ -163,7 +184,7 @@ export default function SchemaFormModal({
     setIsLoading(false);
     setUploadMessage('');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, schema?.id]);
+  }, [isOpen, schema?.id, stepContext?.requestId, stepContext?.step?.order]);
 
   // ── prefill from existing request in resubmit mode ──
   useEffect(() => {
@@ -313,7 +334,7 @@ export default function SchemaFormModal({
     setIsLoading(true);
 
     try {
-      const folder = getSchemaFolder(schema);
+      const folder = getSchemaFolder(schema || { name: stepContext?.step?.stepName });
 
       // 1) Upload files
       const uploadedFileIds = {};
@@ -394,26 +415,35 @@ export default function SchemaFormModal({
 
       // 3) POST or PATCH
       setUploadMessage(
-        resubmitMode
+        stepMode || resubmitMode
           ? 'Mise à jour de votre demande…'
           : 'Enregistrement de la demande…',
       );
 
-      const url = resubmitMode
-        ? `${NEST_API_URL}/validation/requests/${existingRequestId}/resubmit`
-        : `${NEST_API_URL}/validation/requests`;
-      const method = resubmitMode ? 'PATCH' : 'POST';
-      const requestPayload = resubmitMode
-        ? {
-            payload,
-            comments: 'Corrections apportées par le membre',
-          }
-        : {
-            targetId: targetUserId,
-            targetType: schema?.targetType || 'User',
-            schemaName: schema?.name || schema?.title,
-            payload,
-          };
+      let url;
+      let method;
+      let requestPayload;
+      if (stepMode) {
+        url = `${NEST_API_URL}/validation/requests/${stepContext.requestId}/steps/${stepContext.step.order}/submit`;
+        method = 'PATCH';
+        requestPayload = { data: payload };
+      } else if (resubmitMode) {
+        url = `${NEST_API_URL}/validation/requests/${existingRequestId}/resubmit`;
+        method = 'PATCH';
+        requestPayload = {
+          payload,
+          comments: 'Corrections apportées par le membre',
+        };
+      } else {
+        url = `${NEST_API_URL}/validation/requests`;
+        method = 'POST';
+        requestPayload = {
+          targetId: targetUserId,
+          targetType: schema?.targetType || 'User',
+          schemaName: schema?.name || schema?.title,
+          payload,
+        };
+      }
 
       const res = await fetch(url, {
         method,
@@ -429,13 +459,12 @@ export default function SchemaFormModal({
       const data = unwrap(raw);
 
       if (!res.ok) {
-        if (resubmitMode) {
+        if (resubmitMode || stepMode) {
           throw new Error(
-            data?.message ||
-              'Impossible de mettre à jour votre demande. Veuillez réessayer.',
+            messageOf(data, 'Impossible de mettre à jour votre demande. Veuillez réessayer.'),
           );
         }
-        const msg = (data?.message || '').toLowerCase();
+        const msg = messageOf(data).toLowerCase();
         if (
           res.status === 409 ||
           msg.includes('déjà') ||
@@ -448,11 +477,12 @@ export default function SchemaFormModal({
           setUploadMessage('');
           return;
         }
-        throw new Error(data?.message || "Erreur lors de l'enregistrement.");
+        throw new Error(messageOf(data, "Erreur lors de l'enregistrement."));
       }
 
       const createdReqId =
-        data?.id || data?._id || raw?.id || raw?.data?.id || existingRequestId;
+        data?.id || data?._id || raw?.id || raw?.data?.id ||
+        existingRequestId || stepContext?.requestId;
       const generatedRef =
         data?.reference ||
         raw?.reference ||
@@ -467,11 +497,14 @@ export default function SchemaFormModal({
         type: schema?.name || 'Demande',
         schemaName: schema?.name || schema?.title || 'Demande',
         resubmitted: resubmitMode,
+        stepSubmitted: stepMode,
       });
       showSuccess(
-        resubmitMode
-          ? 'Votre dossier a été mis à jour et renvoyé pour validation !'
-          : 'Votre demande a été transmise avec succès !',
+        stepMode
+          ? 'Vos informations ont été transmises, la demande reprend son cours !'
+          : resubmitMode
+            ? 'Votre dossier a été mis à jour et renvoyé pour validation !'
+            : 'Votre demande a été transmise avec succès !',
       );
     } catch (err) {
       console.warn('[SchemaFormModal] submit error:', err);
@@ -774,12 +807,16 @@ export default function SchemaFormModal({
     }
   }
 
-  const formTitle = schema?.name || schema?.title || 'Formulaire de demande';
-  const formDescription =
-    schema?.description ||
-    (resubmitMode
-      ? 'Mettez à jour vos informations puis renvoyez votre dossier.'
-      : 'Remplissez les informations demandées puis envoyez votre demande.');
+  const formTitle = stepMode
+    ? stepContext.step.stepName || `Étape ${stepContext.step.order}`
+    : schema?.name || schema?.title || 'Formulaire de demande';
+  const formDescription = stepMode
+    ? stepContext.step.userInstructions ||
+      'Complétez les informations demandées pour que votre demande poursuive son parcours.'
+    : schema?.description ||
+      (resubmitMode
+        ? 'Mettez à jour vos informations puis renvoyez votre dossier.'
+        : 'Remplissez les informations demandées puis envoyez votre demande.');
 
   // ── MAIN MODAL ──
   const mainModal = (
@@ -821,12 +858,16 @@ export default function SchemaFormModal({
                 <CheckCircle className="w-10 h-10" />
               </div>
               <h3 className="text-2xl font-bold text-white tracking-tight">
-                {resubmitMode ? 'Dossier mis à jour !' : 'Demande bien transmise !'}
+                {stepMode
+                  ? 'Informations transmises !'
+                  : resubmitMode ? 'Dossier mis à jour !' : 'Demande bien transmise !'}
               </h3>
               <p className="text-sm text-[#94A3B8] mt-2 max-w-md leading-relaxed">
-                {resubmitMode
-                  ? 'Votre dossier a été renvoyé pour validation. Il repasse par le circuit depuis la première étape.'
-                  : 'Votre dossier a été transmis avec succès pour vérification.'}
+                {stepMode
+                  ? 'Votre demande reprend son parcours à cette étape, sans repasser par les étapes déjà validées.'
+                  : resubmitMode
+                    ? 'Votre dossier a été renvoyé pour validation. Il repasse par le circuit depuis la première étape.'
+                    : 'Votre dossier a été transmis avec succès pour vérification.'}
               </p>
               <p className="text-xs text-[#64748B] mt-4 max-w-md">
                 Vous pouvez suivre son état d'avancement et sa validation directement dans
@@ -876,10 +917,21 @@ export default function SchemaFormModal({
                 </div>
               </div>
 
+              {stepMode && stepContext.step.comments && (
+                <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                  <div className="text-xs text-amber-200 leading-relaxed">
+                    <span className="font-semibold block">Motif :</span>
+                    {stepContext.step.comments}
+                  </div>
+                </div>
+              )}
+
               {fields.length === 0 ? (
                 <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-200 text-sm">
-                  Ce schéma n'a pas de <code>payloadSchema</code> défini — aucun champ à
-                  afficher.
+                  {stepMode
+                    ? 'Aucun champ à remplir : confirmez pour poursuivre la demande.'
+                    : <>Ce schéma n'a pas de <code>payloadSchema</code> défini — aucun champ à afficher.</>}
                 </div>
               ) : (
                 <div className="space-y-4">{fields.map(renderField)}</div>
@@ -943,7 +995,7 @@ export default function SchemaFormModal({
               <button
                 type="button"
                 onClick={handlePreSubmit}
-                disabled={isLoading || fields.length === 0}
+                disabled={isLoading || (fields.length === 0 && !stepMode)}
                 className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-emerald-500 hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-2 disabled:opacity-50 cursor-pointer"
               >
                 {isLoading ? (
@@ -954,7 +1006,7 @@ export default function SchemaFormModal({
                 ) : (
                   <>
                     <CheckCircle className="w-4 h-4" />
-                    {resubmitMode ? 'Renvoyer mon dossier' : 'Envoyer la demande'}
+                    {stepMode ? 'Envoyer' : resubmitMode ? 'Renvoyer mon dossier' : 'Envoyer la demande'}
                   </>
                 )}
               </button>

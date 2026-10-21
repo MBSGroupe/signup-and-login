@@ -291,6 +291,14 @@ export default function ValidationSchemaDetails() {
             >
               {stepTypeLabel}
             </span>
+            {step.waitForUser && (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border bg-amber-500/10 text-amber-400 border-amber-500/20">
+                Attend le demandeur
+                {Array.isArray(step.payloadSchema) && step.payloadSchema.length > 0
+                  ? ` · ${step.payloadSchema.length} champ${step.payloadSchema.length > 1 ? 's' : ''}`
+                  : ''}
+              </span>
+            )}
           </div>
         </div>
 
@@ -349,6 +357,21 @@ export default function ValidationSchemaDetails() {
               <div>
                 <span className="text-[#64748B]">Description :</span>
                 <span className="text-[#F8FAFC] ml-1">{step.description}</span>
+              </div>
+            </div>
+          )}
+          {step.waitForUser && (
+            <div className="flex items-start gap-2 col-span-full">
+              <FileText className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
+              <div>
+                <span className="text-[#64748B]">Demandeur :</span>
+                <span className="text-[#F8FAFC] ml-1">
+                  {step.userInstructions || 'Aucune instruction'}
+                  {Array.isArray(step.payloadSchema) && step.payloadSchema.length > 0 &&
+                    ` — ${step.payloadSchema
+                      .map((f) => `${f.label || f.name}${f.validation?.required ? ' *' : ''}`)
+                      .join(', ')}`}
+                </span>
               </div>
             </div>
           )}
@@ -898,6 +921,14 @@ export default function ValidationSchemaDetails() {
                 <div className="bg-[#0A0F1C] p-4 rounded-xl border border-[rgba(255,255,255,0.06)]">
                   <span className="text-[#64748B] block">Target Type</span>
                   <span className="text-[#F8FAFC]">{schema.targetType}</span>
+                </div>
+                <div className="bg-[#0A0F1C] p-4 rounded-xl border border-[rgba(255,255,255,0.06)]">
+                  <span className="text-[#64748B] block">Rôles concernés</span>
+                  <span className="text-[#F8FAFC]">
+                    {Array.isArray(schema.targetRoles) && schema.targetRoles.length > 0
+                      ? schema.targetRoles.join(', ')
+                      : 'Tous'}
+                  </span>
                 </div>
                 <div className="bg-[#0A0F1C] p-4 rounded-xl border border-[rgba(255,255,255,0.06)]">
                   <span className="text-[#64748B] block">Tenant</span>

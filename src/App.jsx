@@ -44,6 +44,7 @@ const NewValidationSchema = lazy(() => import("./Pages/DashBoard/Validations/New
 const EditValidationSchema = lazy(() => import("./Pages/DashBoard/Validations/EditValidationSchema"));
 const ValidationSchemaVersions = lazy(() => import("./Pages/DashBoard/Validations/ValidationSchemasVersions"));
 const AllValidationRequests = lazy(() => import("./Pages/DashBoard/Validations/allValidationRequests"));
+const MyValidationRequests = lazy(() => import("./Pages/DashBoard/Validations/MyValidationRequests"));
 const ValidationSchemaDetails = lazy(() => import("./Pages/DashBoard/Validations/ValidationSchemaDetails"));
 const ValidationRequestProgress = lazy(() => import("./Pages/DashBoard/Validations/ValidationRequestsProgress"));
 const AdminsPanel = lazy(() => import("./Pages/DashBoard/Admins/AdminsPanel"));
@@ -127,6 +128,7 @@ export default function App() {
 
         <Route path="validation/requests" element={<ValidationRequestsList />} />
         <Route path="validation/all-requests" element={<AllValidationRequests />} />
+        <Route path="validation/my-requests" element={<MyValidationRequests />} />
         <Route path="validation/requests/:id" element={<ValidationRequestDetail />} />
         
         <Route path="validation/schemas" element={<ValidationSchemasList />} />
