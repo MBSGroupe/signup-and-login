@@ -15,7 +15,14 @@ import CreditTransactionCard from '../Components/Cards/CreditTransactionCard';
 import PaymentCard from '../Components/Cards/PayementCard';
 
 import { fetchWithRefresh } from '../Components/api';
-import { listDocuments, previewDocument, generateDocument, emailDocument } from '../Components/documents';
+import {
+  listDocuments,
+  previewDocument,
+  generateDocument,
+  emailDocument,
+  revokeDocument,
+  reinstateDocument,
+} from '../Components/documents';
 import { wilayaLabel } from '../Utils/wilayas';
 import ProtectedImg from '../Components/ProtectedImg';
 
@@ -66,7 +73,8 @@ const PERMISSION_CHECKS = [
   { key: "fees.update",                   model: "Fee",               operation: "update" },
   { key: "validation.read_user_requests", model: "ValidationRequest", operation: "read_user_requests" },
   { key: "validation.create_request",     model: "ValidationRequest", operation: "create_request" },
-   { key: "pdf.generate",                  model: "Pdf",               operation: "generate" },  
+  { key: "pdf.generate",                  model: "Pdf",               operation: "generate" },
+  { key: "pdf.revoke",                    model: "Pdf",               operation: "revoke" },
 ];
 
 const FOLDER_LABELS = {
@@ -488,6 +496,27 @@ export default function ProfilePage({ user }) {
       showError("Network error. Please try again.");
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  // Certified documents: revocation makes their QR verify as "révoqué".
+  const handleRevokeDocument = async (file, reason) => {
+    try {
+      await revokeDocument(file.id, reason, { token: authData.token, setAuthData });
+      await fetchFiles();
+      showSuccess("Document révoqué");
+    } catch (err) {
+      showError(err.message);
+    }
+  };
+
+  const handleReinstateDocument = async (file) => {
+    try {
+      await reinstateDocument(file.id, { token: authData.token, setAuthData });
+      await fetchFiles();
+      showSuccess("Document rétabli");
+    } catch (err) {
+      showError(err.message);
     }
   };
 
@@ -1143,6 +1172,7 @@ export default function ProfilePage({ user }) {
   const canValidateUserResolved = can("users.validate", isAdmin);
 
   const canGeneratePdf = can("pdf.generate", isAdmin);
+  const canRevokeDocuments = can("pdf.revoke", false);
 
   // Document templates built from a User (degree, situation, any new one).
   const [userDocuments, setUserDocuments] = useState([]);
@@ -1438,6 +1468,9 @@ export default function ProfilePage({ user }) {
                                 canReplace={canUpdateFile}
                                 canDelete={canDeleteFile}
                                 canPreview={true}
+                                canRevoke={canRevokeDocuments}
+                                onRevoke={handleRevokeDocument}
+                                onReinstate={handleReinstateDocument}
                               />
                             ))}
                           </div>

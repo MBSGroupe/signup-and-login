@@ -112,6 +112,34 @@ export async function emailDocument(templateKey, entityId, recipientEmail, auth,
   if (!res.ok) throw new Error(await readError(res, "Échec de l'envoi"));
 }
 
+/** Revoke a certified document (File id): its QR then verifies as "révoqué". */
+export async function revokeDocument(fileId, reason, auth) {
+  const res = await fetchWithRefresh(
+    `${API_URL}/pdf/files/${encodeURIComponent(fileId)}/revoke`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason }),
+    },
+    auth.token,
+    auth.setAuthData,
+  );
+  if (!res.ok) throw new Error(await readError(res, 'Échec de la révocation'));
+  return unwrap(await res.json());
+}
+
+/** Undo a revocation. */
+export async function reinstateDocument(fileId, auth) {
+  const res = await fetchWithRefresh(
+    `${API_URL}/pdf/files/${encodeURIComponent(fileId)}/reinstate`,
+    { method: 'POST' },
+    auth.token,
+    auth.setAuthData,
+  );
+  if (!res.ok) throw new Error(await readError(res, 'Échec du rétablissement'));
+  return unwrap(await res.json());
+}
+
 /** Fetch a stored PDF (absolute URL, or a /storage/… path on the backend). */
 export async function fetchStoredPdf(url, auth) {
   const fullUrl = /^https?:\/\//.test(url) ? url : `${BACKEND_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
