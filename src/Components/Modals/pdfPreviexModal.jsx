@@ -1,8 +1,7 @@
 import { createPortal } from "react-dom";
 import { useEffect, useState } from "react";
 import { FileText, Loader2 } from 'lucide-react';
-import { useModal } from '../../Context/ModalContext';
-import { useError } from '../../Context/ErrorContext';
+import { useEmailDocument } from '../../Hooks/useEmailDocument';
 
 const BTN_PRIMARY =
   "inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg transition-colors shadow-lg shadow-emerald-600/20";
@@ -24,8 +23,7 @@ export default function PDFPreviewModal({
   const [blobUrl, setBlobUrl] = useState(null);
   const [error, setError] = useState(null);
   const [sendingEmail, setSendingEmail] = useState(false);
-  const { prompt } = useModal();
-  const { showSuccess, showError: notifyError } = useError();
+  const sendEmail = useEmailDocument();
 
   let title = data?.title || 'Aperçu du document';
   if (!data?.title && type === 'payment') title = 'Aperçu du reçu de paiement';
@@ -67,26 +65,13 @@ export default function PDFPreviewModal({
     }
   };
 
+  // Always to the member's registered address, after a confirmation that
+  // shows it (useEmailDocument). `onEmail` only enables the button.
   const handleEmail = async () => {
-    if (!onEmail || !data?.userId) return;
-    const defaultEmail = data?.memberEmail || '';
-    const entered = await prompt({
-      title: 'Envoyer par email',
-      message: defaultEmail
-        ? `Adresse du destinataire (laisser vide pour ${defaultEmail}) :`
-        : 'Adresse email du destinataire :',
-      placeholder: defaultEmail || 'nom@exemple.com',
-    });
-    if (entered === null) return;
-    const recipient = entered.trim() || defaultEmail;
-    if (!recipient) return;
+    if (!onEmail || !data?.userId || !data?.templateKey) return;
     setSendingEmail(true);
     try {
-      await onEmail(data.userId, recipient);
-      showSuccess('Email envoyé avec succès');
-    } catch (err) {
-      console.error('Email sending failed:', err);
-      notifyError(err?.message || "Échec de l'envoi de l'email");
+      await sendEmail(data.templateKey, data.userId);
     } finally {
       setSendingEmail(false);
     }

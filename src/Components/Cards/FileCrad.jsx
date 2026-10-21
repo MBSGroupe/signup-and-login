@@ -1,7 +1,6 @@
-import { useState, useRef, useContext } from "react";
-import { UserContext } from "../../Context/dataCont";
-import { useError } from "../../Context/ErrorContext";
-import { useProtectedFileUrl, openProtectedFile } from "../../Hooks/useProtectedFileUrl";
+import { useState, useRef } from "react";
+import { useProtectedFileUrl } from "../../Hooks/useProtectedFileUrl";
+import DocumentViewerModal from "../Modals/DocumentViewerModal";
 
 // ─── Design Tokens ──────────────────────────────────────────────────────────
 
@@ -87,9 +86,9 @@ export default function FileCard({
   const imageFormats = ["jpg", "jpeg", "png", "gif", "svg", "webp", "bmp"];
   const isImage = imageFormats.includes(extension);
 
-  const { authData, setAuthData } = useContext(UserContext);
-  const { showError } = useError();
-  const { src: imageSrc } = useProtectedFileUrl(file.url, isImage);
+  const [viewing, setViewing] = useState(false);
+  const { src: imageSrc, viewOnly: thumbnailViewOnly } = useProtectedFileUrl(file.url, isImage);
+  const blockCopy = (e) => thumbnailViewOnly && e.preventDefault();
 
   const typeLabel = TYPE_LABELS[file.type] || TYPE_LABELS.default;
 
@@ -101,8 +100,8 @@ export default function FileCard({
     return <span className="text-4xl">📁</span>;
   }
 
-  const handlePreview = () =>
-    openProtectedFile(file.url, authData, setAuthData).catch((err) => showError(err.message));
+  // In-app viewer: admins get the watermarked view there, never a file tab.
+  const handlePreview = () => setViewing(true);
   const handleClick = () => inputRef.current.click();
   const handleChange = (e) => {
     const newFile = e.target.files[0];
@@ -147,6 +146,9 @@ export default function FileCard({
             src={imageSrc}
             alt={file.fileName}
             className="w-full h-full object-cover"
+            draggable={!thumbnailViewOnly}
+            onContextMenu={blockCopy}
+            onDragStart={blockCopy}
           />
         ) : (
           <div className="w-full h-full animate-pulse bg-[#1F2937]" />
@@ -265,6 +267,8 @@ export default function FileCard({
           </div>
         </div>
       )}
+
+      {viewing && <DocumentViewerModal file={file} onClose={() => setViewing(false)} />}
     </div>
   );
 } 

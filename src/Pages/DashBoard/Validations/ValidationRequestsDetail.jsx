@@ -113,6 +113,8 @@ export default function ValidationRequestDetail() {
 
   // ── blob URL state for authenticated document previews ─────────
   const [blobUrl, setBlobUrl] = useState(null);
+  // A member's upload seen by an admin arrives as a watermarked image only.
+  const [blobViewOnly, setBlobViewOnly] = useState(false);
   const [blobLoading, setBlobLoading] = useState(false);
   const [blobError, setBlobError] = useState(null);
 
@@ -266,6 +268,7 @@ export default function ValidationRequestDetail() {
     const load = async () => {
       setBlobError(null);
       setBlobUrl(null);
+      setBlobViewOnly(false);
 
       if (!fileUrl) return;
 
@@ -317,6 +320,7 @@ export default function ValidationRequestDetail() {
         const blob = await res.blob();
         if (revoked) return;
         objectUrl = URL.createObjectURL(blob);
+        setBlobViewOnly(res.headers.get('X-Document-View') === 'watermarked');
         setBlobUrl(objectUrl);
       } catch (err) {
         console.error('[ValidationRequestDetail] file fetch failed:', err);
@@ -943,7 +947,7 @@ export default function ValidationRequestDetail() {
                                     <span className="text-xs text-[#64748B]">
                                       {currentDocIndex + 1} / {totalDocs}
                                     </span>
-                                    {blobUrl && (
+                                    {blobUrl && !blobViewOnly && (
                                       <a
                                         href={blobUrl}
                                         target="_blank"
@@ -963,7 +967,20 @@ export default function ValidationRequestDetail() {
                                       <span className="text-xs">Chargement du document…</span>
                                     </div>
                                   ) : blobUrl && !hasError ? (
-                                    isPdf ? (
+                                    blobViewOnly ? (
+                                      <div
+                                        className="w-full h-full overflow-auto select-none"
+                                        onContextMenu={(e) => e.preventDefault()}
+                                      >
+                                        <img
+                                          src={blobUrl}
+                                          alt={`Document ${currentDocIndex + 1}`}
+                                          className="w-full h-auto"
+                                          draggable={false}
+                                          onDragStart={(e) => e.preventDefault()}
+                                        />
+                                      </div>
+                                    ) : isPdf ? (
                                       <iframe
                                         src={blobUrl}
                                         className="w-full h-full"
