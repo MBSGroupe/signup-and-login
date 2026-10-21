@@ -221,6 +221,23 @@ function MultiSelect({ options, value = [], onChange, placeholder, emptyLabel = 
   );
 }
 
+// One reason per line; kept as typed while editing, saved trimmed.
+function ReserveReasonsInput({ reasons, onChange }) {
+  const [text, setText] = useState(() => reasons.join('\n'));
+  return (
+    <textarea
+      rows={4}
+      className={inputCls}
+      value={text}
+      onChange={(e) => {
+        setText(e.target.value);
+        onChange(e.target.value.split('\n').map((r) => r.trim()).filter(Boolean));
+      }}
+      placeholder={'Document Non Conforme aux exigences\nDate de Validité expirée'}
+    />
+  );
+}
+
 // ─── Payload field editor ───────────────────────────────────────────
 function PayloadFieldEditor({ field, onChange, onDelete, stepOptions = [] }) {
   const v = field.validation || {};
@@ -420,6 +437,22 @@ function PayloadFieldEditor({ field, onChange, onDelete, stepOptions = [] }) {
           onChange={(e) => setUi({ placeholder: e.target.value })}
         />
       </div>
+
+      {isFilePayloadField(field) && (
+        <div>
+          <label className={labelCls}>Motifs de réserve (un par ligne)</label>
+          <ReserveReasonsInput
+            reasons={field.review?.reasons || []}
+            onChange={(reasons) =>
+              set({ review: reasons.length ? { ...(field.review || {}), reasons } : undefined })
+            }
+          />
+          <p className="text-xs text-[#64748B] mt-1">
+            Proposés au vérificateur quand il émet une réserve sur ce document
+            (« Autre » est toujours ajouté). Vide = motifs par défaut.
+          </p>
+        </div>
+      )}
 
       {/* ── Application sur entité cible ─────────────────────────── */}
       <div className="pt-3 border-t border-[rgba(255,255,255,0.06)]">

@@ -5,6 +5,7 @@ import { fetchWithRefresh } from '../../../Components/api';
 import { useError } from '../../../Context/ErrorContext';
 import BackButton from '../../../Components/Buttons/BackButton';
 import { resolveStorageUrl } from '../../../Utils/storageUrl';
+import { wilayaLabel } from '../../../Utils/wilayas';
 import {
   Loader2,
   AlertCircle,
@@ -57,6 +58,63 @@ const unwrap = (body) => (body && typeof body === 'object' && 'data' in body && 
 const isFileField = (f) =>
   f?.ui?.widget === 'file' || f?.ui?.widget === 'image' || f?.type === 'file' || f?.type === 'image';
 
+// Member data shown (read-only) on a verification step. Only these
+// fields are visible to the approver; corrections go through a request
+// from the member's own space.
+const MEMBER_SECTIONS = [
+  { label: "CLOA d'exercice", fields: [['region', "CLOA d'exercice"]] },
+  {
+    label: 'Informations personnelles',
+    fields: [
+      ['nin', 'NIN'], ['sexe', 'Civilité'], ['name', 'Nom'], ['lastname', 'Prénom'],
+      ['nomArabe', 'Nom (arabe)'], ['prenomArabe', 'Prénom (arabe)'],
+      ['dateOfBirth', 'Date de naissance'], ['lieuNaissance', 'Lieu de naissance'],
+      ['numeroActeNaissance', "N° d'acte de naissance"], ['wilaya', 'Wilaya'],
+    ],
+  },
+  {
+    label: 'Informations familiales',
+    fields: [
+      ['prenomPere', 'Prénom du père'], ['prenomPereArabe', 'Prénom du père (arabe)'],
+      ['nomPrenomMere', 'Nom et prénom de la mère'], ['nomPrenomMereArabe', 'Nom et prénom de la mère (arabe)'],
+    ],
+  },
+  {
+    label: 'Contact',
+    fields: [['fixe', 'Téléphone fixe'], ['phone', 'Téléphone'], ['email', 'Email'], ['emailPro', 'Email professionnel']],
+  },
+  {
+    label: 'Diplômes universitaires',
+    fields: [
+      ['diplomaType', 'Type de diplôme'], ['sessionClassique', 'Session classique'],
+      ['anneeClassique', 'Année classique'], ['universiteClassique', 'Université classique'],
+    ],
+  },
+  {
+    label: 'Informations professionnelles',
+    fields: [
+      ['registrationNumber', "N° d'inscription"], ['oathDate', 'Date de serment'],
+      ['oathLocation', 'Lieu de serment'], ['professionalMode', "Mode d'exercice"],
+      ['installationDate', "Date d'installation"], ['nif', 'NIF'],
+      ['adressePro', 'Adresse professionnelle'], ['adresseProArabe', 'Adresse professionnelle (arabe)'],
+      ['gps', 'GPS'],
+    ],
+  },
+];
+const RTL_MEMBER_FIELDS = new Set([
+  'nomArabe', 'prenomArabe', 'prenomPereArabe', 'nomPrenomMereArabe', 'adresseProArabe',
+]);
+
+// Reasons offered for a "Réserve" when the schema field defines none.
+const DEFAULT_RESERVE_REASONS = [
+  'Document Non Conforme aux exigences',
+  'Date de Validité expirée',
+];
+const reserveReasonsOf = (field) =>
+  Array.isArray(field?.review?.reasons) && field.review.reasons.length > 0
+    ? field.review.reasons
+    : DEFAULT_RESERVE_REASONS;
+
 // ─── Helper: value typed by the reviewer → value sent to the server ─────
 const toPayloadValue = (field, raw) => {
   if (field.type === 'boolean') return !!raw;
@@ -108,6 +166,11 @@ export default function ValidationRequestDetail() {
   // Reviewer corrections: { main: { field: value }, steps: { [order]: { field: value } } }
   const [payloadEdits, setPayloadEdits] = useState({ main: {}, steps: {} });
   const [savingEdits, setSavingEdits] = useState(false);
+  // Member profile shown read-only next to the request data.
+  const [member, setMember] = useState(null);
+  // Document review on a verification step:
+  // { [stepOrder]: { [docKey]: { decision: 'ok'|'reserve', reasons: [], other: bool, custom: '' } } }
+  const [docReviews, setDocReviews] = useState({});
   const [currentDocIndex, setCurrentDocIndex] = useState(0);
   const [imageErrors, setImageErrors] = useState({});
 
@@ -135,6 +198,29 @@ export default function ValidationRequestDetail() {
         setRequest(reqData);
         setCurrentDocIndex(0);
         setImageErrors({});
+
+        // The member concerned: the target user, or a file's owner.
+        const target = reqData?.targetId;
+        const memberId =
+          reqData?.targetType === 'User' ? target?.id || target
+          : reqData?.targetType === 'File' ? target?.ownerId
+          : null;
+        if (memberId) {
+          try {
+            const userRes = await fetchWithRefresh(
+              `${API_URL}/users/${memberId}`,
+              { method: 'GET' },
+              authData.token,
+              setAuthData,
+            );
+            if (userRes.ok) {
+              const userBody = unwrap(await userRes.json());
+              setMember(userBody?.user || userBody);
+            }
+          } catch (memberErr) {
+            console.error('Failed to load the member profile', memberErr);
+          }
+        }
       } catch (err) {
         console.error('Failed to load validation request:', err);
         setError(
@@ -205,51 +291,40 @@ export default function ValidationRequestDetail() {
       })),
   ];
 
-  const declarationFiles = dataSections
-    .flatMap((section) =>
-      section.fields.filter(isFileField).map((f) => ({
-        f: section.stepOrder == null ? f : { ...f, label: `${section.label} — ${f.label || f.name}` },
+  // Every document field the requester filled (main form + step forms):
+  // one entry per field, reviewed as a whole even with several files.
+  const docFields = dataSections.flatMap((section) =>
+    section.fields
+      .filter(isFileField)
+      .filter((f) => {
+        const raw = section.data[f.name];
+        return !(raw === undefined || raw === null || raw === '' || (Array.isArray(raw) && raw.length === 0));
+      })
+      .map((f) => ({
+        key: `${section.key}:${f.name}`,
+        field: f,
+        label: section.stepOrder == null ? f.label || f.name : `${section.label} — ${f.label || f.name}`,
         raw: section.data[f.name],
       })),
-    )
-    .map(({ f, raw }) => {
-      if (raw === undefined || raw === null || raw === '') return null;
+  );
 
-      // Array of files
-      if (Array.isArray(raw)) {
-        return raw.map((item, i) => {
-          const obj = typeof item === 'object' && item !== null
-            ? item
-            : { fileId: String(item) };
-          return {
-            ...obj,
-            label: f.label || f.name,
-            fieldName: f.name,
-            fileName: obj.name || obj.fileName || `${f.label || f.name} ${i + 1}`,
-          };
-        });
-      }
-
-      // Resolved object
-      if (typeof raw === 'object') {
-        return {
-          ...raw,
-          label: f.label || f.name,
-          fieldName: f.name,
-          fileName: raw.name || raw.fileName || f.label || f.name,
-        };
-      }
-
-      // Legacy bare string ID
-      return {
-        fileId: String(raw),
-        label: f.label || f.name,
-        fieldName: f.name,
-        fileName: f.label || f.name,
-      };
-    })
-    .filter(Boolean)
-    .flat();
+  // Flat list of files for the viewer.
+  const declarationFiles = docFields.flatMap(({ key, field, label, raw }) => {
+    const base = { label, fieldName: field.name, docKey: key };
+    // Array of files
+    if (Array.isArray(raw)) {
+      return raw.map((item, i) => {
+        const obj = typeof item === 'object' && item !== null ? item : { fileId: String(item) };
+        return { ...obj, ...base, fileName: obj.name || obj.fileName || `${label} ${i + 1}` };
+      });
+    }
+    // Resolved object
+    if (typeof raw === 'object') {
+      return [{ ...raw, ...base, fileName: raw.name || raw.fileName || label }];
+    }
+    // Legacy bare string ID
+    return [{ fileId: String(raw), ...base, fileName: label }];
+  });
 
   const totalDocs = declarationFiles.length;
   const currentFile = totalDocs > 0 ? declarationFiles[currentDocIndex] : null;
@@ -386,8 +461,9 @@ export default function ValidationRequestDetail() {
   // Reads backend errors (already-treated step, permission failure,
   // validation failure) and surfaces them to the user, then refetches
   // so the UI reflects the true state.
-  const handleStepAction = async (stepOrder, action) => {
-    const comment = comments[stepOrder] || '';
+  // `text` = comment built by the document review (otherwise the dropdown's).
+  const handleStepAction = async (stepOrder, action, text = null) => {
+    const comment = text ?? (comments[stepOrder] || '');
     if (!comment && action !== 'skip') {
       showWarning('Veuillez ajouter un commentaire');
       return;
@@ -436,6 +512,7 @@ export default function ValidationRequestDetail() {
 
       setComments(prev => ({ ...prev, [stepOrder]: '' }));
       setIsCustomComment(prev => ({ ...prev, [stepOrder]: false }));
+      setDocReviews(prev => ({ ...prev, [stepOrder]: {} }));
     } catch (err) {
       console.error('Error during step action:', err);
       showError(
@@ -795,6 +872,217 @@ export default function ValidationRequestDetail() {
     );
   };
 
+  // Member profile, read-only: only the fields an approver may see.
+  const renderMemberPanel = () => {
+    if (!member) return null;
+    const display = (name, value) => {
+      if (value === undefined || value === null || value === '') return null;
+      if (name === 'region' || name === 'wilaya') return wilayaLabel(value, null);
+      if (name === 'sexe') return value === 'M' ? 'Homme' : value === 'F' ? 'Femme' : value;
+      return renderScalarValue(value);
+    };
+    const sections = MEMBER_SECTIONS.map((section) => ({
+      ...section,
+      rows: section.fields
+        .map(([name, label]) => ({ name, label, value: display(name, member[name]) }))
+        .filter((row) => row.value !== null && row.value !== '-'),
+    })).filter((section) => section.rows.length > 0);
+    if (sections.length === 0) return null;
+
+    return (
+      <div className="bg-[#0A0F1C] rounded-xl border border-[rgba(255,255,255,0.06)] p-4">
+        <h6 className="text-xs font-semibold text-[#94A3B8] uppercase tracking-wider mb-2 flex items-center gap-2">
+          <User className="w-4 h-4 text-emerald-400" />
+          Informations du membre
+        </h6>
+        <p className="text-[11px] text-amber-300/90 mb-3">
+          Lecture seule — toute correction ou modification doit faire l'objet d'une demande via
+          l'espace membre.
+        </p>
+        <div className="space-y-4">
+          {sections.map((section) => (
+            <div key={section.label}>
+              <p className="text-xs font-semibold text-emerald-400 mb-1.5">{section.label}</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
+                {section.rows.map((row) => {
+                  const rtl = RTL_MEMBER_FIELDS.has(row.name);
+                  return (
+                    <div key={row.name} className="text-sm">
+                      <span className="text-[#64748B] text-xs block">{row.label}</span>
+                      <span className={`text-[#F8FAFC] ${rtl ? 'block text-right' : ''}`} dir={rtl ? 'rtl' : 'ltr'}>
+                        {row.value}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  // ─── Document review (verification step) ─────────────────────────
+  const reviewOf = (stepOrder, key) => docReviews[stepOrder]?.[key] || null;
+
+  const setReview = (stepOrder, key, patch) =>
+    setDocReviews((prev) => {
+      const current = prev[stepOrder]?.[key] || { decision: null, reasons: [], other: false, custom: '' };
+      return { ...prev, [stepOrder]: { ...(prev[stepOrder] || {}), [key]: { ...current, ...patch } } };
+    });
+
+  const toggleReason = (stepOrder, key, reason) => {
+    const reasons = reviewOf(stepOrder, key)?.reasons || [];
+    setReview(stepOrder, key, {
+      reasons: reasons.includes(reason) ? reasons.filter((r) => r !== reason) : [...reasons, reason],
+    });
+  };
+
+  // What the reviewer decided for this step, and the comment it produces.
+  const reviewSummary = (stepOrder) => {
+    const rows = docFields.map((doc) => ({ doc, review: reviewOf(stepOrder, doc.key) }));
+    const undecided = rows.filter(({ review }) => !review?.decision);
+    const reserves = rows.filter(({ review }) => review?.decision === 'reserve');
+    const incomplete = reserves.filter(
+      ({ review }) => review.reasons.length === 0 && !(review.other && review.custom.trim()),
+    );
+    const lines = reserves.map(({ doc, review }) => {
+      const motifs = [...review.reasons, ...(review.other && review.custom.trim() ? [review.custom.trim()] : [])];
+      return `- ${doc.label} : ${motifs.join(' ; ')}`;
+    });
+    return {
+      ready: undecided.length === 0 && incomplete.length === 0,
+      undecided: undecided.length,
+      incomplete: incomplete.length,
+      hasReserve: reserves.length > 0,
+      comment:
+        reserves.length > 0
+          ? `Réserves :\n${lines.join('\n')}`
+          : 'Tous les documents sont conformes.',
+    };
+  };
+
+  const goToDoc = (key) => {
+    const index = declarationFiles.findIndex((f) => f.docKey === key);
+    if (index !== -1) setCurrentDocIndex(index);
+  };
+
+  const renderDocReview = (step) => {
+    const summary = reviewSummary(step.order);
+    return (
+      <div className="space-y-3">
+        <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">
+          Contrôle des documents <span className="text-rose-400">*</span>
+        </label>
+        {docFields.map((doc) => {
+          const review = reviewOf(step.order, doc.key);
+          const reasons = reserveReasonsOf(doc.field);
+          return (
+            <div key={doc.key} className="p-3 bg-[#0A0F1C] rounded-xl border border-[rgba(255,255,255,0.06)]">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => goToDoc(doc.key)}
+                  className="text-sm font-semibold text-[#F8FAFC] hover:text-emerald-400 text-left"
+                  title="Afficher ce document"
+                >
+                  {doc.label}
+                </button>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setReview(step.order, doc.key, { decision: 'ok' })}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                      review?.decision === 'ok'
+                        ? 'bg-emerald-500 text-white border-emerald-500'
+                        : 'text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/10'
+                    }`}
+                  >
+                    Conforme
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setReview(step.order, doc.key, { decision: 'reserve' })}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                      review?.decision === 'reserve'
+                        ? 'bg-rose-500 text-white border-rose-500'
+                        : 'text-rose-400 border-rose-500/40 hover:bg-rose-500/10'
+                    }`}
+                  >
+                    Réserve
+                  </button>
+                </div>
+              </div>
+
+              {review?.decision === 'reserve' && (
+                <div className="mt-3 space-y-1.5 pl-1">
+                  {reasons.map((reason) => (
+                    <label key={reason} className="flex items-center gap-2 text-sm text-[#CBD5E1]">
+                      <input
+                        type="checkbox"
+                        checked={review.reasons.includes(reason)}
+                        onChange={() => toggleReason(step.order, doc.key, reason)}
+                        className="w-4 h-4 accent-rose-500"
+                      />
+                      {reason}
+                    </label>
+                  ))}
+                  <label className="flex items-center gap-2 text-sm text-[#CBD5E1]">
+                    <input
+                      type="checkbox"
+                      checked={review.other}
+                      onChange={(e) => setReview(step.order, doc.key, { other: e.target.checked })}
+                      className="w-4 h-4 accent-rose-500"
+                    />
+                    Autre (commentaire personnalisé)
+                  </label>
+                  {review.other && (
+                    <textarea
+                      rows={2}
+                      value={review.custom}
+                      onChange={(e) => setReview(step.order, doc.key, { custom: e.target.value })}
+                      placeholder="Précisez la réserve…"
+                      className="w-full px-3 py-2 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/40 resize-y"
+                    />
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {!summary.ready && (
+          <p className="text-xs text-[#64748B]">
+            {summary.undecided > 0
+              ? `${summary.undecided} document(s) à contrôler.`
+              : 'Indiquez au moins un motif pour chaque réserve.'}
+          </p>
+        )}
+
+        <div className="flex flex-wrap gap-3">
+          {summary.hasReserve ? (
+            <button
+              onClick={() => handleStepAction(step.order, 'reject', summary.comment)}
+              disabled={actionLoading || !summary.ready}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white rounded-xl shadow-lg shadow-rose-500/20 transition-all text-sm font-medium disabled:opacity-50"
+            >
+              <ThumbsDown className="w-4 h-4" /> Envoyer
+            </button>
+          ) : (
+            <button
+              onClick={() => handleStepAction(step.order, 'approve', summary.comment)}
+              disabled={actionLoading || !summary.ready}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl shadow-lg shadow-emerald-500/20 transition-all text-sm font-medium disabled:opacity-50"
+            >
+              <ThumbsUp className="w-4 h-4" /> Approuver et envoyer
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-[#0A0F1C] p-6 md:p-8 ml-[30px] mt-16">
       <div className="max-w-7xl mx-auto">
@@ -919,14 +1207,17 @@ export default function ValidationRequestDetail() {
                           : 'Dossier & données de la demande'}
                       </h5>
                       {(() => {
-                        // Verification: data (editable) left, documents right.
-                        // Validation: documents, or the data when there are none.
+                        // Left: request data (always editable) and, on a
+                        // verification, the member's profile (read-only).
+                        // Right: the documents.
                         const isVerification = stepType === 'verification';
-                        const showData = isVerification || totalDocs === 0;
                         const showDocs = isVerification || totalDocs > 0;
                         return (
-                        <div className={`grid grid-cols-1 gap-6 ${showData && showDocs ? 'md:grid-cols-2' : ''}`}>
-                          {showData && renderDataPanel(isVerification)}
+                        <div className={`grid grid-cols-1 gap-6 ${showDocs ? 'md:grid-cols-2' : ''}`}>
+                          <div className="space-y-4">
+                            {renderDataPanel(true)}
+                            {isVerification && renderMemberPanel()}
+                          </div>
                           {showDocs && (
                           <div className="bg-[#0A0F1C] rounded-xl border border-[rgba(255,255,255,0.06)] p-4">
                             <h6 className="text-xs font-semibold text-[#94A3B8] uppercase tracking-wider mb-3">
@@ -1059,6 +1350,10 @@ export default function ValidationRequestDetail() {
                     </div>
 
                     <div className="mt-4 pt-4 border-t border-[rgba(255,255,255,0.06)]">
+                      {/* Verification with documents: one decision per document. */}
+                      {stepType === 'verification' && docFields.length > 0 ? (
+                        renderDocReview(step)
+                      ) : (
                       <div className="space-y-3">
                         <div>
                           <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider mb-1.5">
@@ -1115,6 +1410,7 @@ export default function ValidationRequestDetail() {
                           </button>
                         </div>
                       </div>
+                      )}
                     </div>
                   </>
                 )}
