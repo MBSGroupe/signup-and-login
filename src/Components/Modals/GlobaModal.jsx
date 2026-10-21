@@ -42,7 +42,7 @@ export default function GlobalModal({
             <h3 className="text-xl font-bold text-[#F8FAFC] tracking-tight">
               {title}
             </h3>
-            <p className="mt-2 text-[#94A3B8] text-sm leading-relaxed">
+            <p className="mt-2 text-[#94A3B8] text-sm leading-relaxed whitespace-pre-line">
               {message}
             </p>
           </div>

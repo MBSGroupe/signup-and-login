@@ -461,7 +461,15 @@ function PayloadFieldEditor({ field, onChange, onDelete, stepOptions = [] }) {
                 <select
                   className={inputCls}
                   value={strategy}
-                  onChange={(e) => setApp({ strategy: e.target.value })}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    // 'on_step' needs a step: store the one the dropdown shows.
+                    if (next === 'on_step' && typeof app.stepOrder !== 'number') {
+                      setApp({ strategy: next, stepOrder: stepOptions[0]?.value ?? 1 });
+                    } else {
+                      setApp({ strategy: next });
+                    }
+                  }}
                 >
                   {PAYLOAD_STRATEGIES.map((s) => (
                     <option key={s.value} value={s.value}>{s.label}</option>
@@ -473,7 +481,7 @@ function PayloadFieldEditor({ field, onChange, onDelete, stepOptions = [] }) {
                   <label className={labelCls}>Numéro d'étape</label>
                   <select
                     className={inputCls}
-                    value={app.stepOrder ?? 1}
+                    value={app.stepOrder ?? stepOptions[0]?.value ?? 1}
                     onChange={(e) =>
                       setApp({ stepOrder: parseInt(e.target.value, 10) || 1 })
                     }
@@ -1393,10 +1401,20 @@ export default function ValidationSchemaForm({
       }
 
       // Step-form settings only travel with steps that wait for the requester.
+      // An 'on_step' field saved without a step gets the one its dropdown
+      // showed (the first offered step).
+      const withStepOrder = (fields, defaultOrder) =>
+        (fields || []).map((f) =>
+          f.application?.strategy === 'on_step' && typeof f.application.stepOrder !== 'number'
+            ? { ...f, application: { ...f.application, stepOrder: defaultOrder } }
+            : f,
+        );
+      const firstOrder = formData.steps[0]?.order ?? 1;
+
       const REQUESTER_KEYS = ['payloadSchema', 'userInstructions', 'userTimeout', 'waitForUser'];
       const cleanSteps = formData.steps.map((s) =>
         s.waitForUser
-          ? s
+          ? { ...s, payloadSchema: withStepOrder(s.payloadSchema, s.order) }
           : Object.fromEntries(Object.entries(s).filter(([k]) => !REQUESTER_KEYS.includes(k))),
       );
 
@@ -1432,7 +1450,7 @@ export default function ValidationSchemaForm({
         targetRoles: formData.targetRoles,
         name: formData.name.trim(),
         description: formData.description?.trim() || undefined,
-        payloadSchema: formData.payloadSchema,
+        payloadSchema: withStepOrder(formData.payloadSchema, firstOrder),
         steps: cleanSteps,
         onApproval: formData.onApproval.length ? formData.onApproval : null,
         onRejection: formData.onRejection.length ? formData.onRejection : null,
@@ -1453,7 +1471,9 @@ export default function ValidationSchemaForm({
 
       const body = await res.json().catch(() => ({}));
       if (!res.ok || body.success === false) {
-        throw new Error(body.message || `Erreur (${res.status})`);
+        // The server sends field-by-field errors as a list: one per line.
+        const message = Array.isArray(body.message) ? body.message.join('\n') : body.message;
+        throw new Error(message || `Erreur (${res.status})`);
       }
 
       if (onSuccess) onSuccess(unwrap(body));
