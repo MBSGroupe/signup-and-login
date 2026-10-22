@@ -311,6 +311,7 @@ export default function MyValidationRequests() {
         schema={modal?.schema || null}
         stepContext={modal?.stepContext || null}
         user={authData?.user}
+        viewerIsAdmin
       />
     </div>
   );

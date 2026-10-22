@@ -2087,6 +2087,7 @@ export default function ProfilePage({ user }) {
         user={displayUser}
         validationRequests={validationRequests}
         stepContext={stepFormContext}
+        viewerIsAdmin={authData?.user?.type === 'admin'}
       />
 
       {pdfPreview.isOpen  && (

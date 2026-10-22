@@ -20,6 +20,10 @@ import {
   unwrap,
 } from '../Api/uploadValidationFile';
 import DocumentUploadSlot from './DocumentUploadSlot';
+import { WILAYA_OPTIONS, wilayaLabel } from '../../Utils/wilayas';
+
+// Fields holding a wilaya code: shown by name, chosen from the list.
+const WILAYA_FIELDS = new Set(['region', 'wilaya']);
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
@@ -119,9 +123,13 @@ export default function SchemaFormModal({
   // Step mode: the requester fills the form of a step waiting for them.
   // { requestId, step, previousData } — previousData prefills a resend.
   stepContext = null,
+  // Profile fields (marked `profileField` by the server) are read-only for
+  // a member — the server takes them from the profile — and editable for an admin.
+  viewerIsAdmin = false,
 }) {
   const { showSuccess } = useError();
   const stepMode = !!stepContext?.step;
+  const isLockedProfileField = (f) => !!f?.profileField && !viewerIsAdmin;
 
   const fields = useMemo(() => {
     const arr = stepMode ? stepContext.step.payloadSchema : schema?.payloadSchema;
@@ -314,6 +322,8 @@ export default function SchemaFormModal({
         continue;
       }
 
+      // Filled from the profile by the server.
+      if (isLockedProfileField(field)) continue;
       const err = validateField(field, values[field.name]);
       if (err) errors.push(err);
     }
@@ -525,6 +535,51 @@ export default function SchemaFormModal({
     const requiredMark = validation.required ? (
       <span className="text-rose-400 font-bold"> *</span>
     ) : null;
+
+    // ── profile data, read-only for the member ──
+    if (isLockedProfileField(field)) {
+      const raw = values[name];
+      const shown =
+        raw === undefined || raw === null || raw === ''
+          ? '—'
+          : WILAYA_FIELDS.has(name) ? wilayaLabel(raw) : String(raw);
+      return (
+        <div key={name}>
+          <label className="block text-xs font-semibold uppercase tracking-wider text-[#94A3B8] mb-2">
+            {displayLabel}
+          </label>
+          <div className="w-full px-4 py-3 bg-[#0A0F1C]/60 border border-white/5 rounded-xl text-[#94A3B8] cursor-not-allowed">
+            {shown}
+          </div>
+          <p className="text-[11px] text-[#64748B] mt-1">
+            Repris de votre profil — pour le corriger, faites une demande de modification.
+          </p>
+        </div>
+      );
+    }
+
+    // ── wilaya code → list of wilayas ──
+    if (WILAYA_FIELDS.has(name)) {
+      return (
+        <div key={name}>
+          <label className="block text-xs font-semibold uppercase tracking-wider text-[#94A3B8] mb-2">
+            {displayLabel}
+            {requiredMark}
+          </label>
+          <select
+            value={values[name] ?? ''}
+            onChange={(e) => setFieldValue(name, e.target.value)}
+            disabled={isLoading}
+            className="w-full px-4 py-3 bg-[#0A0F1C] border border-white/10 rounded-xl text-white outline-none focus:border-emerald-500 transition-all"
+          >
+            <option value="">— Sélectionner —</option>
+            {WILAYA_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        </div>
+      );
+    }
 
     // ── file field ──
     if (isFileField(field)) {

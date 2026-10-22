@@ -5,7 +5,7 @@ import { fetchWithRefresh } from '../../../Components/api';
 import { useError } from '../../../Context/ErrorContext';
 import BackButton from '../../../Components/Buttons/BackButton';
 import { resolveStorageUrl } from '../../../Utils/storageUrl';
-import { wilayaLabel } from '../../../Utils/wilayas';
+import { WILAYA_OPTIONS, wilayaLabel } from '../../../Utils/wilayas';
 import {
   Loader2,
   AlertCircle,
@@ -760,10 +760,23 @@ export default function ValidationRequestDetail() {
     const onChange = (v) => setSectionEdit(section, field.name, v);
     const enumValues = Array.isArray(field.validation?.enum) ? field.validation.enum : null;
 
+    const isWilaya = field.name === 'region' || field.name === 'wilaya';
+
     let control;
     if (!editable || field.type === 'json') {
       control = (
-        <span className="text-sm text-[#F8FAFC] font-medium break-words">{renderScalarValue(value)}</span>
+        <span className="text-sm text-[#F8FAFC] font-medium break-words">
+          {isWilaya && value ? wilayaLabel(value) : renderScalarValue(value)}
+        </span>
+      );
+    } else if (isWilaya) {
+      control = (
+        <select value={value ?? ''} onChange={(e) => onChange(e.target.value)} className={inputCls}>
+          <option value="">—</option>
+          {WILAYA_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
       );
     } else if (field.type === 'boolean') {
       control = (
