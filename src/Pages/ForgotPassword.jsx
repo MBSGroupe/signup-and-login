@@ -7,7 +7,8 @@ const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const COOLDOWN_MS = 60_000; // 1 minute between requests
 
-export default function ForgotPassword() {
+// `admin` → admin account (from /adminlogin); same reset link and page as users.
+export default function ForgotPassword({ admin = false }) {
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -43,7 +44,7 @@ export default function ForgotPassword() {
 
     setIsSubmitting(true);
     try {
-      const response = await fetch(`${NEST_API_URL}/auth/forgot-password`, {
+      const response = await fetch(`${NEST_API_URL}/auth/${admin ? "admin/" : ""}forgot-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: trimmed }),
@@ -83,7 +84,7 @@ export default function ForgotPassword() {
     <div className="min-h-screen bg-[#0A0F1C] flex items-center justify-center p-6">
       <div className="w-full max-w-md">
         <Link
-          to="/"
+          to={admin ? "/adminlogin" : "/"}
           className="inline-flex items-center gap-2 text-[#94A3B8] hover:text-emerald-400 mb-4"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -91,7 +92,9 @@ export default function ForgotPassword() {
         </Link>
 
         <div className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] p-8">
-          <h1 className="text-2xl font-bold text-[#F8FAFC] mb-2">Mot de passe oublié</h1>
+          <h1 className="text-2xl font-bold text-[#F8FAFC] mb-2">
+            Mot de passe oublié{admin && " — administrateur"}
+          </h1>
           <p className="text-[#94A3B8] text-sm mb-6">
             Entrez votre email et nous vous enverrons un lien de réinitialisation.
           </p>

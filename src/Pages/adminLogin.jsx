@@ -1,6 +1,6 @@
 // pages/Auth/AdminLogin.jsx
 import { useState, useEffect, useContext } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { UserContext } from "../Context/dataCont";
 import {
   Mail,
@@ -366,6 +366,15 @@ const AdminLogin = () => {
                     </>
                   )}
                 </button>
+
+                <div className="text-center">
+                  <Link
+                    to="/admin/forgot-password"
+                    className="text-xs font-mono text-emerald-400 hover:underline"
+                  >
+                    Mot de passe oublié ?
+                  </Link>
+                </div>
               </form>
 
               {/* Message */}
