@@ -181,6 +181,31 @@ export default function ValidationRequestDetail() {
   const [blobLoading, setBlobLoading] = useState(false);
   const [blobError, setBlobError] = useState(null);
 
+  // The member concerned (target user, or a file's owner), shown read-only.
+  // Reloaded after a step decision: profile corrections apply then.
+  const loadMember = async (reqData) => {
+    const target = reqData?.targetId;
+    const memberId =
+      reqData?.targetType === 'User' ? target?.id || target
+      : reqData?.targetType === 'File' ? target?.ownerId
+      : null;
+    if (!memberId) return;
+    try {
+      const userRes = await fetchWithRefresh(
+        `${API_URL}/users/${memberId}`,
+        { method: 'GET' },
+        authData.token,
+        setAuthData,
+      );
+      if (userRes.ok) {
+        const userBody = unwrap(await userRes.json());
+        setMember(userBody?.user || userBody);
+      }
+    } catch (memberErr) {
+      console.error('Failed to load the member profile', memberErr);
+    }
+  };
+
   useEffect(() => {
     const fetchRequest = async () => {
       setLoading(true);
@@ -199,28 +224,7 @@ export default function ValidationRequestDetail() {
         setCurrentDocIndex(0);
         setImageErrors({});
 
-        // The member concerned: the target user, or a file's owner.
-        const target = reqData?.targetId;
-        const memberId =
-          reqData?.targetType === 'User' ? target?.id || target
-          : reqData?.targetType === 'File' ? target?.ownerId
-          : null;
-        if (memberId) {
-          try {
-            const userRes = await fetchWithRefresh(
-              `${API_URL}/users/${memberId}`,
-              { method: 'GET' },
-              authData.token,
-              setAuthData,
-            );
-            if (userRes.ok) {
-              const userBody = unwrap(await userRes.json());
-              setMember(userBody?.user || userBody);
-            }
-          } catch (memberErr) {
-            console.error('Failed to load the member profile', memberErr);
-          }
-        }
+        await loadMember(reqData);
       } catch (err) {
         console.error('Failed to load validation request:', err);
         setError(
@@ -509,6 +513,8 @@ export default function ValidationRequestDetail() {
       } else {
         await refetchRequest();
       }
+      // Pending profile corrections were applied with the decision.
+      await loadMember(request);
 
       setComments(prev => ({ ...prev, [stepOrder]: '' }));
       setIsCustomComment(prev => ({ ...prev, [stepOrder]: false }));
@@ -827,6 +833,15 @@ export default function ValidationRequestDetail() {
           {field.validation?.required && <span className="text-rose-400"> *</span>}
         </span>
         {control}
+        {field.profileField && (
+          <span className="text-[11px] block mt-1 text-[#64748B]">
+            {Object.prototype.hasOwnProperty.call(request?.payload?._pendingProfileUpdates || {}, field.name)
+              ? <span className="text-amber-300">Correction appliquée au profil à la décision de l'étape</span>
+              : editable
+                ? 'Donnée du profil — une correction met aussi à jour le profil'
+                : 'Donnée du profil'}
+          </span>
+        )}
       </div>
     );
   };
