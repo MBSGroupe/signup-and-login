@@ -53,7 +53,6 @@ export default function ChangeAdminRole() {
   const navigate = useNavigate();
   const { authData, setAuthData } = useContext(UserContext);
   const { showError, showSuccess } = useError();
-  const viewerId = authData?.user?.id;
 
   const [target, setTarget] = useState(null);
   const [roles, setRoles] = useState([]);
@@ -68,28 +67,18 @@ export default function ChangeAdminRole() {
 
   // ─── Load target, roles and permission ───────────────────────
   useEffect(() => {
-    if (!authData?.token || !id || !viewerId) return;
+    if (!authData?.token || !id) return;
     let cancelled = false;
 
     (async () => {
       setLoading(true);
       setLoadError("");
       try {
-        const [aRes, rRes, pRes] = await Promise.all([
+        const [aRes, rRes] = await Promise.all([
           fetchWithRefresh(`${NEST_API_URL}/admins/${id}`, { method: "GET" }, authData.token, setAuthData),
           fetchWithRefresh(`${NEST_API_URL}/roles`, { method: "GET" }, authData.token, setAuthData),
-          fetchWithRefresh(
-            `${NEST_API_URL}/permissions/${viewerId}/check-operation`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ operation: "change_role", model: "Admin" }),
-            },
-            authData.token,
-            setAuthData,
-          ),
         ]);
-        const [aBody, rBody, pBody] = await Promise.all([aRes.json(), rRes.json(), pRes.json()]);
+        const [aBody, rBody] = await Promise.all([aRes.json(), rRes.json()]);
         if (cancelled) return;
 
         const a = unwrap(aBody);
@@ -101,7 +90,8 @@ export default function ChangeAdminRole() {
         setTarget(found);
         setRoleId(found.roleId ?? found.role?.id ?? "");
         setRoles(extractRoles(rBody));
-        setCanChange(Boolean((pBody?.data || pBody)?.canPerform));
+        // The target's own allowedActions (schema + backend rules).
+        setCanChange(found.allowedActions?.change_role === true);
       } catch (err) {
         if (!cancelled) setLoadError(err?.message || "Erreur réseau");
       } finally {
@@ -112,7 +102,7 @@ export default function ChangeAdminRole() {
     return () => {
       cancelled = true;
     };
-  }, [id, viewerId, authData?.token, setAuthData]);
+  }, [id, authData?.token, setAuthData]);
 
   // Roles of the admin's own grade only (also enforced server side).
   const gradeRoles = useMemo(

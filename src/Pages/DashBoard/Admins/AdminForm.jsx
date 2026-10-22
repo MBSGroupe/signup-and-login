@@ -91,12 +91,12 @@ const DEFAULT_CREATE_FIELDS = [
 
 const DEFAULT_EDIT_FIELDS = [
   "name", "lastname", "email",
-  "region", "wilaya", "commune", "isActive",
+  "region", "wilaya", "commune",
 ];
 
-// Grade and role are set at creation; afterwards they only change through
-// the dedicated change-role page (/dash/admins/:id/change-role).
-const CREATE_ONLY_FIELDS = ["grade", "roleId"];
+// Grade, role and status are set at creation; afterwards they only change
+// through their dedicated actions (change-role page, activate/deactivate).
+const CREATE_ONLY_FIELDS = ["grade", "roleId", "isActive"];
 
 // ────────────────────────────────────────────────────────────────
 //  Helpers
@@ -126,7 +126,7 @@ function extractRoles(body) {
 export default function AdminForm({ mode }) {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { authData, setAuthData } = useContext(UserContext);
+  const { authData, setAuthData, canDo, permissionsLoaded } = useContext(UserContext);
   const viewerId = authData?.user?.id || authData?.user?._id;
 
   const isCreate = mode === "create" || !id;
@@ -159,7 +159,8 @@ export default function AdminForm({ mode }) {
 
   // ── Load: roles + permissions + field set + (edit) target admin ──
   useEffect(() => {
-    if (!authData?.token || !viewerId) return;
+    // Create access comes from the cached permissions — wait for them.
+    if (!authData?.token || !viewerId || !permissionsLoaded) return;
     let cancelled = false;
 
     const load = async () => {
@@ -193,34 +194,32 @@ export default function AdminForm({ mode }) {
       }
 
       // ───────────────────────────────────────────────────────────
-      // 2. Permission check
+      // 2. Permission check — create: cached GET /permissions/me;
+      //    edit: the admin's own allowedActions (GET /admins/:id).
+      //    Backend shape (nested): { success, data: { admin: {...} } }
       // ───────────────────────────────────────────────────────────
-      try {
-        const op = isCreate ? "create" : "update";
-        const canRes = await fetchWithRefresh(
-          `${NEST_API_URL}/permissions/${viewerId}/check-operation`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ operation: op, model: "Admin" }),
-          },
-          authData.token,
-          setAuthData,
-        );
-        const canBody = await canRes.json();
-        const allowed = Boolean(canBody?.data?.canPerform);
-        if (cancelled) return;
-        setCan(allowed);
-        if (!allowed) {
-          setLoading(false);
-          return;
+      let target = null;
+      if (!isCreate) {
+        try {
+          const aRes = await fetchWithRefresh(
+            `${NEST_API_URL}/admins/${id}`,
+            { method: "GET" },
+            authData.token,
+            setAuthData,
+          );
+          const aBody = await aRes.json();
+          target = aRes.ok ? aBody?.data?.admin ?? null : null;
+        } catch (err) {
+          console.error("Failed to load admin:", err);
         }
-      } catch (err) {
-        console.error("Permission check failed:", err);
-        if (!cancelled) {
-          setCan(false);
-          setLoading(false);
-        }
+      }
+      const allowed = isCreate
+        ? canDo("Admin", "create")
+        : target?.allowedActions?.update === true;
+      if (cancelled) return;
+      setCan(allowed);
+      if (!allowed) {
+        setLoading(false);
         return;
       }
 
@@ -261,43 +260,22 @@ export default function AdminForm({ mode }) {
       }
 
       // ───────────────────────────────────────────────────────────
-      // 4. On edit, load the admin's current data
-      //    Backend shape (nested): { success, data: { admin: {...} } }
+      // 4. On edit, fill the form with the admin loaded in step 2
       // ───────────────────────────────────────────────────────────
-      if (!isCreate) {
-        try {
-          const aRes = await fetchWithRefresh(
-            `${NEST_API_URL}/admins/${id}`,
-            { method: "GET" },
-            authData.token,
-            setAuthData,
-          );
-          const aBody = await aRes.json();
-
-          // Keep the nested shape: data.admin
-          const a = aBody?.data?.admin;
-
-          if (aRes.ok && a && !cancelled) {
-            setFormData((prev) => ({
-              ...prev,
-              name: a.name ?? "",
-              lastname: a.lastname ?? "",
-              email: a.email ?? "",
-              grade: a.grade ?? "admin",
-              roleId: a.roleId ?? a.role?.id ?? "",
-              region: a.region ?? "",
-              wilaya: a.wilaya ?? "",
-              commune: a.commune ?? "",
-              isActive: a.isActive !== false,
-            }));
-          }
-        } catch (err) {
-          console.error("Failed to load admin:", err);
-          if (!cancelled) {
-            setIsError(true);
-            setMessage("Impossible de charger les données de l'administrateur.");
-          }
-        }
+      if (!isCreate && target && !cancelled) {
+        const a = target;
+        setFormData((prev) => ({
+          ...prev,
+          name: a.name ?? "",
+          lastname: a.lastname ?? "",
+          email: a.email ?? "",
+          grade: a.grade ?? "admin",
+          roleId: a.roleId ?? a.role?.id ?? "",
+          region: a.region ?? "",
+          wilaya: a.wilaya ?? "",
+          commune: a.commune ?? "",
+          isActive: a.isActive !== false,
+        }));
       }
 
       if (!cancelled) setLoading(false);
@@ -307,7 +285,9 @@ export default function AdminForm({ mode }) {
     return () => {
       cancelled = true;
     };
-  }, [authData?.token, viewerId, id, isCreate, setAuthData]);
+    // canDo deliberately left out: a permissions refresh must not reset the form.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authData?.token, viewerId, id, isCreate, setAuthData, permissionsLoaded]);
 
   // ── Handlers ─────────────────────────────────────────────────────
   const handleChange = (e) => {
@@ -351,12 +331,12 @@ export default function AdminForm({ mode }) {
       region: formData.region || null,
       wilaya: formData.wilaya || null,
       commune: formData.commune || null,
-      isActive: Boolean(formData.isActive),
       viewerPassword: formData.viewerPassword,
       viewerId,
     };
 
     if (isCreate) {
+      payload.isActive = Boolean(formData.isActive);
       payload.password = formData.password;
       payload.grade = formData.grade || "admin";
       payload.roleId = formData.roleId || null;

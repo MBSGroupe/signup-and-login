@@ -141,8 +141,6 @@ export default function ResetAdminPassword() {
   const [loadingTarget, setLoadingTarget] = useState(true);
   const [loadError, setLoadError] = useState("");
 
-  // ─── Permission gate ─────────────────────────────────────────
-  const [canReset, setCanReset] = useState(null); // null = pending
 
   // ─── Form ─────────────────────────────────────────────────────
   const [formData, setFormData] = useState({
@@ -193,35 +191,8 @@ export default function ResetAdminPassword() {
     };
   }, [id, authData?.token, setAuthData]);
 
-  // ─── Permission check ─────────────────────────────────────────
-  useEffect(() => {
-    if (!authData?.token || !viewerId) return;
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const res = await fetchWithRefresh(
-          `${NEST_API_URL}/permissions/${viewerId}/check-operation`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ operation: "reset_password", model: "Admin" }),
-          },
-          authData.token,
-          setAuthData,
-        );
-        const body = await res.json();
-        const payload = body?.data || body;
-        if (!cancelled) setCanReset(Boolean(payload?.canPerform));
-      } catch {
-        if (!cancelled) setCanReset(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [authData?.token, viewerId, setAuthData]);
+  // ─── Permission gate: the target's allowedActions (GET /admins/:id) ──
+  const canReset = target?.allowedActions?.reset_password === true;
 
   // ─── Validation ───────────────────────────────────────────────
   const ruleResults = useMemo(
@@ -343,7 +314,7 @@ export default function ResetAdminPassword() {
   const isError = message.startsWith("❌") || message.startsWith("⚠️");
 
   // ─── Loading ──────────────────────────────────────────────────
-  if (loadingTarget || canReset === null) {
+  if (loadingTarget) {
     return (
       <div className="min-h-screen bg-[#0A0F1C] flex items-center justify-center ml-[30px] mt-16">
         <div className="flex flex-col items-center gap-4">
