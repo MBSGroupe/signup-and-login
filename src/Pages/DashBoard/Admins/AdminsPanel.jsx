@@ -392,7 +392,7 @@ export default function AdminsPanel() {
   };
 
   const handleChangeRole = (admin) => {
-    navigate(`/dash/admins/edit/${admin.id}?focus=role`);
+    navigate(`/dash/admins/${admin.id}/change-role`);
   };
 
   const handleResetPassword = (admin) => {

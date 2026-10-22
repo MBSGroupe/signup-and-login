@@ -91,8 +91,12 @@ const DEFAULT_CREATE_FIELDS = [
 
 const DEFAULT_EDIT_FIELDS = [
   "name", "lastname", "email",
-  "grade", "roleId", "region", "wilaya", "commune", "isActive",
+  "region", "wilaya", "commune", "isActive",
 ];
+
+// Grade and role are set at creation; afterwards they only change through
+// the dedicated change-role page (/dash/admins/:id/change-role).
+const CREATE_ONLY_FIELDS = ["grade", "roleId"];
 
 // ────────────────────────────────────────────────────────────────
 //  Helpers
@@ -112,7 +116,7 @@ function extractRoles(body) {
     [];
   return list
     .filter((r) => r && (r.id || r._id) && (r.name || r.label))
-    .map((r) => ({ id: r.id || r._id, name: r.name || r.label }));
+    .map((r) => ({ id: r.id || r._id, name: r.label || r.name, grade: r.grade }));
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -242,7 +246,11 @@ export default function AdminForm({ mode }) {
             : isCreate
               ? DEFAULT_CREATE_FIELDS
               : DEFAULT_EDIT_FIELDS;
-        if (!cancelled) setPermittedFields(fields);
+        if (!cancelled) {
+          setPermittedFields(
+            isCreate ? fields : fields.filter((f) => !CREATE_ONLY_FIELDS.includes(f)),
+          );
+        }
         if (data.configs && !cancelled) {
           setFieldConfigs((prev) => ({ ...prev, ...data.configs }));
         }
@@ -304,10 +312,15 @@ export default function AdminForm({ mode }) {
   // ── Handlers ─────────────────────────────────────────────────────
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : value,
-    }));
+    setFormData((prev) => {
+      const next = { ...prev, [name]: type === "checkbox" ? checked : value };
+      // A role belongs to one grade — drop it when the grade no longer matches.
+      if (name === "grade" && prev.roleId) {
+        const role = availableRoles.find((r) => r.id === prev.roleId);
+        if (role && role.grade !== value) next.roleId = "";
+      }
+      return next;
+    });
   };
 
   // ── Submit ───────────────────────────────────────────────────────
@@ -335,8 +348,6 @@ export default function AdminForm({ mode }) {
       name: formData.name.trim(),
       lastname: formData.lastname.trim(),
       email: formData.email.trim(),
-      grade: formData.grade || "admin",
-      roleId: formData.roleId || null,
       region: formData.region || null,
       wilaya: formData.wilaya || null,
       commune: formData.commune || null,
@@ -345,7 +356,11 @@ export default function AdminForm({ mode }) {
       viewerId,
     };
 
-    if (isCreate) payload.password = formData.password;
+    if (isCreate) {
+      payload.password = formData.password;
+      payload.grade = formData.grade || "admin";
+      payload.roleId = formData.roleId || null;
+    }
 
     setSubmitting(true);
     try {
@@ -415,10 +430,10 @@ export default function AdminForm({ mode }) {
 
   // ── Resolved field configs (roleId options injected at render) ──
   const resolvedConfigs = useMemo(() => {
-    const roleIdOptions = availableRoles.map((r) => ({
-      value: r.id,
-      label: r.name,
-    }));
+    // Only roles of the selected grade (also enforced server side)
+    const roleIdOptions = availableRoles
+      .filter((r) => r.grade === (formData.grade || "admin"))
+      .map((r) => ({ value: r.id, label: r.name }));
 
     // Only a super_admin may give the super_admin grade (also enforced server side)
     const viewerIsSuper = authData?.user?.grade === "super_admin";
@@ -449,7 +464,7 @@ export default function AdminForm({ mode }) {
         validation: { options: roleIdOptions },
       },
     };
-  }, [fieldConfigs, availableRoles, rolesLoading, rolesError, authData?.user?.grade]);
+  }, [fieldConfigs, availableRoles, rolesLoading, rolesError, authData?.user?.grade, formData.grade]);
 
   const roleFieldDisabled = rolesLoading || availableRoles.length === 0;
 

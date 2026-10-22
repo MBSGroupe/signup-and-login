@@ -10,6 +10,7 @@ import DashLayout from './Layouts/DashLayout';
 import ProtectedRoute from './Layouts/ProtectedRoute';
 import AdminRoute from './Layouts/AdminRoute';
 const ResetAdminPassword = lazy(() => import("./Pages/DashBoard/Admins/ResetAdminPassword"));
+const ChangeAdminRole = lazy(() => import("./Pages/DashBoard/Admins/ChangeAdminRole"));
 const ChangePassword = lazy(() => import("./Pages/DashBoard/Users/changePassword"));
 import LoginForm from './Pages/Login';
 const FormulaireCNOA = lazy(() => import("./Pages/Sign-up"));
@@ -77,6 +78,7 @@ export default function App() {
 
         
         <Route path="forgot-password" element={<ForgotPassword />} />
+        <Route path="admin/forgot-password" element={<ForgotPassword admin />} />
         <Route path="reset-password" element={<ResetPassword />} />
         <Route path="application-mobile" element={<SiteApplication />} />
          <Route path="verify/degree/:token" element={<VerifyDegree />} />
@@ -113,6 +115,7 @@ export default function App() {
         <Route path="/dash/admins/edit/:id" element={<AdminForm mode="edit" />} />
         <Route path="/dash/admins/:id" element={<AdminProfile mode="edit" />} />
         <Route path="/dash/admins/:id/reset-password" element={<ResetAdminPassword />} />
+        <Route path="/dash/admins/:id/change-role" element={<ChangeAdminRole />} />
 
 
 

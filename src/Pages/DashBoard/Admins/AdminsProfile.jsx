@@ -199,7 +199,7 @@ export default function AdminProfile() {
   // ─── Actions ──────────────────────────────────────────────────
   const handleEdit = () => navigate(`/dash/admins/edit/${admin.id}`);
   const handleChangeRole = () =>
-    navigate(`/dash/admins/edit/${admin.id}?focus=role`);
+    navigate(`/dash/admins/${admin.id}/change-role`);
   const handleResetPassword = () =>
     navigate(`/dash/admins/${admin.id}/reset-password`);
 
