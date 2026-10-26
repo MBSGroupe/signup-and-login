@@ -3,6 +3,7 @@ import { UserContext } from '../../../Context/dataCont';
 import { fetchWithRefresh } from '../../../Components/api';
 import { useNavigate } from 'react-router-dom';
 import { useModal } from '../../../Context/ModalContext';
+import { useError } from '../../../Context/ErrorContext';
 import BackButton from '../../../Components/Buttons/BackButton';
 import wilayasData from '../../../assets/data/wilayas.json';
 import {
@@ -120,7 +121,10 @@ function getPageNumbers(current, total) {
 export default function ValidationRequestsList() {
   const { authData, setAuthData } = useContext(UserContext);
   const { confirm } = useModal();
+  const { showSuccess, showWarning, showError } = useError();
   const navigate = useNavigate();
+  // Bumped to reload the list after an action.
+  const [reloadTick, setReloadTick] = useState(0);
 
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -226,7 +230,7 @@ export default function ValidationRequestsList() {
     return () => { cancelled = true; };
   }, [
     statusFilter, schemaFilter, regionFilter, periodFilter, customFrom, customTo,
-    debouncedSearch, page,
+    debouncedSearch, page, reloadTick,
     authData?.token, setAuthData,
   ]);
 
@@ -261,18 +265,36 @@ export default function ValidationRequestsList() {
         authData.token,
         setAuthData
       );
-      const result = await res.json();
-      if (result.success) {
-        setSelectedRequests([]);
-        // Refetch by nudging page to itself → useEffect doesn't fire.
-        // Simplest reliable refetch: re-trigger by resetting page then
-        // forcing state change via a no-op fetch.
-        setPage((p) => p);
-        // Force a reload by simulating a filter change tick
-        setStatusFilter((s) => s);
+      const body = await res.json().catch(() => null);
+      const summary = unwrap(body) || {};
+      if (!res.ok) {
+        showError(summary.message || body?.message || 'La validation en masse a échoué');
+        return;
       }
+
+      const results = Array.isArray(summary.results) ? summary.results : [];
+      const succeeded = results.filter((r) => r.success).length;
+      if (succeeded > 0) showSuccess(`${succeeded} demande(s) validée(s)`);
+      // Refusals grouped by reason, e.g. "À renseigner avant de valider : Date de l'agrément (12)".
+      const reasons = {};
+      for (const r of results.filter((x) => !x.success)) {
+        const reason = r.message || 'Erreur inconnue';
+        reasons[reason] = (reasons[reason] || 0) + 1;
+      }
+      const lines = Object.entries(reasons).map(([reason, n]) => `${reason} (${n})`);
+      if (lines.length) {
+        showWarning(
+          `${results.length - succeeded} demande(s) non validée(s) — ${lines.join(' • ')}`,
+          10000,
+        );
+      }
+
+      // Keep the refused ones selected so they can be opened and completed.
+      setSelectedRequests(results.filter((r) => !r.success).map((r) => r.requestId));
+      setReloadTick((t) => t + 1);
     } catch (err) {
       console.error('Mass approve error:', err);
+      showError(err?.message || 'Erreur réseau lors de la validation en masse');
     } finally {
       setMassApproving(false);
     }
