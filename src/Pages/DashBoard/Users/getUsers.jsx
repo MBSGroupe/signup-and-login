@@ -28,6 +28,8 @@ import PDFPreviewModal from '../../../Components/Modals/pdfPreviexModal';
 import { useNavigate } from 'react-router-dom';
 import wilayasData from '../../../assets/data/wilayas.json';
 import { wilayaLabel } from '../../../Utils/wilayas';
+import ExportButton from '../../../Components/Export/ExportButton';
+import useExportCatalog from '../../../Hooks/useExportCatalog';
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
@@ -94,6 +96,63 @@ export default function GetUsers({ mode }) {
   const [sortBy, setSortBy] = useState('createdAt');
   const [sortOrder, setSortOrder] = useState('desc');
 
+  // Rows ticked for "export the selection" (kept across pages)
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const { getReport } = useExportCatalog();
+  const canExportMembers = Boolean(getReport('members'));
+
+  // ─── Current filters: the list request and the export send the same ───
+  const listFilters = () => {
+    const f = { sortBy, sortOrder };
+    if (mode && mode !== 'all') f.mode = mode;
+    if (keyWord && keyWord.trim()) f.search = keyWord.trim();
+    if (selectedSexe !== 'all') f.sexe = selectedSexe;
+    if (selectedCivility !== 'all') f.civility = selectedCivility;
+    if (selectedWilaya !== 'all') f.wilaya = selectedWilaya;
+    if (selectedProfession !== 'all') f.profession = selectedProfession;
+    if (selectedRegion !== 'all') f.region = selectedRegion;
+    if (selectedStatus !== 'all') f.status = selectedStatus;
+    if (selectedMaritalStatus !== 'all') f.maritalStatus = selectedMaritalStatus;
+    if (selectedDiplomaType !== 'all') f.diplomaType = selectedDiplomaType;
+    if (selectedRegistrationStatus !== 'all') f.registrationStatus = selectedRegistrationStatus;
+    if (selectedProfessionalMode !== 'all') f.professionalMode = selectedProfessionalMode;
+    if (selectedServiceNational !== 'all') f.serviceNationalStatus = selectedServiceNational;
+    return f;
+  };
+
+  // Reminder of the active filters in the export window
+  const filterLabels = () => {
+    const out = [];
+    if (keyWord && keyWord.trim()) out.push(`Recherche : ${keyWord.trim()}`);
+    if (selectedSexe !== 'all') out.push(`Sexe : ${selectedSexe === 'M' ? 'Homme' : 'Femme'}`);
+    if (selectedRegion !== 'all') out.push(`CLOA : ${wilayaLabel(selectedRegion, selectedRegion)}`);
+    if (selectedWilaya !== 'all') out.push(`Wilaya : ${wilayaLabel(selectedWilaya, selectedWilaya)}`);
+    if (selectedProfession !== 'all') out.push(`Profession : ${selectedProfession}`);
+    if (selectedStatus !== 'all') out.push(`Statut : ${selectedStatus}`);
+    if (selectedMaritalStatus !== 'all') out.push(`Situation familiale : ${selectedMaritalStatus}`);
+    if (selectedDiplomaType !== 'all') out.push(`Diplôme : ${selectedDiplomaType}`);
+    if (selectedRegistrationStatus !== 'all') out.push(`Inscription : ${selectedRegistrationStatus}`);
+    if (selectedProfessionalMode !== 'all') out.push(`Mode d'exercice : ${selectedProfessionalMode}`);
+    if (selectedServiceNational !== 'all') out.push(`Service national : ${selectedServiceNational}`);
+    return out;
+  };
+
+  const rowIdOf = (user) => user.id || user._id;
+  const toggleSelected = (id) =>
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  const pageIds = displayedUsers.map(rowIdOf).filter(Boolean);
+  const pageAllSelected = pageIds.length > 0 && pageIds.every(id => selectedIds.has(id));
+  const togglePage = () =>
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      pageIds.forEach(id => (pageAllSelected ? next.delete(id) : next.add(id)));
+      return next;
+    });
+
   // ─── Fetch users ────────────────────────────────────────────────────
   const fetchUsers = async () => {
     if (!authData?.token) return;
@@ -103,23 +162,7 @@ export default function GetUsers({ mode }) {
       const params = new URLSearchParams();
       params.append('page', currentPage);
       params.append('limit', pageSize);
-      params.append('sortBy', sortBy);
-      params.append('sortOrder', sortOrder);
-
-      if (mode && mode !== 'all') params.append('mode', mode);
-
-      if (keyWord && keyWord.trim()) params.append('search', keyWord.trim());
-      if (selectedSexe !== 'all') params.append('sexe', selectedSexe);
-      if (selectedCivility !== 'all') params.append('civility', selectedCivility);
-      if (selectedWilaya !== 'all') params.append('wilaya', selectedWilaya);
-      if (selectedProfession !== 'all') params.append('profession', selectedProfession);
-      if (selectedRegion !== 'all') params.append('region', selectedRegion);
-      if (selectedStatus !== 'all') params.append('status', selectedStatus);
-      if (selectedMaritalStatus !== 'all') params.append('maritalStatus', selectedMaritalStatus);
-      if (selectedDiplomaType !== 'all') params.append('diplomaType', selectedDiplomaType);
-      if (selectedRegistrationStatus !== 'all') params.append('registrationStatus', selectedRegistrationStatus);
-      if (selectedProfessionalMode !== 'all') params.append('professionalMode', selectedProfessionalMode);
-      if (selectedServiceNational !== 'all') params.append('serviceNationalStatus', selectedServiceNational);
+      for (const [key, value] of Object.entries(listFilters())) params.append(key, value);
 
       const response = await fetchWithRefresh(
         `${NEST_API_URL}/users?${params.toString()}`,
@@ -362,6 +405,7 @@ export default function GetUsers({ mode }) {
     setSortBy('createdAt');
     setSortOrder('desc');
     setCurrentPage(1);
+    setSelectedIds(new Set());
     handleChange({ target: { name: "search", value: "" } });
   };
 
@@ -453,6 +497,21 @@ export default function GetUsers({ mode }) {
             <X className="w-4 h-4" />
             Réinitialiser
           </button>
+          <ExportButton
+            reportKey="members"
+            filters={listFilters()}
+            filterLabels={filterLabels()}
+            totalCount={totalUsers}
+            selectedIds={[...selectedIds]}
+          />
+          {selectedIds.size > 0 && (
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm text-[#94A3B8] hover:text-[#F8FAFC] transition-colors"
+            >
+              Désélectionner ({selectedIds.size})
+            </button>
+          )}
         </div>
 
         {/* ===== SEARCH & PAGE SIZE ===== */}
@@ -646,6 +705,19 @@ export default function GetUsers({ mode }) {
                   <table className="w-full min-w-[900px]">
                     <thead>
                       <tr className="border-b border-[rgba(255,255,255,0.06)]">
+                        {canExportMembers && (
+                          <th className="py-4 pl-6 pr-0 w-10">
+                            <input
+                              type="checkbox"
+                              checked={pageAllSelected}
+                              onChange={togglePage}
+                              disabled={pageIds.length === 0}
+                              className="accent-emerald-500"
+                              aria-label="Sélectionner la page"
+                              title="Sélectionner la page (pour l'export)"
+                            />
+                          </th>
+                        )}
                         <th
                           className="py-4 px-6 text-left text-xs uppercase tracking-wider text-[#64748B] font-semibold cursor-pointer hover:text-[#F8FAFC] transition"
                           onClick={() => {
@@ -679,8 +751,21 @@ export default function GetUsers({ mode }) {
                           return (
                             <tr
                               key={rowId}
-                              className="border-b border-[rgba(255,255,255,0.04)] hover:bg-[#1F2937]/30 transition-colors group"
+                              className={`border-b border-[rgba(255,255,255,0.04)] hover:bg-[#1F2937]/30 transition-colors group ${
+                                selectedIds.has(rowId) ? 'bg-emerald-500/5' : ''
+                              }`}
                             >
+                              {canExportMembers && (
+                                <td className="py-3 pl-6 pr-0 w-10">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedIds.has(rowId)}
+                                    onChange={() => toggleSelected(rowId)}
+                                    className="accent-emerald-500"
+                                    aria-label={`Sélectionner ${user.name || ''} ${user.lastname || ''}`}
+                                  />
+                                </td>
+                              )}
                               <td className="py-3 px-6 text-[#F8FAFC] font-medium">{user.name || '-'}</td>
                               <td className="py-3 px-6 text-[#F8FAFC]">{user.lastname || '-'}</td>
                               <td className="py-3 px-6 text-[#94A3B8] truncate max-w-[150px]">{user.email || '-'}</td>

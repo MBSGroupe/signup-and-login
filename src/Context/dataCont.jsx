@@ -285,6 +285,7 @@ export default function UserProvider({ children }) {
         // cached permissions (GET /permissions/me)
         canDo,
         permissionsLoaded,
+        permissionsVersion: myPermsVersion ?? null,
         reloadPermissions: loadMyPermissions,
         // permission helpers (new)
         can,
