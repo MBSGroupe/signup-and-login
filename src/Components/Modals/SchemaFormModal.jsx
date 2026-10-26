@@ -133,7 +133,8 @@ export default function SchemaFormModal({
 
   const fields = useMemo(() => {
     const arr = stepMode ? stepContext.step.payloadSchema : schema?.payloadSchema;
-    return Array.isArray(arr) ? arr : [];
+    // Fields an approver fills during validation are not part of the request form.
+    return Array.isArray(arr) ? arr.filter((f) => f?.filledBy !== 'reviewer') : [];
   }, [schema, stepMode, stepContext]);
 
   const fileFields = useMemo(() => fields.filter(isFileField), [fields]);

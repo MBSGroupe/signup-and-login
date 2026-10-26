@@ -239,7 +239,8 @@ function ReserveReasonsInput({ reasons, onChange }) {
 }
 
 // ─── Payload field editor ───────────────────────────────────────────
-function PayloadFieldEditor({ field, onChange, onDelete, stepOptions = [] }) {
+// `reviewerOption`: main-form fields may be left to the approvers (filledBy).
+function PayloadFieldEditor({ field, onChange, onDelete, stepOptions = [], reviewerOption = false }) {
   const v = field.validation || {};
   const ui = field.ui || {};
   const app = field.application || {};
@@ -369,15 +370,31 @@ function PayloadFieldEditor({ field, onChange, onDelete, stepOptions = [] }) {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <label className="flex items-center gap-2 text-sm text-[#CBD5E1]">
-          <input
-            type="checkbox"
-            checked={v.required === true}
-            onChange={(e) => setV({ required: e.target.checked })}
-            className="accent-emerald-500"
-          />
-          Requis
-        </label>
+        <div className="space-y-2">
+          <label className="flex items-center gap-2 text-sm text-[#CBD5E1]">
+            <input
+              type="checkbox"
+              checked={v.required === true}
+              onChange={(e) => setV({ required: e.target.checked })}
+              className="accent-emerald-500"
+            />
+            Requis
+          </label>
+          {reviewerOption && (
+            <label
+              className="flex items-center gap-2 text-sm text-[#CBD5E1]"
+              title="Absent du formulaire du demandeur ; l'approbateur le saisit sur la demande. Utilisable dans les états de sortie via {{params.payload.<nom>}}."
+            >
+              <input
+                type="checkbox"
+                checked={field.filledBy === 'reviewer'}
+                onChange={(e) => set({ filledBy: e.target.checked ? 'reviewer' : undefined })}
+                className="accent-emerald-500"
+              />
+              Rempli par l'administrateur
+            </label>
+          )}
+        </div>
         <div>
           <label className={labelCls}>Longueur min</label>
           <input
@@ -1701,6 +1718,7 @@ export default function ValidationSchemaForm({
                   key={i}
                   field={f}
                   stepOptions={stepOptions}
+                  reviewerOption
                   onChange={(next) => updatePayloadField(i, next)}
                   onDelete={() => removePayloadField(i)}
                 />

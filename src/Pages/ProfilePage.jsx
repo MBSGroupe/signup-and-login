@@ -960,8 +960,8 @@ export default function ProfilePage({ user }) {
     const schemaId = schemaObj ? (schemaObj.id || schemaObj._id) : null;
     const targetType = schemaObj ? (schemaObj.targetType || 'User') : 'User';
 
-    // If the schema declares a payloadSchema, route through the dynamic form.
-    if (Array.isArray(schemaObj?.payloadSchema) && schemaObj.payloadSchema.length > 0) {
+    // If the schema has fields for the member, route through the dynamic form.
+    if ((schemaObj?.payloadSchema || []).some((f) => f?.filledBy !== 'reviewer')) {
       openSchemaForm(schemaObj, { existingRequestId: null, resubmit: false });
       return;
     }
@@ -1957,8 +1957,7 @@ export default function ProfilePage({ user }) {
                                         resubmit: true,
                                       });
                                     } else if (
-                                      Array.isArray(sch.payloadSchema) &&
-                                      sch.payloadSchema.length > 0
+                                      (sch.payloadSchema || []).some((f) => f?.filledBy !== 'reviewer')
                                     ) {
                                       openSchemaForm(sch, {
                                         existingRequestId: null,

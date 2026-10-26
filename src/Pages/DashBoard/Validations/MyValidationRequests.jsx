@@ -133,7 +133,7 @@ export default function MyValidationRequests() {
   };
 
   const startRequest = (schema) => {
-    if (Array.isArray(schema.payloadSchema) && schema.payloadSchema.length > 0) {
+    if ((schema.payloadSchema || []).some((f) => f?.filledBy !== 'reviewer')) {
       setModal({ schema });
     } else {
       startWithoutForm(schema);
