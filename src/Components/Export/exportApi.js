@@ -20,6 +20,16 @@ function fileNameFrom(disposition, fallback) {
   return plain ? plain[1] : fallback;
 }
 
+/** Rows the export would contain — POST /exports/:key/count. */
+export async function countExport(authedFetch, reportKey, filters) {
+  const res = await authedFetch(`${NEST_API_URL}/exports/${encodeURIComponent(reportKey)}/count`, {
+    method: "POST",
+    body: JSON.stringify({ filters }),
+  });
+  const body = await res.json();
+  return body?.data?.rows ?? 0;
+}
+
 /**
  * Runs POST /exports/:key and saves the file.
  *   body: { format, lang, columns, filters }

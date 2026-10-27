@@ -24,7 +24,9 @@ import {
   Database,
   Layers,
   Award,
+  Download,
 } from "lucide-react";
+import useExportCatalog from "../../Hooks/useExportCatalog";
 import cnoaLogo from "../../assets/LOGOCLOA.png";
 
 const API_URL = import.meta.env.VITE_NEST_API_URL;
@@ -79,6 +81,8 @@ export default function SideBar() {
   const navigate = useNavigate();
   const location = useLocation();
   const { authData, setAuthData, canDo } = useContext(UserContext);
+  // "Exports" only when the backend lists at least one report for this viewer.
+  const { reports: exportReports } = useExportCatalog();
 
   // ⚠️ Kept ONLY for the "Configuration" board (per your request).
   const isSuperAdmin = authData?.user?.grade === "super_admin";
@@ -528,6 +532,16 @@ export default function SideBar() {
                 </div>
               )}
             </div>
+          )}
+
+          {/* ── Exports ─────────────────────────────────────────────── */}
+          {exportReports.length > 0 && (
+            <NavItem
+              icon={Download}
+              label="Exports"
+              onClick={() => handleNavigation("/dash/exports")}
+              active={isActive("/dash/exports")}
+            />
           )}
 
           {/* ── Configuration — INTENTIONALLY super_admin only ──────── */}

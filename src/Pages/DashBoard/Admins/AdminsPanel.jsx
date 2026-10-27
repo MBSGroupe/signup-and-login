@@ -28,6 +28,7 @@ import {
   Activity,
 } from "lucide-react";
 import { wilayaLabel } from '../../../Utils/wilayas';
+import ExportButton from '../../../Components/Export/ExportButton';
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
@@ -463,6 +464,29 @@ export default function AdminsPanel() {
             <X className="w-4 h-4" />
             Réinitialiser
           </button>
+
+          {/* Same filters as the list (GET /admins) */}
+          <ExportButton
+            reportKey="admins"
+            size="sm"
+            totalCount={totalAdmins}
+            filters={{
+              sortBy,
+              sortOrder,
+              ...(keyWord ? { search: keyWord } : {}),
+              ...(selectedRole !== "all" ? { roleId: selectedRole } : {}),
+              ...(selectedRegion !== "all" ? { region: selectedRegion } : {}),
+              ...(selectedStatus !== "all" ? { isActive: selectedStatus } : {}),
+            }}
+            filterLabels={[
+              ...(keyWord ? [`Recherche : ${keyWord}`] : []),
+              ...(selectedRole !== "all"
+                ? [`Rôle : ${roleOptions.find((r) => r.value === selectedRole)?.label ?? selectedRole}`]
+                : []),
+              ...(selectedRegion !== "all" ? [`Région : ${wilayaLabel(selectedRegion, selectedRegion)}`] : []),
+              ...(selectedStatus !== "all" ? [`Statut : ${selectedStatus === "true" ? "Actif" : "Inactif"}`] : []),
+            ]}
+          />
         </div>
 
         {/* ═══ SEARCH + PAGE SIZE ══════════════════════════════════ */}

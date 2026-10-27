@@ -4,6 +4,7 @@ import { UserContext } from '../../../Context/dataCont';
 import { fetchWithRefresh } from '../../../Components/api';
 import { useNavigate } from 'react-router-dom';
 import BackButton from '../../../Components/Buttons/BackButton';
+import ExportButton from '../../../Components/Export/ExportButton';
 import wilayasData from '../../../assets/data/wilayas.json';
 import {
   Loader2,
@@ -327,6 +328,37 @@ export default function AllValidationRequests() {
     setCustomTo('');
   };
 
+  // ─── Export: the same filters as the list request ───────────
+  const STATUS_LABELS = {
+    pending: 'En attente', partial: 'Partielles', approved: 'Approuvées',
+    rejected: 'Rejetées', cancelled: 'Annulées', expired: 'Expirées',
+  };
+  const exportFilters = () => {
+    const { from, to } = computeDateRange(periodFilter, customFrom, customTo);
+    return {
+      ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
+      ...(schemaFilter !== 'all' ? { schemaId: schemaFilter } : {}),
+      ...(regionFilter !== 'all' ? { region: regionFilter } : {}),
+      ...(debouncedSearch ? { search: debouncedSearch } : {}),
+      // The list's period is on the submission date.
+      ...(from ? { from: from.toISOString(), dateField: 'createdAt' } : {}),
+      ...(to ? { to: to.toISOString(), dateField: 'createdAt' } : {}),
+    };
+  };
+  const exportFilterLabels = () => {
+    const schema = schemas.find((x) => (x.id || x._id) === schemaFilter);
+    const region = wilayasData.find((w) => String(Number(w.code)) === String(Number(regionFilter)));
+    return [
+      ...(debouncedSearch ? [`Recherche : ${debouncedSearch}`] : []),
+      ...(statusFilter !== 'all' ? [`Statut : ${STATUS_LABELS[statusFilter] ?? statusFilter}`] : []),
+      ...(schemaFilter !== 'all' ? [`Type : ${schema?.name || schemaFilter}`] : []),
+      ...(regionFilter !== 'all' ? [`CLOA : ${region ? `${region.code} - ${region.name}` : regionFilter}`] : []),
+      ...(periodFilter !== 'all'
+        ? [`Période (dépôt) : ${PERIOD_OPTIONS.find((o) => o.value === periodFilter)?.label ?? periodFilter}`]
+        : []),
+    ];
+  };
+
   // ─── Loading screen (only first load) ────────────────────────
   if (loading && requests.length === 0) {
     return (
@@ -361,6 +393,14 @@ export default function AllValidationRequests() {
                 Consultez et gérez l'ensemble des demandes
               </p>
             </div>
+          </div>
+          <div className="ml-auto">
+            <ExportButton
+              reportKey="validation-requests"
+              totalCount={total}
+              filters={exportFilters()}
+              filterLabels={exportFilterLabels()}
+            />
           </div>
         </div>
 

@@ -43,9 +43,9 @@ const formatCount = (n) => (n ?? 0).toLocaleString("fr-FR");
  *   filters      the list's current filters, as the list endpoint takes them
  *   filterLabels human-readable active filters, shown as a reminder
  *   totalCount   rows of the filtered list
- *   selectedIds  ids ticked in the list (optional)
+ *   selectedIds  ids ticked in the list; omitted = the page has no selection
  */
-export default function ExportModal({ report, filters, filterLabels = [], totalCount, selectedIds = [], onClose }) {
+export default function ExportModal({ report, filters, filterLabels = [], totalCount, selectedIds, onClose }) {
   const { authData, authedFetch } = useContext(UserContext);
   const { showError, showSuccess } = useError();
   const viewerId = authData?.user?.id;
@@ -61,7 +61,8 @@ export default function ExportModal({ report, filters, filterLabels = [], totalC
     const kept = (saved.columns || []).filter((k) => offeredKeys.includes(k));
     return new Set(kept.length ? kept : defaultKeys);
   });
-  const hasSelection = selectedIds.length > 0;
+  const selectable = Array.isArray(selectedIds);
+  const hasSelection = selectable && selectedIds.length > 0;
   const [rowsScope, setRowsScope] = useState(hasSelection ? "selection" : "filtered");
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
@@ -149,19 +150,21 @@ export default function ExportModal({ report, filters, filterLabels = [], totalC
             <h4 className="text-xs uppercase tracking-wider text-[#64748B] mb-2">Lignes</h4>
             <div className="flex flex-col sm:flex-row gap-2">
               <button className={segment(rowsScope === "filtered")} onClick={() => setRowsScope("filtered")}>
-                <div className="font-medium text-sm">Toute la liste filtrée</div>
+                <div className="font-medium text-sm">Toutes les lignes filtrées</div>
                 <div className="text-xs opacity-80 mt-0.5">{formatCount(totalCount)} lignes</div>
               </button>
-              <button
-                className={`${segment(rowsScope === "selection")} disabled:opacity-40 disabled:cursor-not-allowed`}
-                onClick={() => setRowsScope("selection")}
-                disabled={!hasSelection}
-              >
-                <div className="font-medium text-sm">Sélection</div>
-                <div className="text-xs opacity-80 mt-0.5">
-                  {hasSelection ? `${formatCount(selectedIds.length)} lignes cochées` : "Aucune ligne cochée"}
-                </div>
-              </button>
+              {selectable && (
+                <button
+                  className={`${segment(rowsScope === "selection")} disabled:opacity-40 disabled:cursor-not-allowed`}
+                  onClick={() => setRowsScope("selection")}
+                  disabled={!hasSelection}
+                >
+                  <div className="font-medium text-sm">Sélection</div>
+                  <div className="text-xs opacity-80 mt-0.5">
+                    {hasSelection ? `${formatCount(selectedIds.length)} lignes cochées` : "Aucune ligne cochée"}
+                  </div>
+                </button>
+              )}
             </div>
             {rowsScope === "filtered" && (
               <div className="mt-3 flex flex-wrap gap-2">
