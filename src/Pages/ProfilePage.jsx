@@ -22,6 +22,7 @@ import {
   emailDocument,
   revokeDocument,
   reinstateDocument,
+  fetchStoredPdf,
 } from '../Components/documents';
 import { wilayaLabel } from '../Utils/wilayas';
 import ProtectedImg from '../Components/ProtectedImg';
@@ -74,6 +75,7 @@ const PERMISSION_CHECKS = [
   { key: "validation.read_user_requests", model: "ValidationRequest", operation: "read_user_requests" },
   { key: "validation.create_request",     model: "ValidationRequest", operation: "create_request" },
   { key: "pdf.generate",                  model: "Pdf",               operation: "generate" },
+  { key: "pdf.preview",                   model: "Pdf",               operation: "preview" },
   { key: "pdf.revoke",                    model: "Pdf",               operation: "revoke" },
 ];
 
@@ -320,6 +322,7 @@ export default function ProfilePage({ user }) {
   });
 
   const [menuOpen, setMenuOpen] = useState(false);
+  const [docsMenuOpen, setDocsMenuOpen] = useState(false);
   const menuRef = useRef(null);
   const [activeTab, setActiveTab] = useState('info');
 
@@ -647,37 +650,50 @@ export default function ProfilePage({ user }) {
   };
 
 
-  // ─── Documents ────────────────────────────────────────────────────
-  // Every document template whose source is a User is offered here; the
-  // template decides whether it is stored (generate) or only rendered.
+  // ─── Documents (États de sortie) ──────────────────────────────────
+  // Every document template whose source is a User is offered here, with
+  // three separate actions so that looking at a document never re-issues it:
+  //   - Voir: the issued document as stored (same version, same QR);
+  //   - Aperçu: rendered, nothing stored; a certified one comes back as a
+  //     SPÉCIMEN whose QR never verifies;
+  //   - Émettre / Régénérer: issues a new version (new QR; the previous one
+  //     then verifies as "remplacé"), after a confirmation.
   const revokeBlobUrl = (url) => {
     if (url && typeof url === 'string' && url.startsWith('blob:')) {
       try { URL.revokeObjectURL(url); } catch (_) { }
     }
   };
 
-  const openDocument = async (doc) => {
-    const auth = { token: authData.token, setAuthData };
-    const memberName = `${displayUser?.name || ''} ${displayUser?.lastname || ''}`.trim();
+  /** The member's issued File for a template (latest), or null. */
+  const issuedFile = useCallback(
+    (doc) =>
+      files
+        .filter((f) => f.documentType === doc.key)
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0] || null,
+    [files],
+  );
 
-    // Open the modal immediately in a loading state for instant feedback.
+  /** Opens the PDF modal at once, then fills it with what load() returns. */
+  const showDocument = async (doc, { label = '', specimen = false }, load) => {
+    const memberName = `${displayUser?.name || ''} ${displayUser?.lastname || ''}`.trim();
+    const name = `${doc.name}${label}`;
+
     setPdfPreview({
       isOpen: true,
       type: doc.key,
       isGenerating: true,
       data: {
-        title: memberName ? `${doc.name} — ${memberName}` : doc.name,
+        title: memberName ? `${name} — ${memberName}` : name,
         templateKey: doc.key,
         memberName,
         userId: targetUserId,
         memberEmail: displayUser?.email || '',
+        specimen,
       },
     });
 
     try {
-      const { blob, downloadUrl } = doc.canStore
-        ? await generateDocument(doc.key, targetUserId, auth)
-        : { blob: await previewDocument(doc.key, targetUserId, auth), downloadUrl: null };
+      const { blob, downloadUrl = null } = await load();
       const blobUrl = URL.createObjectURL(blob);
 
       setPdfPreview((prev) => {
@@ -688,17 +704,58 @@ export default function ProfilePage({ user }) {
         }
         return { ...prev, isGenerating: false, data: { ...prev.data, blobUrl, downloadUrl } };
       });
-
-      if (doc.canStore) {
-        showSuccess(`${doc.name} généré ✅`);
-        await fetchFiles();
-      }
+      return true;
     } catch (err) {
       console.error(`❌ Document error (${doc.key}):`, err);
       setPdfPreview((prev) =>
         prev.isOpen && prev.type === doc.key ? { ...prev, isGenerating: false } : prev,
       );
       showError(err.message || 'Erreur lors de la génération');
+      return false;
+    }
+  };
+
+  const viewIssuedDocument = (doc, file) => {
+    const auth = { token: authData.token, setAuthData };
+    return showDocument(doc, { label: file.version ? ` (v${file.version})` : '' }, async () => ({
+      blob: await fetchStoredPdf(file.url, auth),
+      downloadUrl: file.url,
+    }));
+  };
+
+  const previewUserDocument = (doc) => {
+    const auth = { token: authData.token, setAuthData };
+    return showDocument(
+      doc,
+      { label: doc.canStore ? ' — aperçu' : '', specimen: !!doc.certified },
+      async () => ({ blob: await previewDocument(doc.key, targetUserId, auth) }),
+    );
+  };
+
+  const issueUserDocument = async (doc) => {
+    const existing = issuedFile(doc);
+    let message;
+    if (existing && doc.certified) {
+      message =
+        `Une nouvelle version (v${(existing.version || 1) + 1}) sera émise avec un nouveau QR code. ` +
+        'La version actuelle sera signalée « remplacée » à la vérification, ' +
+        'y compris sur les exemplaires déjà imprimés ou envoyés.';
+    } else if (existing) {
+      message = 'Le document enregistré sera remplacé par une nouvelle version.';
+    } else if (doc.certified) {
+      message = 'Un document officiel sera émis, avec un QR code vérifiable par tout tiers.';
+    } else {
+      message = 'Le document sera généré et enregistré.';
+    }
+    const verb = existing ? 'Régénérer' : doc.certified ? 'Émettre' : 'Générer';
+    const confirmed = await confirm({ title: `${verb} « ${doc.name} »`, message });
+    if (!confirmed) return;
+
+    const auth = { token: authData.token, setAuthData };
+    const ok = await showDocument(doc, {}, () => generateDocument(doc.key, targetUserId, auth));
+    if (ok) {
+      showSuccess(`${doc.name} ${existing ? 'régénéré' : doc.certified ? 'émis' : 'généré'} ✅`);
+      await fetchFiles();
     }
   };
 
@@ -1204,18 +1261,21 @@ export default function ProfilePage({ user }) {
   const canValidateUserResolved = can("users.validate", isAdmin);
 
   const canGeneratePdf = can("pdf.generate", isAdmin);
+  const canPreviewPdf = can("pdf.preview", isAdmin);
+  const canUseDocuments = canGeneratePdf || canPreviewPdf;
   const canRevokeDocuments = can("pdf.revoke", false);
 
-  // Document templates built from a User (degree, situation, any new one).
+  // Document templates built from a User (agreements, situation, any new
+  // one), each with what this admin may do with it (canPreview / canGenerate).
   const [userDocuments, setUserDocuments] = useState([]);
   useEffect(() => {
-    if (!canGeneratePdf || !authData?.token) return;
+    if (!canUseDocuments || !authData?.token) return;
     let cancelled = false;
     listDocuments('User', { token: authData.token, setAuthData })
       .then((docs) => { if (!cancelled) setUserDocuments(docs); })
       .catch((err) => console.error('❌ Documents list error:', err));
     return () => { cancelled = true; };
-  }, [canGeneratePdf, authData?.token, setAuthData]);
+  }, [canUseDocuments, authData?.token, setAuthData]);
 
   const tabs = useMemo(() => {
     const list = [];
@@ -1246,7 +1306,7 @@ export default function ProfilePage({ user }) {
     }
   }, [tabs, activeTab]);
 
-  const showActionsMenu = isAdmin && (canUpdateFees || canEditUser || canValidateUserResolved || canGeneratePdf);
+  const showActionsMenu = isAdmin && (canUpdateFees || canEditUser || canValidateUserResolved || canUseDocuments);
 
   if (loading) {
     return (
@@ -1352,7 +1412,7 @@ export default function ProfilePage({ user }) {
                       <MoreVertical className="w-5 h-5" />
                     </button>
                     {menuOpen && (
-                      <div className="absolute right-0 top-full mt-2 w-56 bg-[#182233] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-30 py-1">
+                      <div className={`absolute right-0 top-full mt-2 ${docsMenuOpen ? 'w-80' : 'w-56'} max-h-[80vh] overflow-y-auto bg-[#182233] border border-white/10 rounded-xl shadow-2xl z-30 py-1`}>
                         <div className="py-1">
                           {canUpdateFees && (
                             <>
@@ -1383,21 +1443,78 @@ export default function ProfilePage({ user }) {
                             </>
                           )}
 
-                          {canGeneratePdf && userDocuments.length > 0 && (
+                          {canUseDocuments && userDocuments.length > 0 && (
                             <>
                               <div className="border-t border-white/5 my-1" />
-                              {userDocuments.map((doc) => (
-                                <button
-                                  key={doc.key}
-                                  onClick={() => { setMenuOpen(false); openDocument(doc); }}
-                                  className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
-                                >
-                                  {doc.certified
-                                    ? <Award className="w-4 h-4 text-amber-400" />
-                                    : <FileText className="w-4 h-4 text-emerald-400" />}
-                                  {doc.name}
-                                </button>
-                              ))}
+                              <button
+                                onClick={() => setDocsMenuOpen((open) => !open)}
+                                aria-expanded={docsMenuOpen}
+                                className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
+                              >
+                                <FolderOpen className="w-4 h-4 text-amber-400" />
+                                <span className="flex-1">États de sortie</span>
+                                {docsMenuOpen
+                                  ? <ChevronUp className="w-4 h-4 text-[#64748B]" />
+                                  : <ChevronDown className="w-4 h-4 text-[#64748B]" />}
+                              </button>
+
+                              {docsMenuOpen && (
+                                <div className="bg-[#111827]/60 border-y border-white/5 py-1">
+                                  {userDocuments.map((doc) => {
+                                    // Only documents kept as a File of the member can be "issued" and reopened.
+                                    const tracked = doc.tracked ?? !!doc.certified;
+                                    const issued = tracked ? issuedFile(doc) : null;
+                                    // Older backends don't send these: fall back to the previous behaviour.
+                                    const canPreviewDoc = doc.canPreview ?? true;
+                                    const canIssueDoc = doc.canGenerate ?? doc.canStore;
+                                    const run = (action) => { setMenuOpen(false); action(); };
+                                    const itemClass =
+                                      "w-full pl-10 pr-4 py-1.5 text-left text-sm text-[#CBD5E1] hover:bg-white/5 hover:text-white flex items-center gap-2.5 transition-colors";
+
+                                    return (
+                                      <div key={doc.key} className="py-1">
+                                        <div className="px-4 py-1 flex items-center gap-2.5 text-xs font-semibold text-[#94A3B8]">
+                                          {doc.certified
+                                            ? <Award className="w-4 h-4 text-amber-400 shrink-0" />
+                                            : <FileText className="w-4 h-4 text-emerald-400 shrink-0" />}
+                                          <span className="truncate flex-1">{doc.name}</span>
+                                          {tracked && (
+                                            <span className={`shrink-0 px-1.5 py-0.5 rounded border text-[10px] font-medium ${
+                                              issued?.revokedAt
+                                                ? 'text-red-400 border-red-500/30'
+                                                : issued
+                                                  ? 'text-emerald-400 border-emerald-500/30'
+                                                  : 'text-[#64748B] border-white/10'
+                                            }`}>
+                                              {issued?.revokedAt ? 'révoqué' : issued ? `émis · v${issued.version || 1}` : 'non émis'}
+                                            </span>
+                                          )}
+                                        </div>
+
+                                        {issued && (
+                                          <button onClick={() => run(() => viewIssuedDocument(doc, issued))} className={itemClass}>
+                                            <Eye className="w-4 h-4 text-blue-400" /> Voir le document émis
+                                          </button>
+                                        )}
+                                        {canPreviewDoc && (
+                                          <button onClick={() => run(() => previewUserDocument(doc))} className={itemClass}>
+                                            <FileText className="w-4 h-4 text-[#94A3B8]" />
+                                            {doc.certified ? 'Aperçu (spécimen)' : 'Aperçu'}
+                                          </button>
+                                        )}
+                                        {canIssueDoc && (
+                                          <button onClick={() => run(() => issueUserDocument(doc))} className={itemClass}>
+                                            {issued
+                                              ? <RefreshCw className="w-4 h-4 text-amber-400" />
+                                              : <Award className="w-4 h-4 text-emerald-400" />}
+                                            {issued ? 'Régénérer…' : tracked ? 'Émettre…' : 'Générer et enregistrer…'}
+                                          </button>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
                             </>
                           )}
                         </div>
@@ -2099,7 +2216,8 @@ export default function ProfilePage({ user }) {
               setPdfPreview({ isOpen: false, type: null, data: null, isGenerating: false });
           }}
           onEmail={
-            pdfPreview.data?.templateKey
+            // A specimen is never emailed (the member would get the issued one, or one issued on the spot).
+            pdfPreview.data?.templateKey && !pdfPreview.data?.specimen
               ? (userId, recipientEmail) =>
                   emailDocument(pdfPreview.data.templateKey, userId, recipientEmail, { token: authData.token, setAuthData })
               : undefined

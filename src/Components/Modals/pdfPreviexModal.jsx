@@ -93,6 +93,15 @@ export default function PDFPreviewModal({
               <span className="truncate">{title}</span>
             </h3>
 
+            {data?.specimen && (
+              <span
+                className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-red-500/10 text-red-300 border border-red-500/30 shrink-0"
+                title="Aperçu non enregistré : son QR code ne se vérifie pas."
+              >
+                Spécimen — document non valide
+              </span>
+            )}
+
             {isGenerating && (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 shrink-0">
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />

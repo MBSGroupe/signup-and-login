@@ -185,7 +185,7 @@ export default function FileCard({
         <div className={OVERLAY_BASE}>
           {canPreview && (
             <button onClick={handlePreview} className={BTN_PREVIEW}>
-              Aperçu
+              Voir
             </button>
           )}
           {canReplace && (
