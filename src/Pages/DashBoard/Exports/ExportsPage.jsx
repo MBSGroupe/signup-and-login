@@ -1,10 +1,29 @@
 // src/Pages/DashBoard/Exports/ExportsPage.jsx
 import { useContext, useEffect, useMemo, useState } from "react";
-import { Download, Loader2, FileSpreadsheet, RotateCcw, Users, Shield, ClipboardList, Wallet, CreditCard, Coins, Award } from "lucide-react";
+import {
+  Download,
+  Loader2,
+  FileSpreadsheet,
+  RotateCcw,
+  Users,
+  Shield,
+  ClipboardList,
+  Wallet,
+  CreditCard,
+  Coins,
+  Award,
+  Scale,
+  Hourglass,
+  Activity,
+  SearchCheck,
+} from "lucide-react";
 import { UserContext } from "../../../Context/dataCont";
 import useExportCatalog from "../../../Hooks/useExportCatalog";
 import ExportModal from "../../../Components/Export/ExportModal";
-import { countExport, EXPORT_MAX_ROWS } from "../../../Components/Export/exportApi";
+import {
+  countExport,
+  EXPORT_MAX_ROWS,
+} from "../../../Components/Export/exportApi";
 import wilayasData from "../../../assets/data/wilayas.json";
 
 const ICONS = {
@@ -15,14 +34,26 @@ const ICONS = {
   payments: CreditCard,
   "credit-transactions": Coins,
   documents: Award,
+  "fee-situation": Scale,
+  "pending-backlog": Hourglass,
+  "approver-activity": Activity,
+  "data-quality": SearchCheck,
 };
+
+// Groups of the report list, in this order.
+const GROUPS = [
+  { key: "list", label: "Listes" },
+  { key: "situation", label: "Situations" },
+];
 
 const inputClass =
   "w-full px-3 py-2 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#F8FAFC] text-sm placeholder-[#64748B] focus:outline-none focus:ring-1 focus:ring-emerald-500";
 
 const formatCount = (n) => (n ?? 0).toLocaleString("fr-FR");
 const wilayaName = (code) => {
-  const w = wilayasData.find((x) => String(Number(x.code)) === String(Number(code)));
+  const w = wilayasData.find(
+    (x) => String(Number(x.code)) === String(Number(code)),
+  );
   return w ? `${String(w.code).padStart(2, "0")} - ${w.name}` : code;
 };
 
@@ -32,7 +63,11 @@ function FilterInput({ field, value, onChange }) {
   switch (field.type) {
     case "select":
       return (
-        <select value={value ?? ""} onChange={(e) => set(e.target.value)} className={inputClass}>
+        <select
+          value={value ?? ""}
+          onChange={(e) => set(e.target.value)}
+          className={inputClass}
+        >
           <option value="">Tous</option>
           {(field.options || []).map((o) => (
             <option key={o.value} value={o.value}>
@@ -43,7 +78,11 @@ function FilterInput({ field, value, onChange }) {
       );
     case "wilaya":
       return (
-        <select value={value ?? ""} onChange={(e) => set(e.target.value)} className={inputClass}>
+        <select
+          value={value ?? ""}
+          onChange={(e) => set(e.target.value)}
+          className={inputClass}
+        >
           <option value="">Toutes</option>
           {wilayasData.map((w) => (
             <option key={w.code} value={String(Number(w.code))}>
@@ -53,11 +92,33 @@ function FilterInput({ field, value, onChange }) {
         </select>
       );
     case "date":
-      return <input type="date" value={value ?? ""} onChange={(e) => set(e.target.value)} className={`${inputClass} [color-scheme:dark]`} />;
+      return (
+        <input
+          type="date"
+          value={value ?? ""}
+          onChange={(e) => set(e.target.value)}
+          className={`${inputClass} [color-scheme:dark]`}
+        />
+      );
     case "number":
-      return <input type="number" value={value ?? ""} onChange={(e) => set(e.target.value)} className={inputClass} />;
+      return (
+        <input
+          type="number"
+          value={value ?? ""}
+          onChange={(e) => set(e.target.value)}
+          className={inputClass}
+        />
+      );
     default:
-      return <input type="text" value={value ?? ""} onChange={(e) => set(e.target.value)} placeholder="…" className={inputClass} />;
+      return (
+        <input
+          type="text"
+          value={value ?? ""}
+          onChange={(e) => set(e.target.value)}
+          placeholder="…"
+          className={inputClass}
+        />
+      );
   }
 }
 
@@ -69,7 +130,7 @@ function labelsOf(report, filters) {
       const v = filters[f.key];
       const shown =
         f.type === "select"
-          ? f.options?.find((o) => o.value === v)?.label.fr ?? v
+          ? (f.options?.find((o) => o.value === v)?.label.fr ?? v)
           : f.type === "wilaya"
             ? wilayaName(v)
             : f.type === "date"
@@ -89,24 +150,40 @@ export default function ExportsPage() {
   const { reports, loading } = useExportCatalog();
   const [selectedKey, setSelectedKey] = useState(null);
   const [filtersByReport, setFiltersByReport] = useState({});
-  const [count, setCount] = useState({ loading: false, rows: null, error: null });
+  const [count, setCount] = useState({
+    loading: false,
+    rows: null,
+    error: null,
+  });
   const [modalOpen, setModalOpen] = useState(false);
 
   const report = useMemo(
     () => reports.find((r) => r.key === selectedKey) ?? reports[0] ?? null,
     [reports, selectedKey],
   );
-  const filters = useMemo(() => (report ? filtersByReport[report.key] ?? {} : {}), [report, filtersByReport]);
+  const filters = useMemo(
+    () => (report ? (filtersByReport[report.key] ?? {}) : {}),
+    [report, filtersByReport],
+  );
   // Only filled filters are sent.
   const sent = useMemo(
-    () => Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== "" && v !== undefined && v !== null)),
+    () =>
+      Object.fromEntries(
+        Object.entries(filters).filter(
+          ([, v]) => v !== "" && v !== undefined && v !== null,
+        ),
+      ),
     [filters],
   );
   const sentKey = JSON.stringify(sent);
 
   const setFilter = (key, value) =>
-    setFiltersByReport((prev) => ({ ...prev, [report.key]: { ...(prev[report.key] ?? {}), [key]: value } }));
-  const resetFilters = () => setFiltersByReport((prev) => ({ ...prev, [report.key]: {} }));
+    setFiltersByReport((prev) => ({
+      ...prev,
+      [report.key]: { ...(prev[report.key] ?? {}), [key]: value },
+    }));
+  const resetFilters = () =>
+    setFiltersByReport((prev) => ({ ...prev, [report.key]: {} }));
 
   // Matching rows, a moment after the last filter change.
   useEffect(() => {
@@ -115,10 +192,19 @@ export default function ExportsPage() {
     setCount((c) => ({ ...c, loading: true, error: null }));
     const t = setTimeout(async () => {
       try {
-        const rows = await countExport(authedFetch, report.key, JSON.parse(sentKey));
+        const rows = await countExport(
+          authedFetch,
+          report.key,
+          JSON.parse(sentKey),
+        );
         if (alive) setCount({ loading: false, rows, error: null });
       } catch (err) {
-        if (alive) setCount({ loading: false, rows: null, error: err?.message || "Comptage impossible" });
+        if (alive)
+          setCount({
+            loading: false,
+            rows: null,
+            error: err?.message || "Comptage impossible",
+          });
       }
     }, 400);
     return () => {
@@ -136,9 +222,12 @@ export default function ExportsPage() {
               <FileSpreadsheet className="w-6 h-6 text-emerald-400" />
             </div>
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Exports</h1>
+              <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
+                Exports
+              </h1>
               <p className="text-sm text-[#94A3B8] mt-1">
-                Listes et journaux en Excel ou CSV, limités aux données que votre rôle permet d’exporter.
+                Listes et journaux en Excel ou CSV, limités aux données que
+                votre rôle permet d’exporter.
               </p>
             </div>
           </div>
@@ -149,46 +238,82 @@ export default function ExportsPage() {
             <Loader2 className="w-8 h-8 text-emerald-400 animate-spin" />
           </div>
         ) : !report ? (
-          <p className="mt-10 text-center text-[#64748B]">Aucun export n’est disponible pour votre rôle.</p>
+          <p className="mt-10 text-center text-[#64748B]">
+            Aucun export n’est disponible pour votre rôle.
+          </p>
         ) : (
           <div className="mt-6 grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-6">
             {/* Reports */}
-            <nav className="space-y-2" aria-label="Exports disponibles">
-              {reports.map((r) => {
-                const Icon = ICONS[r.key] ?? FileSpreadsheet;
-                const active = r.key === report.key;
+            <nav className="space-y-5" aria-label="Exports disponibles">
+              {GROUPS.map((g) => {
+                const inGroup = reports.filter(
+                  (r) => (r.category ?? "list") === g.key,
+                );
+                if (!inGroup.length) return null;
                 return (
-                  <button
-                    key={r.key}
-                    onClick={() => setSelectedKey(r.key)}
-                    className={`w-full text-left flex items-start gap-3 px-4 py-3 rounded-xl border transition-all duration-200 ${
-                      active
-                        ? "bg-emerald-500/10 border-emerald-500/30"
-                        : "bg-[#111827] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)]"
-                    }`}
-                  >
-                    <Icon className={`w-5 h-5 mt-0.5 shrink-0 ${active ? "text-emerald-400" : "text-[#64748B]"}`} />
-                    <span className="min-w-0">
-                      <span className={`block text-sm font-medium ${active ? "text-emerald-300" : "text-[#F8FAFC]"}`}>{r.label.fr}</span>
-                      <span className="block text-xs text-[#64748B] font-arabic truncate" dir="rtl">
-                        {r.label.ar}
-                      </span>
-                    </span>
-                  </button>
+                  <div key={g.key} className="space-y-2">
+                    <h2 className="px-1 text-[11px] uppercase tracking-wider text-[#64748B]">
+                      {g.label}
+                    </h2>
+                    {inGroup.map((r) => {
+                      const Icon = ICONS[r.key] ?? FileSpreadsheet;
+                      const active = r.key === report.key;
+                      return (
+                        <button
+                          key={r.key}
+                          onClick={() => setSelectedKey(r.key)}
+                          className={`w-full text-left flex items-start gap-3 px-4 py-3 rounded-xl border transition-all duration-200 ${
+                            active
+                              ? "bg-emerald-500/10 border-emerald-500/30"
+                              : "bg-[#111827] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)]"
+                          }`}
+                        >
+                          <Icon
+                            className={`w-5 h-5 mt-0.5 shrink-0 ${active ? "text-emerald-400" : "text-[#64748B]"}`}
+                          />
+                          <span className="min-w-0">
+                            <span
+                              className={`block text-sm font-medium ${active ? "text-emerald-300" : "text-[#F8FAFC]"}`}
+                            >
+                              {r.label.fr}
+                            </span>
+                            <span
+                              className="block text-xs text-[#64748B] font-arabic truncate"
+                              dir="rtl"
+                            >
+                              {r.label.ar}
+                            </span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 );
               })}
             </nav>
 
             {/* Filters of the selected report */}
             <section className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] p-6">
-              <h2 className="text-xl font-bold tracking-tight">{report.label.fr}</h2>
-              {report.description && <p className="text-sm text-[#94A3B8] mt-1 max-w-3xl">{report.description.fr}</p>}
+              <h2 className="text-xl font-bold tracking-tight">
+                {report.label.fr}
+              </h2>
+              {report.description && (
+                <p className="text-sm text-[#94A3B8] mt-1 max-w-3xl">
+                  {report.description.fr}
+                </p>
+              )}
 
               <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
                 {report.filters.map((f) => (
                   <label key={f.key} className="block">
-                    <span className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">{f.label.fr}</span>
-                    <FilterInput field={f} value={filters[f.key]} onChange={setFilter} />
+                    <span className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">
+                      {f.label.fr}
+                    </span>
+                    <FilterInput
+                      field={f}
+                      value={filters[f.key]}
+                      onChange={setFilter}
+                    />
                   </label>
                 ))}
               </div>
@@ -203,10 +328,15 @@ export default function ExportsPage() {
                     <span className="text-rose-400">{count.error}</span>
                   ) : (
                     <span className="text-[#94A3B8]">
-                      <span className="text-2xl font-semibold text-[#F8FAFC] mr-1.5">{formatCount(count.rows)}</span>
+                      <span className="text-2xl font-semibold text-[#F8FAFC] mr-1.5">
+                        {formatCount(count.rows)}
+                      </span>
                       lignes correspondent
                       {count.rows > EXPORT_MAX_ROWS && (
-                        <span className="block text-rose-400 mt-1">Au-delà de {formatCount(EXPORT_MAX_ROWS)} : affinez les filtres.</span>
+                        <span className="block text-rose-400 mt-1">
+                          Au-delà de {formatCount(EXPORT_MAX_ROWS)} : affinez
+                          les filtres.
+                        </span>
                       )}
                     </span>
                   )}
@@ -220,7 +350,11 @@ export default function ExportsPage() {
                   </button>
                   <button
                     onClick={() => setModalOpen(true)}
-                    disabled={count.loading || !count.rows || count.rows > EXPORT_MAX_ROWS}
+                    disabled={
+                      count.loading ||
+                      !count.rows ||
+                      count.rows > EXPORT_MAX_ROWS
+                    }
                     className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium transition-all duration-200 shadow-lg shadow-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Download className="w-4 h-4" /> Exporter…
