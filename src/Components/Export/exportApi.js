@@ -41,11 +41,23 @@ export async function downloadExport(authedFetch, reportKey, body) {
     method: "POST",
     body: JSON.stringify(body),
   });
+  const fileName = await saveFile(res, `${reportKey}.${body.format === "csv" ? "csv" : "xlsx"}`);
+  return { fileName, rows: Number(res.headers.get("X-Export-Rows")) || null };
+}
+
+/** A statistics page as XLSX — POST /exports/stats/:key { lang }. */
+export async function downloadStatsExport(authedFetch, statsKey, lang) {
+  const res = await authedFetch(`${NEST_API_URL}/exports/stats/${encodeURIComponent(statsKey)}`, {
+    method: "POST",
+    body: JSON.stringify({ lang }),
+  });
+  return saveFile(res, `stats_${statsKey}.xlsx`);
+}
+
+/** Saves a download response under the name the backend gave it. */
+async function saveFile(res, fallback) {
   const blob = await res.blob();
-  const fileName = fileNameFrom(
-    res.headers.get("Content-Disposition"),
-    `${reportKey}.${body.format === "csv" ? "csv" : "xlsx"}`,
-  );
+  const fileName = fileNameFrom(res.headers.get("Content-Disposition"), fallback);
 
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -55,6 +67,5 @@ export async function downloadExport(authedFetch, reportKey, body) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
-
-  return { fileName, rows: Number(res.headers.get("X-Export-Rows")) || null };
+  return fileName;
 }
