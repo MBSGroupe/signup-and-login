@@ -4,6 +4,8 @@ const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
 /** Rows above which the backend refuses an export (EXPORT_LIMITS.maxRows). */
 export const EXPORT_MAX_ROWS = 50000;
+/** Rows above which even a background export is refused (EXPORT_LIMITS.maxJobRows). */
+export const EXPORT_MAX_JOB_ROWS = 500000;
 
 // filename*=UTF-8''… first (exact name), then filename="…"
 function fileNameFrom(disposition, fallback) {
@@ -69,3 +71,25 @@ async function saveFile(res, fallback) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
   return fileName;
 }
+
+// ── Background exports ("Mes exports") and schedules ───────────────
+
+const json = async (res) => (await res.json())?.data;
+const send = (authedFetch, method, path, body) =>
+  authedFetch(`${NEST_API_URL}${path}`, { method, ...(body ? { body: JSON.stringify(body) } : {}) }).then(json);
+
+/** Queue an export: { kind: "report" | "stats", key, format, lang, columns, filters }. */
+export const queueExport = (authedFetch, body) => send(authedFetch, "POST", "/export-jobs", body);
+export const listExportJobs = (authedFetch) => send(authedFetch, "GET", "/export-jobs");
+export const deleteExportJob = (authedFetch, id) => send(authedFetch, "DELETE", `/export-jobs/${encodeURIComponent(id)}`);
+export async function downloadExportJob(authedFetch, job) {
+  const res = await authedFetch(`${NEST_API_URL}/export-jobs/${encodeURIComponent(job.id)}/download`);
+  return saveFile(res, job.fileName || `${job.reportKey}.xlsx`);
+}
+
+export const listSchedules = (authedFetch) => send(authedFetch, "GET", "/export-schedules");
+export const createSchedule = (authedFetch, body) => send(authedFetch, "POST", "/export-schedules", body);
+export const setScheduleActive = (authedFetch, id, active) =>
+  send(authedFetch, "PATCH", `/export-schedules/${encodeURIComponent(id)}`, { active });
+export const runScheduleNow = (authedFetch, id) => send(authedFetch, "POST", `/export-schedules/${encodeURIComponent(id)}/run`);
+export const deleteSchedule = (authedFetch, id) => send(authedFetch, "DELETE", `/export-schedules/${encodeURIComponent(id)}`);

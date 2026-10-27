@@ -1,9 +1,10 @@
 // src/Components/Export/ExportModal.jsx
 import { useContext, useMemo, useState } from "react";
-import { X, Download, Loader2, FileSpreadsheet, FileText, Search, Info } from "lucide-react";
+import { X, Download, Loader2, FileSpreadsheet, FileText, Search, Info, Clock, CalendarClock } from "lucide-react";
 import { UserContext } from "../../Context/dataCont";
 import { useError } from "../../Context/ErrorContext";
-import { downloadExport, EXPORT_MAX_ROWS } from "./exportApi";
+import { downloadExport, EXPORT_MAX_ROWS, queueExport } from "./exportApi";
+import ScheduleModal from "./ScheduleModal";
 
 const FORMATS = [
   { value: "xlsx", label: "Excel (.xlsx)", icon: <FileSpreadsheet className="w-4 h-4" />, hint: "Dates et nombres prêts à trier" },
@@ -66,6 +67,7 @@ export default function ExportModal({ report, filters, filterLabels = [], totalC
   const [rowsScope, setRowsScope] = useState(hasSelection ? "selection" : "filtered");
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
+  const [scheduling, setScheduling] = useState(false);
 
   const rowCount = rowsScope === "selection" ? selectedIds.length : totalCount;
   const tooMany = rowCount > EXPORT_MAX_ROWS;
@@ -83,17 +85,37 @@ export default function ExportModal({ report, filters, filterLabels = [], totalC
       return next;
     });
 
-  const run = async () => {
+  // What the export, the background job and the schedule all send.
+  const exportBody = () => ({
+    format,
+    lang,
     // Offered order, not click order: the file reads like the catalog.
-    const chosen = offeredKeys.filter((k) => columns.has(k));
+    columns: offeredKeys.filter((k) => columns.has(k)),
+    filters: rowsScope === "selection" ? { ...filters, ids: selectedIds } : filters,
+  });
+
+  // Big exports (or not wanting to wait): prepared by the server, the file
+  // appears in "Mes exports" with a notification.
+  const runInBackground = async () => {
     setBusy(true);
     try {
-      const body = {
-        format,
-        lang,
-        columns: chosen,
-        filters: rowsScope === "selection" ? { ...filters, ids: selectedIds } : filters,
-      };
+      const body = exportBody();
+      await queueExport(authedFetch, { kind: "report", key: report.key, ...body });
+      savePrefs(viewerId, report.key, { format, lang, columns: body.columns });
+      showSuccess("Export en préparation : vous serez notifié quand le fichier sera prêt (« Mes exports »).");
+      onClose();
+    } catch (err) {
+      showError(err?.message || "L'export n'a pas pu être lancé");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const run = async () => {
+    const body = exportBody();
+    const chosen = body.columns;
+    setBusy(true);
+    try {
       const { fileName, rows } = await downloadExport(authedFetch, report.key, body);
       savePrefs(viewerId, report.key, { format, lang, columns: chosen });
       showSuccess(`${fileName} — ${formatCount(rows ?? rowCount)} lignes exportées`);
@@ -183,8 +205,9 @@ export default function ExportModal({ report, filters, filterLabels = [], totalC
               </div>
             )}
             {tooMany && (
-              <p className="mt-3 text-sm text-rose-400">
-                L'export est limité à {formatCount(EXPORT_MAX_ROWS)} lignes. Affinez les filtres.
+              <p className="mt-3 text-sm text-amber-400">
+                Plus de {formatCount(EXPORT_MAX_ROWS)} lignes : l’export sera préparé en arrière-plan, puis disponible dans
+                « Mes exports ».
               </p>
             )}
           </section>
@@ -286,7 +309,15 @@ export default function ExportModal({ report, filters, filterLabels = [], totalC
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 p-6 border-t border-[rgba(255,255,255,0.06)]">
+        <div className="flex flex-wrap items-center justify-end gap-3 p-6 border-t border-[rgba(255,255,255,0.06)]">
+          <button
+            onClick={() => setScheduling(true)}
+            disabled={busy || columns.size === 0}
+            className="mr-auto inline-flex items-center gap-2 px-3 py-2.5 text-sm text-[#94A3B8] hover:text-[#F8FAFC] rounded-xl transition-colors disabled:opacity-50"
+            title="Recevoir cet export par email, chaque jour, semaine ou mois"
+          >
+            <CalendarClock className="w-4 h-4" /> Planifier…
+          </button>
           <button
             onClick={onClose}
             disabled={busy}
@@ -295,15 +326,39 @@ export default function ExportModal({ report, filters, filterLabels = [], totalC
             Annuler
           </button>
           <button
-            onClick={run}
-            disabled={busy || columns.size === 0 || rowCount === 0 || tooMany}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium transition-all duration-200 shadow-lg shadow-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={runInBackground}
+            disabled={busy || columns.size === 0 || rowCount === 0}
+            className={
+              tooMany
+                ? "inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium transition-all duration-200 shadow-lg shadow-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                : "inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-[#F8FAFC] bg-[#182233] hover:bg-[#1F2937] border border-[rgba(255,255,255,0.06)] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            }
+            title="Le serveur prépare le fichier ; il apparaît dans « Mes exports »"
           >
-            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-            {busy ? "Export en cours…" : `Exporter ${formatCount(rowCount)} lignes`}
+            <Clock className="w-4 h-4" /> En arrière-plan
           </button>
+          {!tooMany && (
+            <button
+              onClick={run}
+              disabled={busy || columns.size === 0 || rowCount === 0}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium transition-all duration-200 shadow-lg shadow-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              {busy ? "Export en cours…" : `Exporter ${formatCount(rowCount)} lignes`}
+            </button>
+          )}
         </div>
       </div>
+      {scheduling && (
+        <ScheduleModal
+          kind="report"
+          reportKey={report.key}
+          label={report.label}
+          params={exportBody()}
+          hasPeriod={(report.filters || []).some((f) => f.key === "from")}
+          onClose={() => setScheduling(false)}
+        />
+      )}
     </div>
   );
 }

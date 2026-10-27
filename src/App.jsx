@@ -63,6 +63,7 @@ const SiteApplication = lazy(() => import("./Pages/siteapplication"));
 import NotFound from "./Pages/NotFound";
 const AdminStats = lazy(() => import("./Pages/DashBoard/Stats/AdminStats"));
 const ExportsPage = lazy(() => import("./Pages/DashBoard/Exports/ExportsPage"));
+const MyExportsPage = lazy(() => import("./Pages/DashBoard/Exports/MyExportsPage"));
 
 // Signup can be closed per environment with VITE_SIGNUP_ENABLED=false (open by default)
 const SIGNUP_ENABLED = import.meta.env.VITE_SIGNUP_ENABLED !== 'false';
@@ -152,6 +153,7 @@ export default function App() {
         <Route path="validationStats" element={<ValidationStats />} />
         <Route path="/dash/adminStats" element={<AdminStats />} />
         <Route path="exports" element={<ExportsPage />} />
+        <Route path="exports/history" element={<MyExportsPage />} />
       </Route>
 
 

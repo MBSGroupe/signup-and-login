@@ -16,12 +16,15 @@ import {
   Hourglass,
   Activity,
   SearchCheck,
+  History,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { UserContext } from "../../../Context/dataCont";
 import useExportCatalog from "../../../Hooks/useExportCatalog";
 import ExportModal from "../../../Components/Export/ExportModal";
 import {
   countExport,
+  EXPORT_MAX_JOB_ROWS,
   EXPORT_MAX_ROWS,
 } from "../../../Components/Export/exportApi";
 import wilayasData from "../../../assets/data/wilayas.json";
@@ -147,6 +150,7 @@ function labelsOf(report, filters) {
  */
 export default function ExportsPage() {
   const { authedFetch } = useContext(UserContext);
+  const navigate = useNavigate();
   const { reports, loading } = useExportCatalog();
   const [selectedKey, setSelectedKey] = useState(null);
   const [filtersByReport, setFiltersByReport] = useState({});
@@ -230,6 +234,12 @@ export default function ExportsPage() {
                 votre rôle permet d’exporter.
               </p>
             </div>
+            <button
+              onClick={() => navigate("/dash/exports/history")}
+              className="ml-auto inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-[#182233] hover:bg-[#1F2937] text-[#F8FAFC] border border-[rgba(255,255,255,0.06)] transition-colors"
+            >
+              <History className="w-4 h-4" /> Mes exports
+            </button>
           </div>
         </div>
 
@@ -332,11 +342,18 @@ export default function ExportsPage() {
                         {formatCount(count.rows)}
                       </span>
                       lignes correspondent
-                      {count.rows > EXPORT_MAX_ROWS && (
+                      {count.rows > EXPORT_MAX_JOB_ROWS ? (
                         <span className="block text-rose-400 mt-1">
-                          Au-delà de {formatCount(EXPORT_MAX_ROWS)} : affinez
+                          Au-delà de {formatCount(EXPORT_MAX_JOB_ROWS)} : affinez
                           les filtres.
                         </span>
+                      ) : (
+                        count.rows > EXPORT_MAX_ROWS && (
+                          <span className="block text-amber-400 mt-1">
+                            Plus de {formatCount(EXPORT_MAX_ROWS)} : préparé en
+                            arrière-plan.
+                          </span>
+                        )
                       )}
                     </span>
                   )}
@@ -353,7 +370,7 @@ export default function ExportsPage() {
                     disabled={
                       count.loading ||
                       !count.rows ||
-                      count.rows > EXPORT_MAX_ROWS
+                      count.rows > EXPORT_MAX_JOB_ROWS
                     }
                     className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium transition-all duration-200 shadow-lg shadow-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
                   >

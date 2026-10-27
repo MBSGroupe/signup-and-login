@@ -1,10 +1,11 @@
 // src/Components/Export/StatsExportButton.jsx
 import { useContext, useEffect, useRef, useState } from "react";
-import { Download, Loader2, ChevronDown } from "lucide-react";
+import { Download, Loader2, ChevronDown, CalendarClock } from "lucide-react";
 import { UserContext } from "../../Context/dataCont";
 import { useError } from "../../Context/ErrorContext";
 import useExportCatalog from "../../Hooks/useExportCatalog";
 import { downloadStatsExport } from "./exportApi";
+import ScheduleModal from "./ScheduleModal";
 
 const LANGS = [
   { value: "both", label: "Bilingue (FR + AR)" },
@@ -21,7 +22,8 @@ const LANGS = [
 export default function StatsExportButton({ statsKey }) {
   const { authedFetch } = useContext(UserContext);
   const { showError, showSuccess } = useError();
-  const { canExportStats } = useExportCatalog();
+  const { canExportStats, stats } = useExportCatalog();
+  const [scheduling, setScheduling] = useState(false);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const ref = useRef(null);
@@ -79,7 +81,28 @@ export default function StatsExportButton({ statsKey }) {
               {l.label}
             </button>
           ))}
+          <div className="border-t border-[rgba(255,255,255,0.06)] my-1" />
+          <button
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              setScheduling(true);
+            }}
+            className="w-full px-4 py-2.5 text-left text-sm text-[#F8FAFC] hover:bg-[#1F2937] transition-colors inline-flex items-center gap-2"
+          >
+            <CalendarClock className="w-4 h-4 text-[#64748B]" /> Planifier l’envoi…
+          </button>
         </div>
+      )}
+      {scheduling && (
+        <ScheduleModal
+          kind="stats"
+          reportKey={statsKey}
+          label={stats.find((s) => s.key === statsKey)?.label ?? { fr: "Statistiques", ar: "إحصائيات" }}
+          params={{ format: "xlsx", lang: "both" }}
+          hasPeriod={false}
+          onClose={() => setScheduling(false)}
+        />
       )}
     </div>
   );
