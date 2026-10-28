@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { can, canField, gradeAtLeast, isFieldEditable, isFieldViewable } from './can';
 import { transformDates } from './transformPayload';
 import { WILAYA_OPTIONS, wilayaCode, wilayaLabel } from './wilayas';
+import { toNumberFieldValue } from './numberField';
 
 const loaded = {
   loaded: true,
@@ -90,5 +91,19 @@ describe('wilayas', () => {
     expect(wilayaCode(null)).toBeNull();
     expect(WILAYA_OPTIONS.length).toBeGreaterThanOrEqual(48);
     expect(WILAYA_OPTIONS[0]).toEqual({ value: expect.any(String), label: expect.stringMatching(/^\d+ - /) });
+  });
+});
+
+describe('toNumberFieldValue', () => {
+  it('sends exact numbers as numbers, empty as null', () => {
+    expect(toNumberFieldValue('42')).toBe(42);
+    expect(toNumberFieldValue('2.5')).toBe(2.5);
+    expect(toNumberFieldValue('')).toBeNull();
+    expect(toNumberFieldValue(undefined)).toBeNull();
+  });
+
+  it('regression: keeps an 18-digit NIN as text instead of rounding it', () => {
+    expect(String(Number('109870887110123457'))).toBe('109870887110123460'); // what used to be sent
+    expect(toNumberFieldValue('109870887110123457')).toBe('109870887110123457');
   });
 });

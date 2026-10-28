@@ -380,7 +380,8 @@ export default function ProfilePage({ user }) {
   const toggleRequestExpand = (reqId) => {
     setExpandedRequests(prev => ({
       ...prev,
-      [reqId]: prev[reqId] !== undefined ? !prev[reqId] : false
+      // Collapsed until first opened (same default as isExpanded below).
+      [reqId]: !(prev[reqId] ?? false)
     }));
   };
 

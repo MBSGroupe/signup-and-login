@@ -1,5 +1,6 @@
 // src/Components/Modals/SchemaFormModal.jsx
 import { useState, useRef, useEffect, useMemo } from 'react';
+import { toNumberFieldValue } from '../../Utils/numberField';
 import { createPortal } from 'react-dom';
 import {
   X,
@@ -405,8 +406,7 @@ export default function SchemaFormModal({
         } else {
           const raw = values[field.name];
           if (field.type === 'number') {
-            payload[field.name] =
-              raw === '' || raw === null || raw === undefined ? null : Number(raw);
+            payload[field.name] = toNumberFieldValue(raw);
           } else if (field.type === 'boolean') {
             payload[field.name] = !!raw;
           } else if (field.type === 'json') {

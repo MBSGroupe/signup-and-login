@@ -8,6 +8,8 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.js'],
+    // e2e/ holds the Playwright browser tests (npm run test:e2e).
+    exclude: ['**/node_modules/**', 'e2e/**'],
     env: { VITE_NEST_API_URL: 'http://api.test' },
     restoreMocks: true,
     css: false,

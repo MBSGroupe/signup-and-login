@@ -32,3 +32,9 @@ dist-ssr
 *.aab
 *.ipa
 
+
+# Playwright: reports and traces show data of the database copy (local only)
+e2e-report/
+e2e-results/
+playwright-report/
+test-results/

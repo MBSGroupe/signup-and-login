@@ -1,4 +1,5 @@
 import { useContext, useEffect, useState } from 'react';
+import { toNumberFieldValue } from '../../../Utils/numberField';
 import { useParams, useNavigate } from 'react-router-dom';
 import { UserContext } from '../../../Context/dataCont';
 import { fetchWithRefresh } from '../../../Components/api';
@@ -118,7 +119,7 @@ const reserveReasonsOf = (field) =>
 // ─── Helper: value typed by the reviewer → value sent to the server ─────
 const toPayloadValue = (field, raw) => {
   if (field.type === 'boolean') return !!raw;
-  if (field.type === 'number') return raw === '' || raw === null || raw === undefined ? null : Number(raw);
+  if (field.type === 'number') return toNumberFieldValue(raw);
   return raw;
 };
 
