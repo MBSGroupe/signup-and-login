@@ -24,7 +24,9 @@ import {
   Database,
   Layers,
   Award,
+  Download,
 } from "lucide-react";
+import useExportCatalog from "../../Hooks/useExportCatalog";
 import cnoaLogo from "../../assets/LOGOCLOA.png";
 
 const API_URL = import.meta.env.VITE_NEST_API_URL;
@@ -35,19 +37,16 @@ const isValidationType = (type) =>
 
 /* ────────────────────────────────────────────────────────────────────
  * SINGLE SOURCE OF TRUTH
- * Every sidebar entry is gated by a permission.
- * `operation` + `model` are sent to
- *   POST /permissions/:userId/check-operation  →  { canPerform: boolean }
- *
- * Adjust the operation/model names below to match your backend.
- * Nothing else in this file needs to change.
+ * Every sidebar entry is gated by a permission, read from the cached
+ * GET /permissions/me (UserContext.canDo) — no request per entry.
+ * Each entry is gated by the operation its page actually calls.
  * ──────────────────────────────────────────────────────────────────── */
 const PERMISSION_MAP = {
   // Tableau de bord
   dashboard: { operation: "read", model: "Dashboard" },
 
-  // Administrateurs
-  adminsRead: { operation: "read", model: "Admin" },
+  // Administrateurs — the list page calls GET /admins (read_list)
+  adminsRead: { operation: "read_list", model: "Admin" },
   adminsCreate: { operation: "create", model: "Admin" },
 
   // Membres
@@ -78,14 +77,12 @@ const PERMISSION_MAP = {
   profileRead: { operation: "read", model: "Admin" },
 };
 
-const EMPTY_PERMISSIONS = Object.fromEntries(
-  Object.keys(PERMISSION_MAP).map((key) => [key, false]),
-);
-
 export default function SideBar() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { authData, setAuthData } = useContext(UserContext);
+  const { authData, setAuthData, canDo } = useContext(UserContext);
+  // "Exports" only when the backend lists at least one report for this viewer.
+  const { reports: exportReports } = useExportCatalog();
 
   // ⚠️ Kept ONLY for the "Configuration" board (per your request).
   const isSuperAdmin = authData?.user?.grade === "super_admin";
@@ -97,9 +94,19 @@ export default function SideBar() {
   const [validationOpen, setValidationOpen] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
 
-  // ─── Permissions state ─────────────────────────────────────────────
-  // Everything starts hidden and is revealed once the API answers.
-  const [permissions, setPermissions] = useState(EMPTY_PERMISSIONS);
+  // ─── Permissions ───────────────────────────────────────────────────
+  // Everything stays hidden until GET /permissions/me has answered (and
+  // stays hidden if it failed).
+  const permissions = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(PERMISSION_MAP).map(([key, { operation, model }]) => [
+          key,
+          canDo(model, operation),
+        ]),
+      ),
+    [canDo],
+  );
 
   // ─── Validation unread state ───────────────────────────────────────
   const [validationNotifications, setValidationNotifications] = useState([]);
@@ -129,62 +136,6 @@ export default function SideBar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // ─── Fetch every sidebar permission in one batch ───────────────────
-  useEffect(() => {
-    if (!authData?.token || !authData?.user?.id) return;
-    let cancelled = false;
-
-    const checkOp = async (operation, model) => {
-      try {
-        const res = await fetchWithRefresh(
-          `${API_URL}/permissions/${authData.user.id}/check-operation`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ operation, model }),
-          },
-          authData.token,
-          setAuthData,
-          { type: authData.user?.type },
-        );
-        if (!res.ok) return null;
-        const data = await res.json();
-        return data?.data?.canPerform ?? data?.canPerform ?? false;
-      } catch (err) {
-        console.error(
-          `[SideBar] check-operation ${operation}/${model} failed`,
-          err,
-        );
-        return null;
-      }
-    };
-
-    const load = async () => {
-      const entries = Object.entries(PERMISSION_MAP);
-
-      const results = await Promise.all(
-        entries.map(([, { operation, model }]) => checkOp(operation, model)),
-      );
-
-      if (cancelled) return;
-
-      const next = {};
-      entries.forEach(([key], index) => {
-        // null  → the request itself failed → stay permissive so a backend
-        //         hiccup doesn't blank the whole sidebar.
-        // false → explicit denial → keep it hidden.
-        next[key] = results[index] === null ? true : results[index];
-      });
-
-      setPermissions(next);
-    };
-
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [authData?.token, authData?.user?.id, authData?.user?.type, setAuthData]);
-
   // ─── Derived visibility flags ──────────────────────────────────────
   // A dropdown group is only rendered when AT LEAST ONE of its
   // sub-items is permitted. If every sub-item is denied, the group
@@ -198,11 +149,10 @@ export default function SideBar() {
   const showCotisationsGroup =
     permissions.cotisationsRead || permissions.cotisationsCreate;
 
-  // Validations — "Demandes à valider" (read_approver_requests)
-  // or "Toutes les demandes" (read_all). If neither, the
-  // "Validations" button is not rendered at all.
-  const showValidationsGroup =
-    permissions.validationsRead || permissions.validationsReadAll;
+  // Validations — "Mes demandes" for every admin (their own requests),
+  // plus "Demandes à valider" (read_approver_requests) and
+  // "Toutes les demandes" (read_all) when allowed.
+  const showValidationsGroup = true;
 
   // Statistiques
   const hasAnyStatsItem =
@@ -522,6 +472,11 @@ export default function SideBar() {
                       active={isActive("/dash/validation/all-requests")}
                     />
                   )}
+                  <SubItem
+                    label="Mes demandes"
+                    onClick={() => handleNavigation("/dash/validation/my-requests")}
+                    active={isActive("/dash/validation/my-requests")}
+                  />
                 </div>
               )}
             </div>
@@ -577,6 +532,16 @@ export default function SideBar() {
                 </div>
               )}
             </div>
+          )}
+
+          {/* ── Exports ─────────────────────────────────────────────── */}
+          {exportReports.length > 0 && (
+            <NavItem
+              icon={Download}
+              label="Exports"
+              onClick={() => handleNavigation("/dash/exports")}
+              active={isActive("/dash/exports")}
+            />
           )}
 
           {/* ── Configuration — INTENTIONALLY super_admin only ──────── */}

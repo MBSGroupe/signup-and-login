@@ -10,6 +10,7 @@ import DashLayout from './Layouts/DashLayout';
 import ProtectedRoute from './Layouts/ProtectedRoute';
 import AdminRoute from './Layouts/AdminRoute';
 const ResetAdminPassword = lazy(() => import("./Pages/DashBoard/Admins/ResetAdminPassword"));
+const ChangeAdminRole = lazy(() => import("./Pages/DashBoard/Admins/ChangeAdminRole"));
 const ChangePassword = lazy(() => import("./Pages/DashBoard/Users/changePassword"));
 import LoginForm from './Pages/Login';
 const FormulaireCNOA = lazy(() => import("./Pages/Sign-up"));
@@ -44,6 +45,7 @@ const NewValidationSchema = lazy(() => import("./Pages/DashBoard/Validations/New
 const EditValidationSchema = lazy(() => import("./Pages/DashBoard/Validations/EditValidationSchema"));
 const ValidationSchemaVersions = lazy(() => import("./Pages/DashBoard/Validations/ValidationSchemasVersions"));
 const AllValidationRequests = lazy(() => import("./Pages/DashBoard/Validations/allValidationRequests"));
+const MyValidationRequests = lazy(() => import("./Pages/DashBoard/Validations/MyValidationRequests"));
 const ValidationSchemaDetails = lazy(() => import("./Pages/DashBoard/Validations/ValidationSchemaDetails"));
 const ValidationRequestProgress = lazy(() => import("./Pages/DashBoard/Validations/ValidationRequestsProgress"));
 const AdminsPanel = lazy(() => import("./Pages/DashBoard/Admins/AdminsPanel"));
@@ -60,6 +62,8 @@ const SiteApplication = lazy(() => import("./Pages/siteapplication"));
 
 import NotFound from "./Pages/NotFound";
 const AdminStats = lazy(() => import("./Pages/DashBoard/Stats/AdminStats"));
+const ExportsPage = lazy(() => import("./Pages/DashBoard/Exports/ExportsPage"));
+const MyExportsPage = lazy(() => import("./Pages/DashBoard/Exports/MyExportsPage"));
 
 // Signup can be closed per environment with VITE_SIGNUP_ENABLED=false (open by default)
 const SIGNUP_ENABLED = import.meta.env.VITE_SIGNUP_ENABLED !== 'false';
@@ -76,6 +80,7 @@ export default function App() {
 
         
         <Route path="forgot-password" element={<ForgotPassword />} />
+        <Route path="admin/forgot-password" element={<ForgotPassword admin />} />
         <Route path="reset-password" element={<ResetPassword />} />
         <Route path="application-mobile" element={<SiteApplication />} />
          <Route path="verify/degree/:token" element={<VerifyDegree />} />
@@ -112,6 +117,7 @@ export default function App() {
         <Route path="/dash/admins/edit/:id" element={<AdminForm mode="edit" />} />
         <Route path="/dash/admins/:id" element={<AdminProfile mode="edit" />} />
         <Route path="/dash/admins/:id/reset-password" element={<ResetAdminPassword />} />
+        <Route path="/dash/admins/:id/change-role" element={<ChangeAdminRole />} />
 
 
 
@@ -127,6 +133,7 @@ export default function App() {
 
         <Route path="validation/requests" element={<ValidationRequestsList />} />
         <Route path="validation/all-requests" element={<AllValidationRequests />} />
+        <Route path="validation/my-requests" element={<MyValidationRequests />} />
         <Route path="validation/requests/:id" element={<ValidationRequestDetail />} />
         
         <Route path="validation/schemas" element={<ValidationSchemasList />} />
@@ -145,6 +152,8 @@ export default function App() {
         <Route path="userStats" element={<UserStats />} />
         <Route path="validationStats" element={<ValidationStats />} />
         <Route path="/dash/adminStats" element={<AdminStats />} />
+        <Route path="exports" element={<ExportsPage />} />
+        <Route path="exports/history" element={<MyExportsPage />} />
       </Route>
 
 

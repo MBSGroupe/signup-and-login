@@ -41,6 +41,7 @@ import {
   AreaChart,
   Area,
 } from 'recharts';
+import StatsExportButton from '../../../Components/Export/StatsExportButton';
 
 const API_URL = import.meta.env.VITE_NEST_API_URL;
 
@@ -446,6 +447,9 @@ export default function UserStats() {
               </p>
             </div>
           </div>
+
+          {/* Excel export of this page (only if allowed) */}
+          <StatsExportButton statsKey="users" />
 
           {/* Compact KPI summary on the right */}
           <div className="hidden md:flex items-center gap-3 px-4 py-2.5 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)]">

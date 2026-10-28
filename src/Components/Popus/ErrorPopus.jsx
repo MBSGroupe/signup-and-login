@@ -53,7 +53,7 @@ const MessagePopup = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-9999 flex items-center justify-center pointer-events-none">
+    <div className="fixed inset-0 z-[10001] flex items-center justify-center pointer-events-none">
       <div className="absolute inset-0 bg-black/30 backdrop-blur-sm pointer-events-auto" />
       <div className="relative flex flex-col items-center pointer-events-auto">
         {messages.map((msg) => (

@@ -443,7 +443,12 @@ export default function BackgroundManager() {
     setPreviewing(template.key);
     try {
       const blob = await previewDocument(template.key, entityId, { token: authData.token, setAuthData });
-      setPdfPreview({ title: `Aperçu — ${template.name || template.key}`, blobUrl: URL.createObjectURL(blob) });
+      setPdfPreview({
+        title: `Aperçu — ${template.name || template.key}`,
+        blobUrl: URL.createObjectURL(blob),
+        // A certified template's preview comes back watermarked SPÉCIMEN.
+        specimen: !!template.metadata?.certify?.enabled,
+      });
     } catch (error) {
       showError(error.message || "Échec de l'aperçu.");
     } finally {

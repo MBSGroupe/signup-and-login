@@ -1,6 +1,7 @@
 import { useContext, useState } from "react";
 import { UserContext } from "../../Context/dataCont";
-import { previewDocument, emailDocument, downloadBlob } from "../documents";
+import { previewDocument, downloadBlob } from "../documents";
+import { useEmailDocument } from "../../Hooks/useEmailDocument";
 import PDFPreviewModal from '../Modals/pdfPreviexModal';
 
 // DocumentTemplate key of the credit-transaction receipt.
@@ -23,6 +24,7 @@ export default function CreditTransactionCard({ transaction, handlePopup }) {
   const [previewData, setPreviewData] = useState(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const sendEmail = useEmailDocument();
 
   const dateTime = new Date(transaction.date).toLocaleString('fr-FR');
   const isPositive = transaction.amount > 0;
@@ -73,19 +75,12 @@ export default function CreditTransactionCard({ transaction, handlePopup }) {
     setShowPreview(false);
   };
 
+  // Send the receipt to the member's registered address (after confirmation)
   const handleEmailVersementReceipt = async () => {
     if (transaction.amount <= 0) return;
-    const defaultEmail = authData?.user?.email || '';
-    const recipient = window.prompt('Adresse email du destinataire :', defaultEmail);
-    if (!recipient) return;
-
     setIsSendingEmail(true);
     try {
-      await emailDocument(VERSEMENT_TEMPLATE, transaction.id, recipient, auth);
-      if (handlePopup) handlePopup('success', 'Reçu envoyé par email avec succès');
-    } catch (err) {
-      console.error(err);
-      if (handlePopup) handlePopup('error', err.message || 'Impossible d\'envoyer le reçu');
+      await sendEmail(VERSEMENT_TEMPLATE, transaction.id);
     } finally {
       setIsSendingEmail(false);
     }

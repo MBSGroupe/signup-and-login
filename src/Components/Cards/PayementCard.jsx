@@ -1,6 +1,7 @@
 import { useContext, useState } from "react";
 import { UserContext } from "../../Context/dataCont";
-import { previewDocument, emailDocument } from "../documents";
+import { previewDocument } from "../documents";
+import { useEmailDocument } from "../../Hooks/useEmailDocument";
 import PDFPreviewModal from '../Modals/pdfPreviexModal';
 import { Download, Eye, Mail, CreditCard, Calendar, AlertCircle } from "lucide-react";
 
@@ -12,6 +13,7 @@ export default function PaymentCard({ payment, handlePopup }) {
   const [showPreview, setShowPreview] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const sendEmail = useEmailDocument();
   const [pdfData, setPdfData] = useState(null);
 
   const paymentId = payment._id || payment.id;
@@ -65,19 +67,11 @@ export default function PaymentCard({ payment, handlePopup }) {
     }
   };
 
-  // Send receipt by email
+  // Send the receipt to the member's registered address (after confirmation)
   const handleEmailReceipt = async () => {
-    const defaultEmail = payment?.user?.email || '';
-    const recipient = window.prompt('Adresse email du destinataire :', defaultEmail);
-    if (!recipient) return;
-
     setIsSendingEmail(true);
     try {
-      await emailDocument(RECEIPT_TEMPLATE, paymentId, recipient, auth);
-      if (handlePopup) handlePopup('success', 'Reçu envoyé avec succès ✅');
-    } catch (err) {
-      console.error('❌ Email error:', err);
-      if (handlePopup) handlePopup('error', err.message || 'Erreur lors de l\'envoi');
+      await sendEmail(RECEIPT_TEMPLATE, paymentId);
     } finally {
       setIsSendingEmail(false);
     }

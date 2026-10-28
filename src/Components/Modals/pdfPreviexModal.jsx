@@ -1,6 +1,7 @@
 import { createPortal } from "react-dom";
 import { useEffect, useState } from "react";
 import { FileText, Loader2 } from 'lucide-react';
+import { useEmailDocument } from '../../Hooks/useEmailDocument';
 
 const BTN_PRIMARY =
   "inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg transition-colors shadow-lg shadow-emerald-600/20";
@@ -22,6 +23,7 @@ export default function PDFPreviewModal({
   const [blobUrl, setBlobUrl] = useState(null);
   const [error, setError] = useState(null);
   const [sendingEmail, setSendingEmail] = useState(false);
+  const sendEmail = useEmailDocument();
 
   let title = data?.title || 'Aperçu du document';
   if (!data?.title && type === 'payment') title = 'Aperçu du reçu de paiement';
@@ -63,18 +65,13 @@ export default function PDFPreviewModal({
     }
   };
 
+  // Always to the member's registered address, after a confirmation that
+  // shows it (useEmailDocument). `onEmail` only enables the button.
   const handleEmail = async () => {
-    if (!onEmail || !data?.userId) return;
-    const defaultEmail = data?.memberEmail || '';
-    const recipient = window.prompt('Adresse email du destinataire :', defaultEmail);
-    if (!recipient) return;
+    if (!onEmail || !data?.userId || !data?.templateKey) return;
     setSendingEmail(true);
     try {
-      await onEmail(data.userId, recipient);
-      alert('Email envoyé avec succès ✅');
-    } catch (err) {
-      console.error('Email sending failed:', err);
-      alert("Échec de l'envoi de l'email");
+      await sendEmail(data.templateKey, data.userId);
     } finally {
       setSendingEmail(false);
     }
@@ -95,6 +92,15 @@ export default function PDFPreviewModal({
               <FileText className="w-5 h-5 text-emerald-400 shrink-0" />
               <span className="truncate">{title}</span>
             </h3>
+
+            {data?.specimen && (
+              <span
+                className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-red-500/10 text-red-300 border border-red-500/30 shrink-0"
+                title="Aperçu non enregistré : son QR code ne se vérifie pas."
+              >
+                Spécimen — document non valide
+              </span>
+            )}
 
             {isGenerating && (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 shrink-0">

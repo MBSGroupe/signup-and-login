@@ -1,10 +1,9 @@
 // Generic document API. A document is identified by its template key; the
 // backend template decides the source model, layout, storage and email.
 import { fetchWithRefresh } from './api';
+import { resolveStorageUrl } from '../Utils/storageUrl';
 
 const API_URL = import.meta.env.VITE_NEST_API_URL;
-// /storage/* is served outside the /api prefix.
-const BACKEND_BASE_URL = API_URL.replace(/\/api.*$/, '');
 
 // The backend wraps every response as { success, data } (global
 // ResponseInterceptor); some handlers add their own envelope too.
@@ -97,24 +96,74 @@ export async function generateDocument(templateKey, entityId, auth, params, { ti
   throw new Error('Délai dépassé – la génération a pris trop de temps.');
 }
 
-/** Email a document. The template decides whether the stored or a fresh PDF is attached. */
+/**
+ * Who an email of this document goes to: always its owner's registered
+ * address. Returns { email, name, documentName } (for the confirmation).
+ */
+export async function getEmailRecipient(templateKey, entityId, auth) {
+  const query = new URLSearchParams({ templateKey, entityId });
+  const res = await fetchWithRefresh(`${API_URL}/pdf/email/recipient?${query}`, { method: 'GET' }, auth.token, auth.setAuthData);
+  if (!res.ok) throw new Error(await readError(res, "Impossible de déterminer le destinataire"));
+  return unwrap(await res.json());
+}
+
+/**
+ * Email a document to its owner. The template decides whether the stored or
+ * a fresh PDF is attached. `recipientEmail` is optional (null): the backend
+ * only sends to the owner's registered address and refuses any other.
+ * Returns { recipient }.
+ */
 export async function emailDocument(templateKey, entityId, recipientEmail, auth, params) {
   const res = await fetchWithRefresh(
     `${API_URL}/pdf/email`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ templateKey, entityId, recipientEmail, ...(params ? { params } : {}) }),
+      body: JSON.stringify({
+        templateKey,
+        entityId,
+        ...(recipientEmail ? { recipientEmail } : {}),
+        ...(params ? { params } : {}),
+      }),
     },
     auth.token,
     auth.setAuthData,
   );
   if (!res.ok) throw new Error(await readError(res, "Échec de l'envoi"));
+  return unwrap(await res.json().catch(() => ({})));
+}
+
+/** Revoke a certified document (File id): its QR then verifies as "révoqué". */
+export async function revokeDocument(fileId, reason, auth) {
+  const res = await fetchWithRefresh(
+    `${API_URL}/pdf/files/${encodeURIComponent(fileId)}/revoke`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason }),
+    },
+    auth.token,
+    auth.setAuthData,
+  );
+  if (!res.ok) throw new Error(await readError(res, 'Échec de la révocation'));
+  return unwrap(await res.json());
+}
+
+/** Undo a revocation. */
+export async function reinstateDocument(fileId, auth) {
+  const res = await fetchWithRefresh(
+    `${API_URL}/pdf/files/${encodeURIComponent(fileId)}/reinstate`,
+    { method: 'POST' },
+    auth.token,
+    auth.setAuthData,
+  );
+  if (!res.ok) throw new Error(await readError(res, 'Échec du rétablissement'));
+  return unwrap(await res.json());
 }
 
 /** Fetch a stored PDF (absolute URL, or a /storage/… path on the backend). */
 export async function fetchStoredPdf(url, auth) {
-  const fullUrl = /^https?:\/\//.test(url) ? url : `${BACKEND_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
+  const fullUrl = resolveStorageUrl(url);
   const res = fullUrl.startsWith('https://res.cloudinary.com')
     ? await fetch(fullUrl)
     : await fetchWithRefresh(fullUrl, { method: 'GET' }, auth.token, auth.setAuthData);

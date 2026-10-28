@@ -104,7 +104,12 @@ export default function ResetPassword() {
 
       if (response.ok && (data?.success ?? true)) {
         setSuccess(true);
-        setTimeout(() => navigate("/?reason=password-reset"), 2000);
+        // Admin links come from admin management and land on the admin login.
+        const isAdmin = (data?.data?.type ?? data?.type) === "admin";
+        setTimeout(
+          () => navigate(isAdmin ? "/adminlogin?reason=password-reset" : "/?reason=password-reset"),
+          2000,
+        );
         return;
       }
 

@@ -15,7 +15,15 @@ import CreditTransactionCard from '../Components/Cards/CreditTransactionCard';
 import PaymentCard from '../Components/Cards/PayementCard';
 
 import { fetchWithRefresh } from '../Components/api';
-import { listDocuments, previewDocument, generateDocument, emailDocument } from '../Components/documents';
+import {
+  listDocuments,
+  previewDocument,
+  generateDocument,
+  emailDocument,
+  revokeDocument,
+  reinstateDocument,
+  fetchStoredPdf,
+} from '../Components/documents';
 import { wilayaLabel } from '../Utils/wilayas';
 import ProtectedImg from '../Components/ProtectedImg';
 
@@ -66,7 +74,9 @@ const PERMISSION_CHECKS = [
   { key: "fees.update",                   model: "Fee",               operation: "update" },
   { key: "validation.read_user_requests", model: "ValidationRequest", operation: "read_user_requests" },
   { key: "validation.create_request",     model: "ValidationRequest", operation: "create_request" },
-   { key: "pdf.generate",                  model: "Pdf",               operation: "generate" },  
+  { key: "pdf.generate",                  model: "Pdf",               operation: "generate" },
+  { key: "pdf.preview",                   model: "Pdf",               operation: "preview" },
+  { key: "pdf.revoke",                    model: "Pdf",               operation: "revoke" },
 ];
 
 const FOLDER_LABELS = {
@@ -312,6 +322,7 @@ export default function ProfilePage({ user }) {
   });
 
   const [menuOpen, setMenuOpen] = useState(false);
+  const [docsMenuOpen, setDocsMenuOpen] = useState(false);
   const menuRef = useRef(null);
   const [activeTab, setActiveTab] = useState('info');
 
@@ -347,6 +358,8 @@ export default function ProfilePage({ user }) {
   const [activeSchema, setActiveSchema] = useState(null);
   const [activeRequestId, setActiveRequestId] = useState(null);
   const [isFormResubmitMode, setIsFormResubmitMode] = useState(false);
+  // Step waiting for the requester, opened in the form modal.
+  const [stepFormContext, setStepFormContext] = useState(null);
 
   const resubmissionMapRef = useRef({});
   const [resubmissionMap, setResubmissionMap] = useState({});
@@ -491,6 +504,27 @@ export default function ProfilePage({ user }) {
     }
   };
 
+  // Certified documents: revocation makes their QR verify as "révoqué".
+  const handleRevokeDocument = async (file, reason) => {
+    try {
+      await revokeDocument(file.id, reason, { token: authData.token, setAuthData });
+      await fetchFiles();
+      showSuccess("Document révoqué");
+    } catch (err) {
+      showError(err.message);
+    }
+  };
+
+  const handleReinstateDocument = async (file) => {
+    try {
+      await reinstateDocument(file.id, { token: authData.token, setAuthData });
+      await fetchFiles();
+      showSuccess("Document rétabli");
+    } catch (err) {
+      showError(err.message);
+    }
+  };
+
   const handleDelete = async (file) => {
     try {
       setIsUploading(true);
@@ -616,37 +650,50 @@ export default function ProfilePage({ user }) {
   };
 
 
-  // ─── Documents ────────────────────────────────────────────────────
-  // Every document template whose source is a User is offered here; the
-  // template decides whether it is stored (generate) or only rendered.
+  // ─── Documents (États de sortie) ──────────────────────────────────
+  // Every document template whose source is a User is offered here, with
+  // three separate actions so that looking at a document never re-issues it:
+  //   - Voir: the issued document as stored (same version, same QR);
+  //   - Aperçu: rendered, nothing stored; a certified one comes back as a
+  //     SPÉCIMEN whose QR never verifies;
+  //   - Émettre / Régénérer: issues a new version (new QR; the previous one
+  //     then verifies as "remplacé"), after a confirmation.
   const revokeBlobUrl = (url) => {
     if (url && typeof url === 'string' && url.startsWith('blob:')) {
       try { URL.revokeObjectURL(url); } catch (_) { }
     }
   };
 
-  const openDocument = async (doc) => {
-    const auth = { token: authData.token, setAuthData };
-    const memberName = `${displayUser?.name || ''} ${displayUser?.lastname || ''}`.trim();
+  /** The member's issued File for a template (latest), or null. */
+  const issuedFile = useCallback(
+    (doc) =>
+      files
+        .filter((f) => f.documentType === doc.key)
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0] || null,
+    [files],
+  );
 
-    // Open the modal immediately in a loading state for instant feedback.
+  /** Opens the PDF modal at once, then fills it with what load() returns. */
+  const showDocument = async (doc, { label = '', specimen = false }, load) => {
+    const memberName = `${displayUser?.name || ''} ${displayUser?.lastname || ''}`.trim();
+    const name = `${doc.name}${label}`;
+
     setPdfPreview({
       isOpen: true,
       type: doc.key,
       isGenerating: true,
       data: {
-        title: memberName ? `${doc.name} — ${memberName}` : doc.name,
+        title: memberName ? `${name} — ${memberName}` : name,
         templateKey: doc.key,
         memberName,
         userId: targetUserId,
         memberEmail: displayUser?.email || '',
+        specimen,
       },
     });
 
     try {
-      const { blob, downloadUrl } = doc.canStore
-        ? await generateDocument(doc.key, targetUserId, auth)
-        : { blob: await previewDocument(doc.key, targetUserId, auth), downloadUrl: null };
+      const { blob, downloadUrl = null } = await load();
       const blobUrl = URL.createObjectURL(blob);
 
       setPdfPreview((prev) => {
@@ -657,17 +704,58 @@ export default function ProfilePage({ user }) {
         }
         return { ...prev, isGenerating: false, data: { ...prev.data, blobUrl, downloadUrl } };
       });
-
-      if (doc.canStore) {
-        showSuccess(`${doc.name} généré ✅`);
-        await fetchFiles();
-      }
+      return true;
     } catch (err) {
       console.error(`❌ Document error (${doc.key}):`, err);
       setPdfPreview((prev) =>
         prev.isOpen && prev.type === doc.key ? { ...prev, isGenerating: false } : prev,
       );
       showError(err.message || 'Erreur lors de la génération');
+      return false;
+    }
+  };
+
+  const viewIssuedDocument = (doc, file) => {
+    const auth = { token: authData.token, setAuthData };
+    return showDocument(doc, { label: file.version ? ` (v${file.version})` : '' }, async () => ({
+      blob: await fetchStoredPdf(file.url, auth),
+      downloadUrl: file.url,
+    }));
+  };
+
+  const previewUserDocument = (doc) => {
+    const auth = { token: authData.token, setAuthData };
+    return showDocument(
+      doc,
+      { label: doc.canStore ? ' — aperçu' : '', specimen: !!doc.certified },
+      async () => ({ blob: await previewDocument(doc.key, targetUserId, auth) }),
+    );
+  };
+
+  const issueUserDocument = async (doc) => {
+    const existing = issuedFile(doc);
+    let message;
+    if (existing && doc.certified) {
+      message =
+        `Une nouvelle version (v${(existing.version || 1) + 1}) sera émise avec un nouveau QR code. ` +
+        'La version actuelle sera signalée « remplacée » à la vérification, ' +
+        'y compris sur les exemplaires déjà imprimés ou envoyés.';
+    } else if (existing) {
+      message = 'Le document enregistré sera remplacé par une nouvelle version.';
+    } else if (doc.certified) {
+      message = 'Un document officiel sera émis, avec un QR code vérifiable par tout tiers.';
+    } else {
+      message = 'Le document sera généré et enregistré.';
+    }
+    const verb = existing ? 'Régénérer' : doc.certified ? 'Émettre' : 'Générer';
+    const confirmed = await confirm({ title: `${verb} « ${doc.name} »`, message });
+    if (!confirmed) return;
+
+    const auth = { token: authData.token, setAuthData };
+    const ok = await showDocument(doc, {}, () => generateDocument(doc.key, targetUserId, auth));
+    if (ok) {
+      showSuccess(`${doc.name} ${existing ? 'régénéré' : doc.certified ? 'émis' : 'généré'} ✅`);
+      await fetchFiles();
     }
   };
 
@@ -769,6 +857,10 @@ export default function ProfilePage({ user }) {
     if (['APPROVED', 'VALIDATED', 'VALIDE', 'VALIDÉ', 'DONE', 'ACTIVE'].includes(s)) return 'Validé';
     if (['REJECTED', 'REJETÉ', 'REJETE', 'CANCELLED', 'ANNULÉ', 'REFUSED'].includes(s)) return 'Rejeté';
     if (['EXPIRED', 'EXPIRÉ'].includes(s)) return 'Expiré';
+    // A step waits for the requester's own form (not a full resubmission).
+    if (Array.isArray(rawObj?.steps) && rawObj.steps.some((st) => st.status === 'awaiting_user')) {
+      return 'Action requise';
+    }
     if (isResubmittedItem(itemOrStatus)) return 'En cours';
 
     const isDirectChangesRequested = [
@@ -813,6 +905,25 @@ export default function ProfilePage({ user }) {
     setActiveSchema(null);
     setActiveRequestId(null);
     setIsFormResubmitMode(false);
+    setStepFormContext(null);
+  };
+
+  /** Opens the form of a step that waits for the requester. */
+  const openStepForm = (req, step) => {
+    setActiveSchema(null);
+    setActiveRequestId(req.id);
+    setIsFormResubmitMode(false);
+    setStepFormContext({
+      requestId: req.id,
+      step,
+      previousData: req.stepPayloads?.[String(step.order)]?.data || null,
+    });
+    setIsFormModalOpen(true);
+  };
+
+  const handleStepSubmitSuccess = async () => {
+    closeSchemaForm();
+    await fetchValidationRequests();
   };
 
   /**
@@ -875,8 +986,11 @@ export default function ProfilePage({ user }) {
 
   const fetchSchemas = async () => {
     try {
+      // Only what this member may start (target type and role).
+      const params = new URLSearchParams({ targetType: 'User' });
+      if (targetUserId) params.set('targetId', targetUserId);
       const res = await fetchWithRefresh(
-        `${NEST_API_URL}/validation/schemas`,
+        `${NEST_API_URL}/validation/schemas/available?${params}`,
         { method: 'GET' },
         authData.token,
         setAuthData
@@ -903,8 +1017,8 @@ export default function ProfilePage({ user }) {
     const schemaId = schemaObj ? (schemaObj.id || schemaObj._id) : null;
     const targetType = schemaObj ? (schemaObj.targetType || 'User') : 'User';
 
-    // If the schema declares a payloadSchema, route through the dynamic form.
-    if (Array.isArray(schemaObj?.payloadSchema) && schemaObj.payloadSchema.length > 0) {
+    // If the schema has fields for the member, route through the dynamic form.
+    if ((schemaObj?.payloadSchema || []).some((f) => f?.filledBy !== 'reviewer')) {
       openSchemaForm(schemaObj, { existingRequestId: null, resubmit: false });
       return;
     }
@@ -953,14 +1067,18 @@ export default function ProfilePage({ user }) {
         showSuccess(`Demande "${schemaName}" initiée avec succès !`);
         await fetchValidationRequests();
       } else {
-        const errMsg = (data.message || data.error || '').toLowerCase();
+        const rawMsg = data.message || data.error || '';
+        const errMsg = (Array.isArray(rawMsg) ? rawMsg.join(' ') : String(rawMsg)).toLowerCase();
         if (errMsg.includes('already') || errMsg.includes('exist') || errMsg.includes('déjà') || errMsg.includes('en cours') || res.status === 409) {
           await alert({
             title: 'Demande déjà existante',
             message: `Cette demande existe déjà. Vous pouvez suivre son avancement dans l'onglet "Validation".`,
           });
         } else {
-          showError(data.message || data.error || 'Erreur lors de la création de la demande');
+          showError(
+            (Array.isArray(rawMsg) ? rawMsg.join(' • ') : rawMsg) ||
+              'Erreur lors de la création de la demande',
+          );
         }
       }
     } catch (err) {
@@ -1143,17 +1261,21 @@ export default function ProfilePage({ user }) {
   const canValidateUserResolved = can("users.validate", isAdmin);
 
   const canGeneratePdf = can("pdf.generate", isAdmin);
+  const canPreviewPdf = can("pdf.preview", isAdmin);
+  const canUseDocuments = canGeneratePdf || canPreviewPdf;
+  const canRevokeDocuments = can("pdf.revoke", false);
 
-  // Document templates built from a User (degree, situation, any new one).
+  // Document templates built from a User (agreements, situation, any new
+  // one), each with what this admin may do with it (canPreview / canGenerate).
   const [userDocuments, setUserDocuments] = useState([]);
   useEffect(() => {
-    if (!canGeneratePdf || !authData?.token) return;
+    if (!canUseDocuments || !authData?.token) return;
     let cancelled = false;
     listDocuments('User', { token: authData.token, setAuthData })
       .then((docs) => { if (!cancelled) setUserDocuments(docs); })
       .catch((err) => console.error('❌ Documents list error:', err));
     return () => { cancelled = true; };
-  }, [canGeneratePdf, authData?.token, setAuthData]);
+  }, [canUseDocuments, authData?.token, setAuthData]);
 
   const tabs = useMemo(() => {
     const list = [];
@@ -1184,7 +1306,7 @@ export default function ProfilePage({ user }) {
     }
   }, [tabs, activeTab]);
 
-  const showActionsMenu = isAdmin && (canUpdateFees || canEditUser || canValidateUserResolved || canGeneratePdf);
+  const showActionsMenu = isAdmin && (canUpdateFees || canEditUser || canValidateUserResolved || canUseDocuments);
 
   if (loading) {
     return (
@@ -1290,7 +1412,7 @@ export default function ProfilePage({ user }) {
                       <MoreVertical className="w-5 h-5" />
                     </button>
                     {menuOpen && (
-                      <div className="absolute right-0 top-full mt-2 w-56 bg-[#182233] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-30 py-1">
+                      <div className={`absolute right-0 top-full mt-2 ${docsMenuOpen ? 'w-80' : 'w-56'} max-h-[80vh] overflow-y-auto bg-[#182233] border border-white/10 rounded-xl shadow-2xl z-30 py-1`}>
                         <div className="py-1">
                           {canUpdateFees && (
                             <>
@@ -1321,21 +1443,78 @@ export default function ProfilePage({ user }) {
                             </>
                           )}
 
-                          {canGeneratePdf && userDocuments.length > 0 && (
+                          {canUseDocuments && userDocuments.length > 0 && (
                             <>
                               <div className="border-t border-white/5 my-1" />
-                              {userDocuments.map((doc) => (
-                                <button
-                                  key={doc.key}
-                                  onClick={() => { setMenuOpen(false); openDocument(doc); }}
-                                  className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
-                                >
-                                  {doc.certified
-                                    ? <Award className="w-4 h-4 text-amber-400" />
-                                    : <FileText className="w-4 h-4 text-emerald-400" />}
-                                  {doc.name}
-                                </button>
-                              ))}
+                              <button
+                                onClick={() => setDocsMenuOpen((open) => !open)}
+                                aria-expanded={docsMenuOpen}
+                                className="w-full px-4 py-2 text-left text-sm text-[#F8FAFC] hover:bg-white/5 flex items-center gap-2.5 transition-colors"
+                              >
+                                <FolderOpen className="w-4 h-4 text-amber-400" />
+                                <span className="flex-1">États de sortie</span>
+                                {docsMenuOpen
+                                  ? <ChevronUp className="w-4 h-4 text-[#64748B]" />
+                                  : <ChevronDown className="w-4 h-4 text-[#64748B]" />}
+                              </button>
+
+                              {docsMenuOpen && (
+                                <div className="bg-[#111827]/60 border-y border-white/5 py-1">
+                                  {userDocuments.map((doc) => {
+                                    // Only documents kept as a File of the member can be "issued" and reopened.
+                                    const tracked = doc.tracked ?? !!doc.certified;
+                                    const issued = tracked ? issuedFile(doc) : null;
+                                    // Older backends don't send these: fall back to the previous behaviour.
+                                    const canPreviewDoc = doc.canPreview ?? true;
+                                    const canIssueDoc = doc.canGenerate ?? doc.canStore;
+                                    const run = (action) => { setMenuOpen(false); action(); };
+                                    const itemClass =
+                                      "w-full pl-10 pr-4 py-1.5 text-left text-sm text-[#CBD5E1] hover:bg-white/5 hover:text-white flex items-center gap-2.5 transition-colors";
+
+                                    return (
+                                      <div key={doc.key} className="py-1">
+                                        <div className="px-4 py-1 flex items-center gap-2.5 text-xs font-semibold text-[#94A3B8]">
+                                          {doc.certified
+                                            ? <Award className="w-4 h-4 text-amber-400 shrink-0" />
+                                            : <FileText className="w-4 h-4 text-emerald-400 shrink-0" />}
+                                          <span className="truncate flex-1">{doc.name}</span>
+                                          {tracked && (
+                                            <span className={`shrink-0 px-1.5 py-0.5 rounded border text-[10px] font-medium ${
+                                              issued?.revokedAt
+                                                ? 'text-red-400 border-red-500/30'
+                                                : issued
+                                                  ? 'text-emerald-400 border-emerald-500/30'
+                                                  : 'text-[#64748B] border-white/10'
+                                            }`}>
+                                              {issued?.revokedAt ? 'révoqué' : issued ? `émis · v${issued.version || 1}` : 'non émis'}
+                                            </span>
+                                          )}
+                                        </div>
+
+                                        {issued && (
+                                          <button onClick={() => run(() => viewIssuedDocument(doc, issued))} className={itemClass}>
+                                            <Eye className="w-4 h-4 text-blue-400" /> Voir le document émis
+                                          </button>
+                                        )}
+                                        {canPreviewDoc && (
+                                          <button onClick={() => run(() => previewUserDocument(doc))} className={itemClass}>
+                                            <FileText className="w-4 h-4 text-[#94A3B8]" />
+                                            {doc.certified ? 'Aperçu (spécimen)' : 'Aperçu'}
+                                          </button>
+                                        )}
+                                        {canIssueDoc && (
+                                          <button onClick={() => run(() => issueUserDocument(doc))} className={itemClass}>
+                                            {issued
+                                              ? <RefreshCw className="w-4 h-4 text-amber-400" />
+                                              : <Award className="w-4 h-4 text-emerald-400" />}
+                                            {issued ? 'Régénérer…' : tracked ? 'Émettre…' : 'Générer et enregistrer…'}
+                                          </button>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
                             </>
                           )}
                         </div>
@@ -1400,6 +1579,12 @@ export default function ProfilePage({ user }) {
                     </div>
                   </div>
 
+                  {canCreateFile && (
+                    <div className="mb-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                      <AddFileCard onUpload={handleUpload} />
+                    </div>
+                  )}
+
                   {filesLoading && nonProfileFiles.length === 0 ? (
                     <div className="flex justify-center py-12">
                       <Loader2 className="w-8 h-8 text-emerald-400 animate-spin" />
@@ -1438,6 +1623,9 @@ export default function ProfilePage({ user }) {
                                 canReplace={canUpdateFile}
                                 canDelete={canDeleteFile}
                                 canPreview={true}
+                                canRevoke={canRevokeDocuments}
+                                onRevoke={handleRevokeDocument}
+                                onReinstate={handleReinstateDocument}
                               />
                             ))}
                           </div>
@@ -1569,8 +1757,8 @@ export default function ProfilePage({ user }) {
                                     if (displayStatus === 'Rejeté') {
                                       return <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border bg-rose-500/10 text-rose-400 border-rose-500/20">Rejetée</span>;
                                     }
-                                    if (displayStatus === 'Modifications requises') {
-                                      return <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border bg-amber-500/10 text-amber-400 border-amber-500/20">Modifications requises</span>;
+                                    if (displayStatus === 'Modifications requises' || displayStatus === 'Action requise') {
+                                      return <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border bg-amber-500/10 text-amber-400 border-amber-500/20">{displayStatus}</span>;
                                     }
                                     return <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border bg-blue-500/10 text-blue-400 border-blue-500/20">En cours</span>;
                                   })()}
@@ -1584,6 +1772,43 @@ export default function ProfilePage({ user }) {
                                   </button>
                                 </div>
                               </div>
+
+                              {displayStatus === 'Action requise' && (() => {
+                                const waitingStep = req.steps.find((s) => s.status === 'awaiting_user');
+                                return (
+                                  <div className="mb-4 p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl shadow-sm">
+                                    <div className="flex items-start justify-between gap-4 flex-wrap">
+                                      <div className="flex-1 min-w-[240px]">
+                                        <p className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                                          <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+                                          Action requise : {waitingStep.stepName || `Étape ${waitingStep.order}`}
+                                        </p>
+                                        <p className="text-sm text-[#F8FAFC] mt-1.5 leading-relaxed">
+                                          {waitingStep.userInstructions ||
+                                            'Des informations complémentaires sont attendues pour poursuivre votre demande.'}
+                                        </p>
+                                        {waitingStep.comments && (
+                                          <p className="text-xs text-amber-200 mt-1.5">
+                                            Motif : {waitingStep.comments}
+                                          </p>
+                                        )}
+                                      </div>
+                                      {canCreateValidation && (
+                                        <div className="flex items-center shrink-0">
+                                          <button
+                                            type="button"
+                                            onClick={() => openStepForm(req, waitingStep)}
+                                            className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-semibold transition-all flex items-center gap-2 shadow-lg shadow-amber-500/20 cursor-pointer"
+                                          >
+                                            <Edit className="w-4 h-4" />
+                                            Compléter
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })()}
 
                               {canCreateValidation && displayStatus === 'Modifications requises' && (() => {
                                 const verificationStepWithCorrection = req.steps?.find(s =>
@@ -1651,10 +1876,11 @@ export default function ProfilePage({ user }) {
                                     const isChangesRequested = isReqChangesRequested && (step.status === 'changes_requested' || idx === 0);
                                     const isRejected = step.status === 'rejected' || step.status === 'expired';
                                     const isSkipped = step.status === 'skipped';
+                                    const isAwaitingUser = step.status === 'awaiting_user';
 
                                     let icon = <Clock className="w-4 h-4 text-amber-400" />;
                                     let circleBg = 'bg-amber-500/20 border-amber-500/40';
-                                    if (isChangesRequested) {
+                                    if (isChangesRequested || isAwaitingUser) {
                                       icon = <AlertCircle className="w-4 h-4 text-amber-400" />;
                                       circleBg = 'bg-amber-500/20 border-amber-500/40';
                                     } else if (isDone) {
@@ -1668,7 +1894,9 @@ export default function ProfilePage({ user }) {
                                       circleBg = 'bg-gray-500/20 border-gray-500/40';
                                     }
 
-                                    const stepStatusLabel = isChangesRequested
+                                    const stepStatusLabel = isAwaitingUser
+                                      ? 'Votre action est attendue'
+                                      : isChangesRequested
                                       ? 'Modifications requises'
                                       : isDone ? 'Approuvée'
                                       : isRejected ? 'Rejetée'
@@ -1685,7 +1913,7 @@ export default function ProfilePage({ user }) {
                                               {step.stepName || step.name || `Étape ${step.stepOrder || idx + 1}`}
                                             </p>
                                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${
-                                              isChangesRequested ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                                              isChangesRequested || isAwaitingUser ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
                                               : isDone ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                                               : isRejected ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
                                               : isSkipped ? 'bg-gray-500/10 text-gray-400 border-gray-500/20'
@@ -1846,8 +2074,7 @@ export default function ProfilePage({ user }) {
                                         resubmit: true,
                                       });
                                     } else if (
-                                      Array.isArray(sch.payloadSchema) &&
-                                      sch.payloadSchema.length > 0
+                                      (sch.payloadSchema || []).some((f) => f?.filledBy !== 'reviewer')
                                     ) {
                                       openSchemaForm(sch, {
                                         existingRequestId: null,
@@ -1969,12 +2196,14 @@ export default function ProfilePage({ user }) {
         }}
         targetUserId={targetUserId}
         authToken={authData?.token}
-        onSuccess={handleRequestSubmitSuccess}
+        onSuccess={stepFormContext ? handleStepSubmitSuccess : handleRequestSubmitSuccess}
         schema={activeSchema}
         existingRequestId={activeRequestId}
         resubmitMode={isFormResubmitMode}
         user={displayUser}
         validationRequests={validationRequests}
+        stepContext={stepFormContext}
+        viewerIsAdmin={authData?.user?.type === 'admin'}
       />
 
       {pdfPreview.isOpen  && (
@@ -1987,7 +2216,8 @@ export default function ProfilePage({ user }) {
               setPdfPreview({ isOpen: false, type: null, data: null, isGenerating: false });
           }}
           onEmail={
-            pdfPreview.data?.templateKey
+            // A specimen is never emailed (the member would get the issued one, or one issued on the spot).
+            pdfPreview.data?.templateKey && !pdfPreview.data?.specimen
               ? (userId, recipientEmail) =>
                   emailDocument(pdfPreview.data.templateKey, userId, recipientEmail, { token: authData.token, setAuthData })
               : undefined

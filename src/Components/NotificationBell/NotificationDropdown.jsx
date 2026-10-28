@@ -59,6 +59,10 @@ const NotificationDropdown = ({ onClose, onRead }) => {
           navigateUrl = `/dash/validation/requests/${data.validationRequestId}`;
         }
         break;
+      case 'export.ready':
+      case 'export.failed':
+        navigateUrl = '/dash/exports/history';
+        break;
       default:
         navigateUrl = '/auth/notifications';
     }

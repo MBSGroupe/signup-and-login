@@ -28,6 +28,7 @@ import {
   Activity,
 } from "lucide-react";
 import { wilayaLabel } from '../../../Utils/wilayas';
+import ExportButton from '../../../Components/Export/ExportButton';
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
@@ -57,16 +58,6 @@ const regionLabel = (code) => wilayaLabel(code);
 const STATUS_OPTIONS = [
   { value: "true", label: "Actif" },
   { value: "false", label: "Inactif" },
-];
-
-const OPS = [
-  "create",
-  "update",
-  "delete",
-  "activate",
-  "deactivate",
-  "reset_password",
-  "change_role",
 ];
 
 // Menu dimensions used for flip-up / flip-left logic
@@ -100,7 +91,7 @@ function unwrapRoles(body) {
 }
 
 export default function AdminsPanel() {
-  const { authData, setAuthData } = useContext(UserContext);
+  const { authData, setAuthData, canDo } = useContext(UserContext);
   const { keyWord, handleChange } = useContext(SearchBarContext);
   const { showError, showSuccess } = useError();
   const { confirm } = useModal();
@@ -134,7 +125,10 @@ export default function AdminsPanel() {
   const [openMenu, setOpenMenu] = useState(null);
 
   // ─── Permission flags ─────────────────────────────────────────────
-  const [can, setCan] = useState({});
+  // Page-level: cached GET /permissions/me. Per row: the admin's own
+  // allowedActions from GET /admins (schema + service rules), so a menu
+  // entry is only shown when the action will go through.
+  const canCreate = canDo("Admin", "create");
 
   // ─── Fetch roles once (filter dropdown only) ──────────────────────
   useEffect(() => {
@@ -213,45 +207,6 @@ export default function AdminsPanel() {
     }
   };
 
-  // ─── Permission checks ────────────────────────────────────────────
-  useEffect(() => {
-    if (!authData?.token || !authData?.user?.id) return;
-    const viewerId = authData.user.id;
-    let cancelled = false;
-
-    const check = async (operation) => {
-      try {
-        const res = await fetchWithRefresh(
-          `${NEST_API_URL}/permissions/${viewerId}/check-operation`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ operation, model: "Admin" }),
-          },
-          authData.token,
-          setAuthData,
-        );
-        const body = await res.json();
-        const payload = body?.data || body;
-        return Boolean(payload?.canPerform);
-      } catch {
-        return false;
-      }
-    };
-
-    (async () => {
-      const results = await Promise.all(OPS.map((op) => check(op)));
-      if (cancelled) return;
-      const next = {};
-      OPS.forEach((op, i) => (next[op] = results[i]));
-      setCan(next);
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [authData?.token, authData?.user?.id, setAuthData]);
-
   // ─── Refetch on dependency changes ────────────────────────────────
   useEffect(() => {
     if (authData?.token) fetchAdmins();
@@ -326,6 +281,9 @@ export default function AdminsPanel() {
     };
   }, [openMenu]);
 
+  // What the viewer may do to the admin whose menu is open.
+  const can = openMenu?.admin?.allowedActions || {};
+
   // ─── Actions ──────────────────────────────────────────────────────
   const handleVisitProfile = (admin) => navigate(`/dash/admins/${admin.id}`);
   const handleEdit = (admin) => navigate(`/dash/admins/edit/${admin.id}`);
@@ -392,7 +350,7 @@ export default function AdminsPanel() {
   };
 
   const handleChangeRole = (admin) => {
-    navigate(`/dash/admins/edit/${admin.id}?focus=role`);
+    navigate(`/dash/admins/${admin.id}/change-role`);
   };
 
   const handleResetPassword = (admin) => {
@@ -478,7 +436,7 @@ export default function AdminsPanel() {
 
         {/* ═══ ACTIONS ═════════════════════════════════════════════ */}
         <div className="flex flex-wrap gap-2 mb-4">
-          {can.create && (
+          {canCreate && (
             <button onClick={handleCreate} className={BTN_PRIMARY_CLS}>
               <Plus className="w-4 h-4" />
               Ajouter un administrateur
@@ -506,6 +464,29 @@ export default function AdminsPanel() {
             <X className="w-4 h-4" />
             Réinitialiser
           </button>
+
+          {/* Same filters as the list (GET /admins) */}
+          <ExportButton
+            reportKey="admins"
+            size="sm"
+            totalCount={totalAdmins}
+            filters={{
+              sortBy,
+              sortOrder,
+              ...(keyWord ? { search: keyWord } : {}),
+              ...(selectedRole !== "all" ? { roleId: selectedRole } : {}),
+              ...(selectedRegion !== "all" ? { region: selectedRegion } : {}),
+              ...(selectedStatus !== "all" ? { isActive: selectedStatus } : {}),
+            }}
+            filterLabels={[
+              ...(keyWord ? [`Recherche : ${keyWord}`] : []),
+              ...(selectedRole !== "all"
+                ? [`Rôle : ${roleOptions.find((r) => r.value === selectedRole)?.label ?? selectedRole}`]
+                : []),
+              ...(selectedRegion !== "all" ? [`Région : ${wilayaLabel(selectedRegion, selectedRegion)}`] : []),
+              ...(selectedStatus !== "all" ? [`Statut : ${selectedStatus === "true" ? "Actif" : "Inactif"}`] : []),
+            ]}
+          />
         </div>
 
         {/* ═══ SEARCH + PAGE SIZE ══════════════════════════════════ */}
@@ -846,7 +827,7 @@ export default function AdminsPanel() {
               <div className="border-t border-[rgba(255,255,255,0.06)] my-1" />
             )}
 
-            {openMenu.admin.isActive !== false && can.deactivate && (
+            {can.deactivate && (
               <MenuItem
                 icon={UserX}
                 label="Désactiver"
@@ -858,7 +839,7 @@ export default function AdminsPanel() {
               />
             )}
 
-            {openMenu.admin.isActive === false && can.activate && (
+            {can.activate && (
               <MenuItem
                 icon={UserCheck}
                 label="Activer"

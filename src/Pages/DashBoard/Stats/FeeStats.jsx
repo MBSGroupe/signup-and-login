@@ -29,6 +29,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
+import StatsExportButton from '../../../Components/Export/StatsExportButton';
 
 const API_URL = import.meta.env.VITE_NEST_API_URL;
 
@@ -381,6 +382,9 @@ export default function FeeStats() {
               </p>
             </div>
           </div>
+
+          {/* Excel export of this page (only if allowed) */}
+          <StatsExportButton statsKey="fees" />
         </div>
 
         {/* ═══ SCOPE FILTER PANEL ═════════════════════════════════ */}

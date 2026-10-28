@@ -95,12 +95,16 @@ export default function AdminProfile() {
   const [admin, setAdmin] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [can, setCan] = useState({});
+  const [reloadKey, setReloadKey] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
 
   const viewerId = authData?.user?.id;
   const isSelf = Boolean(viewerId && admin && viewerId === admin.id);
+
+  // What the viewer may do to this admin — computed by the backend (schema
+  // + its own rules: not on yourself, not above your grade, current status).
+  const can = admin?.allowedActions || {};
 
   // ─── Fetch admin ──────────────────────────────────────────────
   useEffect(() => {
@@ -136,54 +140,7 @@ export default function AdminProfile() {
     return () => {
       cancelled = true;
     };
-  }, [id, authData?.token, setAuthData]);
-
-  // ─── Permission checks ────────────────────────────────────────
-  useEffect(() => {
-    if (!authData?.token || !viewerId) return;
-    let cancelled = false;
-
-    const ops = [
-      "update",
-      "delete",
-      "activate",
-      "deactivate",
-      "reset_password",
-      "change_role",
-    ];
-
-    (async () => {
-      const results = await Promise.all(
-        ops.map(async (op) => {
-          try {
-            const res = await fetchWithRefresh(
-              `${NEST_API_URL}/permissions/${viewerId}/check-operation`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ operation: op, model: "Admin" }),
-              },
-              authData.token,
-              setAuthData,
-            );
-            const body = await res.json();
-            const payload = body?.data || body;
-            return Boolean(payload?.canPerform);
-          } catch {
-            return false;
-          }
-        }),
-      );
-      if (cancelled) return;
-      const next = {};
-      ops.forEach((op, i) => (next[op] = results[i]));
-      setCan(next);
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [authData?.token, viewerId, setAuthData]);
+  }, [id, authData?.token, setAuthData, reloadKey]);
 
   // ─── Close menu on outside click ──────────────────────────────
   useEffect(() => {
@@ -199,7 +156,7 @@ export default function AdminProfile() {
   // ─── Actions ──────────────────────────────────────────────────
   const handleEdit = () => navigate(`/dash/admins/edit/${admin.id}`);
   const handleChangeRole = () =>
-    navigate(`/dash/admins/edit/${admin.id}?focus=role`);
+    navigate(`/dash/admins/${admin.id}/change-role`);
   const handleResetPassword = () =>
     navigate(`/dash/admins/${admin.id}/reset-password`);
 
@@ -227,7 +184,8 @@ export default function AdminProfile() {
         return;
       }
       showSuccess(`Administrateur ${isActive ? "désactivé" : "activé"}`);
-      setAdmin((prev) => ({ ...prev, isActive: !isActive }));
+      // Re-load: status and the allowed actions both changed.
+      setReloadKey((k) => k + 1);
     } catch (err) {
       console.error(err);
       showError("Erreur réseau");

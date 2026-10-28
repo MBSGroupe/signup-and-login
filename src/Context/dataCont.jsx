@@ -1,6 +1,6 @@
 // src/Context/dataCont.jsx
 import { createContext, useState, useEffect, useCallback, useRef } from "react";
-import { fetchWithRefresh } from "../Components/api";
+import { fetchWithRefresh, PERM_VERSION_EVENT } from "../Components/api";
 
 export const UserContext = createContext();
 
@@ -49,7 +49,74 @@ export default function UserProvider({ children }) {
     setAuthData({ user: null, token: null });
     localStorage.removeItem("authData");
     fieldPermCache.current.clear();
+    setMyPermissions(null);
   }, []);
+
+  // ------------------------------------------------------------------
+  // My permissions — GET /permissions/me, once per login.
+  //   { version, operations: { [model]: { [operation]: boolean } } }
+  // Re-fetched when a response carries a different X-Perm-Version (schema
+  // changed). Role/grade changes log the admin out server-side, so the next
+  // login fetches fresh ones. Until loaded (or if it fails) canDo → false:
+  // a button is never shown on a guess.
+  // ------------------------------------------------------------------
+  const [myPermissions, setMyPermissions] = useState(null);
+  const permsRequest = useRef(0);
+  const viewerId = authData?.user?.id;
+  const tokenRef = useRef(authData?.token);
+  tokenRef.current = authData?.token;
+
+  const loadMyPermissions = useCallback(async () => {
+    if (!tokenRef.current) return;
+    const request = ++permsRequest.current;
+    try {
+      const res = await fetchWithRefresh(
+        `${API_URL}/permissions/me`,
+        { method: "GET" },
+        tokenRef.current,
+        setAuthData,
+        { type: authData?.user?.type },
+      );
+      const body = await res.json();
+      if (request === permsRequest.current) {
+        setMyPermissions({ ...(body?.data ?? { operations: {} }), loaded: true });
+      }
+    } catch (err) {
+      if (import.meta.env.DEV) console.warn("GET /permissions/me failed:", err);
+      if (request === permsRequest.current) {
+        setMyPermissions({ version: null, operations: {}, loaded: true });
+      }
+    }
+  }, [authData?.user?.type]);
+
+  useEffect(() => {
+    if (loading) return;
+    if (!viewerId) {
+      setMyPermissions(null);
+      return;
+    }
+    loadMyPermissions();
+  }, [viewerId, loading, loadMyPermissions]);
+
+  const myPermsVersion = myPermissions?.version;
+  useEffect(() => {
+    const onVersion = (e) => {
+      if (viewerId && myPermsVersion && e.detail !== myPermsVersion) {
+        fieldPermCache.current.clear();
+        loadMyPermissions();
+      }
+    };
+    window.addEventListener(PERM_VERSION_EVENT, onVersion);
+    return () => window.removeEventListener(PERM_VERSION_EVENT, onVersion);
+  }, [viewerId, myPermsVersion, loadMyPermissions]);
+
+  // canDo(model, operation) → boolean, synchronous, from the cache above.
+  // For actions on a specific record use that record's `allowedActions`.
+  const canDo = useCallback(
+    (model, operation) => myPermissions?.operations?.[model]?.[operation] === true,
+    [myPermissions],
+  );
+  const permissionsLoaded = Boolean(myPermissions?.loaded);
 
   // ------------------------------------------------------------------
   // Grade helpers (unchanged behavior — already correct)
@@ -215,6 +282,11 @@ export default function UserProvider({ children }) {
         isAdminOrSuper,
         getRoleName,
         hasRole,
+        // cached permissions (GET /permissions/me)
+        canDo,
+        permissionsLoaded,
+        permissionsVersion: myPermsVersion ?? null,
+        reloadPermissions: loadMyPermissions,
         // permission helpers (new)
         can,
         getFieldPermissions,

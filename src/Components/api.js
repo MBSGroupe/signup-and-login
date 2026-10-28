@@ -54,6 +54,20 @@ const forceLogout = (setAuthData, accountType = 'user') => {
   window.location.replace(target);
 };
 
+// ─── Permission schema version ─────────────────────────────────────
+// The backend stamps every response with X-Perm-Version. When it changes,
+// the cached permissions (UserContext → GET /permissions/me) are stale:
+// announce it so the context re-fetches them.
+export const PERM_VERSION_EVENT = 'perm-version-changed';
+let lastPermVersion = null;
+
+const notePermVersion = (response) => {
+  const version = response?.headers?.get?.('X-Perm-Version');
+  if (!version || version === lastPermVersion) return;
+  lastPermVersion = version;
+  window.dispatchEvent(new CustomEvent(PERM_VERSION_EVENT, { detail: version }));
+};
+
 const sessionExpiredError = () => {
   const err = new Error('Session expired');
   err.status = 401;
@@ -90,11 +104,20 @@ export const fetchWithRefresh = async (
   setAuthData,
   authHint = {},
 ) => {
+  // FormData / Blob bodies: the browser sets Content-Type itself (multipart
+  // boundary included). Forcing JSON there makes the backend parse the
+  // upload as JSON and reject it.
+  const body = options?.body;
+  const browserSetsType =
+    (typeof FormData !== 'undefined' && body instanceof FormData) ||
+    (typeof Blob !== 'undefined' && body instanceof Blob) ||
+    (typeof URLSearchParams !== 'undefined' && body instanceof URLSearchParams);
+
   const makeRequest = (accessToken) =>
     fetch(url, {
       ...options,
       headers: {
-        'Content-Type': 'application/json',
+        ...(browserSetsType ? {} : { 'Content-Type': 'application/json' }),
         ...(options?.headers || {}),
         Authorization: `Bearer ${accessToken}`,
       },
@@ -110,6 +133,7 @@ export const fetchWithRefresh = async (
     accountType === 'admin' ? '/auth/admin/refresh' : '/auth/refresh';
 
   let response = await makeRequest(token);
+  notePermVersion(response);
 
   if (response.status === 401) {
     try {
@@ -146,6 +170,7 @@ export const fetchWithRefresh = async (
 
       setAuthData?.((prev) => ({ ...prev, token: newToken }));
       response = await makeRequest(newToken);
+      notePermVersion(response);
 
       // ★ If the retry itself still 401s, the new token is no good.
       // Session is likely revoked server-side (restart, admin revocation,
