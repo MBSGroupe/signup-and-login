@@ -72,6 +72,7 @@ const PERMISSION_MAP = {
   // Statistiques
   statsFees: { operation: "read_stats", model: "Fee" },
   statsUsers: { operation: "read_stats", model: "User" },
+  statsStagiaires: { operation: "read_stats", model: "Stagiaire" },
   statsAdmins: { operation: "read_stats", model: "Admin" },
   statsRequests: { operation: "read_stats", model: "ValidationRequest" },
 
@@ -160,6 +161,7 @@ export default function SideBar() {
   const hasAnyStatsItem =
     permissions.statsFees ||
     permissions.statsUsers ||
+    permissions.statsStagiaires ||
     permissions.statsAdmins ||
     permissions.statsRequests;
 
@@ -522,9 +524,16 @@ export default function SideBar() {
                   )}
                   {permissions.statsUsers && (
                     <SubItem
-                      label="Utilisateurs"
+                      label="Architectes"
                       onClick={() => handleNavigation("/dash/userStats")}
                       active={isActive("/dash/userStats")}
+                    />
+                  )}
+                  {permissions.statsStagiaires && (
+                    <SubItem
+                      label="Stagiaires"
+                      onClick={() => handleNavigation("/dash/stagiaireStats")}
+                      active={isActive("/dash/stagiaireStats")}
                     />
                   )}
                   {permissions.statsAdmins && (

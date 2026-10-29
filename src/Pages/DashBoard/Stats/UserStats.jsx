@@ -293,7 +293,16 @@ function EmptyChart({ icon: Icon = BarChart3, message }) {
 //  Page
 // ═══════════════════════════════════════════════════════════════════
 
-export default function UserStats() {
+// One stats page per member role: architects (GET /users/stats) and
+// stagiaires (GET /users/stagiaires/stats, their own permission). The
+// stagiaires have no stats export yet.
+const POPULATIONS = {
+  architects: { endpoint: '/users/stats', title: 'Statistiques des architectes', exportKey: 'users' },
+  stagiaires: { endpoint: '/users/stagiaires/stats', title: 'Statistiques des stagiaires', exportKey: null },
+};
+
+export default function UserStats({ population = 'architects' }) {
+  const config = POPULATIONS[population] || POPULATIONS.architects;
   const { authData, setAuthData } = useContext(UserContext);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
@@ -304,7 +313,7 @@ export default function UserStats() {
     const fetchStats = async () => {
       try {
         const res = await fetchWithRefresh(
-          `${API_URL}/users/stats`,
+          `${API_URL}${config.endpoint}`,
           { method: 'GET' },
           authData.token,
           setAuthData,
@@ -328,7 +337,7 @@ export default function UserStats() {
       }
     };
     if (authData?.token) fetchStats();
-  }, [authData, setAuthData]);
+  }, [authData, setAuthData, config.endpoint]);
 
   // ─── Loading ────────────────────────────────────────────────────
   if (loading) {
@@ -439,7 +448,7 @@ export default function UserStats() {
                 </span>
               </div>
               <h1 className="text-xl font-bold text-[#F8FAFC] tracking-tight mt-0.5">
-                Statistiques des utilisateurs
+                {config.title}
               </h1>
               <p className="text-xs text-[#64748B] font-mono mt-0.5">
                 {authData?.user?.name || 'Administrateur'} ·{' '}
@@ -449,7 +458,7 @@ export default function UserStats() {
           </div>
 
           {/* Excel export of this page (only if allowed) */}
-          <StatsExportButton statsKey="users" />
+          {config.exportKey && <StatsExportButton statsKey={config.exportKey} />}
 
           {/* Compact KPI summary on the right */}
           <div className="hidden md:flex items-center gap-3 px-4 py-2.5 rounded-lg bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)]">

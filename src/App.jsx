@@ -153,7 +153,8 @@ export default function App() {
         <Route path="cancel/fee/:id" element={<DeleteItem mode='cotisation' />} />
         <Route path="adminUser/:id" element={<AdminUserView />} />
         <Route path="feeStats" element={<FeeStats />} />
-        <Route path="userStats" element={<UserStats />} />
+        <Route path="userStats" element={<UserStats key="architects" />} />
+        <Route path="stagiaireStats" element={<UserStats key="stagiaires" population="stagiaires" />} />
         <Route path="validationStats" element={<ValidationStats />} />
         <Route path="/dash/adminStats" element={<AdminStats />} />
         <Route path="exports" element={<ExportsPage />} />

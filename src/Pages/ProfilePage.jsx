@@ -464,7 +464,7 @@ export default function ProfilePage({ user }) {
           user: data.data?.user || prev.user
         }));
       } else if (data.data?.user) {
-        setDisplayUser(data.data.user);
+        setDisplayUser((prev) => ({ ...data.data.user, role: data.data.user?.role ?? prev?.role }));
       }
 
       await fetchFiles();
@@ -501,7 +501,7 @@ export default function ProfilePage({ user }) {
           user: data.data?.user || prev.user
         }));
       } else if (data.data?.user) {
-        setDisplayUser(data.data.user);
+        setDisplayUser((prev) => ({ ...data.data.user, role: data.data.user?.role ?? prev?.role }));
       }
 
       await fetchFiles();
@@ -554,7 +554,7 @@ export default function ProfilePage({ user }) {
           user: data.data?.user || prev.user
         }));
       } else if (data.data?.user) {
-        setDisplayUser(data.data.user);
+        setDisplayUser((prev) => ({ ...data.data.user, role: data.data.user?.role ?? prev?.role }));
       }
 
       await fetchFiles();
@@ -1251,11 +1251,18 @@ export default function ProfilePage({ user }) {
     [filesByFolder],
   );
 
+  // The member's role (sent with the profile by GET /users/:id).
   const roleColors = {
-    admin: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-    user: "bg-slate-500/10 text-slate-400 border-slate-500/20",
-    moderator: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+    architect: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+    stagiaire: "bg-sky-500/10 text-sky-400 border-sky-500/20",
   };
+  // Until the profile loads, the session user carries roleName / roleLabel.
+  const memberRole =
+    displayUser?.role && typeof displayUser.role === 'object'
+      ? displayUser.role
+      : displayUser?.roleName
+        ? { name: displayUser.roleName, label: displayUser.roleLabel }
+        : null;
 
   const verificationTag = displayUser?.isAdminVerified
     ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
@@ -1372,9 +1379,12 @@ export default function ProfilePage({ user }) {
                       ? `${displayUser.name} ${displayUser.lastname}`
                       : 'Utilisateur'}
                   </h1>
-                  {isVisible('role') && (
-                    <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full border ${roleColors[displayUser?.role] || "bg-slate-500/10 text-slate-400 border-slate-500/20"}`}>
-                      {displayUser?.role?.toUpperCase()}
+                  {memberRole && (
+                    <span
+                      title="Rôle"
+                      className={`text-xs font-medium px-2.5 py-0.5 rounded-full border ${roleColors[memberRole.name] || "bg-slate-500/10 text-slate-400 border-slate-500/20"}`}
+                    >
+                      {memberRole.label || memberRole.name}
                     </span>
                   )}
                   <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full border ${verificationTag}`}>
