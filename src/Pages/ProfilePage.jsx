@@ -60,6 +60,15 @@ import {
 
 const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
+// The fields of one of a schema's forms: its signup page ('signup') or the
+// member area ('member'). A field without `entries` is in both.
+const fieldsForEntry = (fields, entry) =>
+  (Array.isArray(fields) ? fields : []).filter(
+    (f) => !Array.isArray(f?.entries) || f.entries.length === 0 || f.entries.includes(entry),
+  );
+const hasMemberFields = (schema) =>
+  fieldsForEntry(schema?.payloadSchema, 'member').some((f) => f?.filledBy !== 'reviewer');
+
 const PERMISSION_CHECKS = [
   { key: "users.read",                    model: "User",              operation: "read" },
   { key: "users.update",                  model: "User",              operation: "update" },
@@ -895,7 +904,11 @@ export default function ProfilePage({ user }) {
 
   // ─── Schema-driven form modal ──────────────────────────────────────
   const openSchemaForm = (schema, { existingRequestId = null, resubmit = false } = {}) => {
-    setActiveSchema(schema);
+    // A request is corrected with the form it was filled from (signup page
+    // or member area); a new one uses the member-area form.
+    const request = existingRequestId ? validationRequests.find((r) => r.id === existingRequestId) : null;
+    const entry = request?.createdFrom === 'signup' ? 'signup' : 'member';
+    setActiveSchema(schema ? { ...schema, payloadSchema: fieldsForEntry(schema.payloadSchema, entry) } : schema);
     setActiveRequestId(existingRequestId);
     setIsFormResubmitMode(resubmit);
     setIsFormModalOpen(true);
@@ -1019,7 +1032,7 @@ export default function ProfilePage({ user }) {
     const targetType = schemaObj ? (schemaObj.targetType || 'User') : 'User';
 
     // If the schema has fields for the member, route through the dynamic form.
-    if ((schemaObj?.payloadSchema || []).some((f) => f?.filledBy !== 'reviewer')) {
+    if (hasMemberFields(schemaObj)) {
       openSchemaForm(schemaObj, { existingRequestId: null, resubmit: false });
       return;
     }
@@ -2017,6 +2030,8 @@ export default function ProfilePage({ user }) {
                         const displayStatus = existingReq ? mapApiStatusToDisplay(existingReq) : null;
                         const isNeedsCorrection = existingReq && displayStatus === 'Modifications requises';
                         const isInProgress = existingReq && !isNeedsCorrection;
+                        // Started from its signup page only: shown just to follow or correct a request.
+                        if (sch.memberEntry === false && !existingReq) return null;
 
                         return (
                           <div
@@ -2074,9 +2089,7 @@ export default function ProfilePage({ user }) {
                                         existingRequestId: existingReq?.id || null,
                                         resubmit: true,
                                       });
-                                    } else if (
-                                      (sch.payloadSchema || []).some((f) => f?.filledBy !== 'reviewer')
-                                    ) {
+                                    } else if (hasMemberFields(sch)) {
                                       openSchemaForm(sch, {
                                         existingRequestId: null,
                                         resubmit: false,

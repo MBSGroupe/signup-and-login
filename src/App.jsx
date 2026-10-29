@@ -15,6 +15,7 @@ const ChangePassword = lazy(() => import("./Pages/DashBoard/Users/changePassword
 import LoginForm from './Pages/Login';
 const FormulaireCNOA = lazy(() => import("./Pages/Sign-up"));
 const SignupClosed = lazy(() => import("./Pages/SignupClosed"));
+const SchemaSignup = lazy(() => import("./Pages/SchemaSignup"));
 const ProfilePage = lazy(() => import("./Pages/ProfilePage"));
 const OnboardingPage = lazy(() => import("./Pages/OnboardingPage"));
 const VerifyPage = lazy(() => import("./Pages/VerificationPage"));
@@ -76,6 +77,8 @@ export default function App() {
       <Route path="/" element={<MainLayout />}>
         <Route index element={<LoginForm />} />
         <Route path="signup" element={SIGNUP_ENABLED ? <FormulaireCNOA /> : <SignupClosed />} />
+        {/* Signup pages built from a schema: open/closed with the schema itself */}
+        <Route path="inscription/:slug" element={<SchemaSignup />} />
         <Route path="adminlogin" element={<AdminLogin />} />
 
         

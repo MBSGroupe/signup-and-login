@@ -7,7 +7,7 @@ import { fetchWithRefresh } from '../../Components/api';
 import {
   Plus, Trash2, Save, X,
   Settings, Bell, CheckCircle, XCircle,
-  Layers, FileText, List, Zap, Mail, Database,
+  Layers, FileText, List, Zap, Mail, Database, Globe,
   Loader2, ArrowRight, Info,
 } from 'lucide-react';
 
@@ -76,7 +76,7 @@ const PAYLOAD_FIELD_TYPES = [
 const UI_GROUPS = [
   'identity', 'address', 'contact', 'activity', 'professional',
   'financial', 'education', 'family', 'registration',
-  'verification', 'status', 'agreements', 'system', 'custom',
+  'verification', 'status', 'agreements', 'system', 'documents', 'stage', 'custom',
 ];
 // ── NEW: widget + payload application options ───────────────────────
 const UI_WIDGETS = [
@@ -239,6 +239,17 @@ function ReserveReasonsInput({ reasons, onChange }) {
 }
 
 // ─── Payload field editor ───────────────────────────────────────────
+// Where a main-form field is asked: the schema's signup page and/or the
+// member area (`entries`, both when absent).
+const FORM_ENTRY_OPTIONS = [
+  { value: 'signup', label: 'Inscription' },
+  { value: 'member', label: 'Espace membre' },
+];
+const fieldEntries = (field) =>
+  Array.isArray(field?.entries) && field.entries.length
+    ? field.entries
+    : FORM_ENTRY_OPTIONS.map((o) => o.value);
+
 // `reviewerOption`: main-form fields may be left to the approvers (filledBy).
 function PayloadFieldEditor({ field, onChange, onDelete, stepOptions = [], reviewerOption = false }) {
   const v = field.validation || {};
@@ -393,6 +404,34 @@ function PayloadFieldEditor({ field, onChange, onDelete, stepOptions = [], revie
               />
               Rempli par l'administrateur
             </label>
+          )}
+          {reviewerOption && field.filledBy !== 'reviewer' && (
+            <div title="Formulaire(s) où le champ est demandé : la page d'inscription du schéma et/ou l'espace membre.">
+              <span className="block text-[11px] font-medium text-[#94A3B8] uppercase tracking-wider mb-1">
+                Demandé dans
+              </span>
+              {FORM_ENTRY_OPTIONS.map((opt) => {
+                const current = fieldEntries(field);
+                return (
+                  <label key={opt.value} className="flex items-center gap-2 text-sm text-[#CBD5E1]">
+                    <input
+                      type="checkbox"
+                      checked={current.includes(opt.value)}
+                      onChange={(e) => {
+                        const next = e.target.checked
+                          ? [...current, opt.value]
+                          : current.filter((x) => x !== opt.value);
+                        // Never empty; both = the default, stored as absent.
+                        if (next.length === 0) return;
+                        set({ entries: next.length === FORM_ENTRY_OPTIONS.length ? undefined : next });
+                      }}
+                      className="accent-emerald-500"
+                    />
+                    {opt.label}
+                  </label>
+                );
+              })}
+            </div>
           )}
         </div>
         <div>
@@ -1011,7 +1050,38 @@ export default function ValidationSchemaForm({
       initialData?.notificationConfig || { methods: { email: true, system: false } },
     onApproval: upgradeActionList(normalizeActions(initialData?.onApproval)),
     onRejection: upgradeActionList(normalizeActions(initialData?.onRejection)),
+    entryConfig: {
+      signup: {
+        enabled: false,
+        slug: '',
+        role: '',
+        feeDefinitionIds: [],
+        ...(initialData?.entryConfig?.signup || {}),
+      },
+      member: { enabled: initialData?.entryConfig?.member?.enabled !== false },
+    },
   });
+  const [feeDefinitions, setFeeDefinitions] = useState([]);
+  const setSignup = (patch) =>
+    setFormData((prev) => ({
+      ...prev,
+      entryConfig: { ...prev.entryConfig, signup: { ...prev.entryConfig.signup, ...patch } },
+    }));
+
+  // ── Fetch fee definitions (fees created by a signup page) ───────
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await fetchWithRefresh(`${API_URL}/fees/definitions`, { method: 'GET' }, authData.token, setAuthData);
+        const data = unwrap(await res.json());
+        const list = Array.isArray(data) ? data : data?.definitions || data?.feeDefinitions || [];
+        setFeeDefinitions(list);
+      } catch (err) {
+        console.warn('Failed to load fee definitions', err);
+      }
+    };
+    if (authData?.token) load();
+  }, [authData?.token, setAuthData]);
 
   // ── Fetch roles ─────────────────────────────────────────────────
   useEffect(() => {
@@ -1506,6 +1576,12 @@ export default function ValidationSchemaForm({
         onRejection: formData.onRejection.length ? formData.onRejection : null,
         globalTimeout: formData.globalTimeout,
         notificationConfig: formData.notificationConfig,
+        entryConfig: {
+          signup: formData.entryConfig.signup.enabled
+            ? { ...formData.entryConfig.signup, slug: formData.entryConfig.signup.slug.trim() }
+            : { ...formData.entryConfig.signup, enabled: false },
+          member: formData.entryConfig.member,
+        },
       };
 
       const res = await fetchWithRefresh(
@@ -1682,6 +1758,110 @@ export default function ValidationSchemaForm({
                 className="w-full px-3 py-2 bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 resize-y"
               />
             </div>
+          </div>
+
+          {/* ─── Entries: signup page / member area ─────────────── */}
+          <div className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] p-6 shadow-2xl shadow-black/50">
+            <div className="flex items-center gap-3 mb-2">
+              <Globe className="w-5 h-5 text-emerald-400" />
+              <h2 className="text-lg font-semibold text-[#F8FAFC] tracking-tight">Entrées</h2>
+            </div>
+            <p className="text-xs text-[#64748B] mb-5">
+              Où le formulaire se remplit. Même circuit pour les deux ; chaque champ indique s'il est
+              demandé à l'inscription, dans l'espace membre, ou dans les deux (« Demandé dans »).
+            </p>
+
+            <label className="flex items-center gap-2 text-sm text-[#F8FAFC] font-medium">
+              <input
+                type="checkbox"
+                checked={formData.entryConfig.member.enabled}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    entryConfig: { ...prev.entryConfig, member: { enabled: e.target.checked } },
+                  }))
+                }
+                className="accent-emerald-500"
+              />
+              Espace membre
+              <span className="text-xs text-[#64748B] font-normal">— le membre connecté fait la demande depuis son profil</span>
+            </label>
+
+            <label className="flex items-center gap-2 text-sm text-[#F8FAFC] font-medium mt-4">
+              <input
+                type="checkbox"
+                checked={formData.entryConfig.signup.enabled}
+                disabled={formData.targetType !== 'User'}
+                onChange={(e) => setSignup({ enabled: e.target.checked })}
+                className="accent-emerald-500"
+              />
+              Page d'inscription
+              <span className="text-xs text-[#64748B] font-normal">
+                — crée le compte avec la demande{formData.targetType !== 'User' ? ' (schémas membre uniquement)' : ''}
+              </span>
+            </label>
+
+            {formData.entryConfig.signup.enabled && (
+              <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 pl-6">
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Adresse</label>
+                  <div className="flex items-center">
+                    <span className="px-2 py-2 text-xs text-[#64748B] bg-[#0A0F1C] border border-r-0 border-[rgba(255,255,255,0.06)] rounded-l-xl">
+                      /inscription/
+                    </span>
+                    <input
+                      value={formData.entryConfig.signup.slug}
+                      onChange={(e) => setSignup({ slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') })}
+                      placeholder="stage-periode-1"
+                      className="flex-1 min-w-0 px-3 py-2 bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] rounded-r-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                    />
+                  </div>
+                  {formData.entryConfig.signup.slug && (
+                    <a
+                      href={`/inscription/${formData.entryConfig.signup.slug}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs text-emerald-400 hover:underline"
+                    >
+                      Ouvrir la page
+                    </a>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Rôle du nouveau compte</label>
+                  <select
+                    value={formData.entryConfig.signup.role}
+                    onChange={(e) => setSignup({ role: e.target.value })}
+                    className="w-full px-3 py-2 bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] rounded-xl text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                  >
+                    <option value="">— Choisir —</option>
+                    {rolesList
+                      .filter((r) => (r.grade || 'user') === 'user')
+                      .map((r) => (
+                        <option key={r.name} value={r.name}>{r.label || r.name}</option>
+                      ))}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Cotisations créées</label>
+                  <MultiSelect
+                    options={feeDefinitions
+                      .filter((d) => d.isActive !== false)
+                      .map((d) => ({ value: d.id, label: `${d.title} — ${d.amount} DA` }))}
+                    value={formData.entryConfig.signup.feeDefinitionIds || []}
+                    onChange={(selected) => setSignup({ feeDefinitionIds: selected })}
+                    emptyLabel="Aucune cotisation active"
+                    placeholder="Aucune"
+                  />
+                  <p className="text-[11px] text-[#64748B]">La cotisation annuelle prévue pour ce rôle.</p>
+                </div>
+                <p className="md:col-span-3 text-xs text-[#64748B]">
+                  La page est ouverte tant que le schéma est actif. Elle demande toujours le bloc compte
+                  (CLOA, informations personnelles et familiales, contact, diplômes), puis les champs cochés
+                  « Inscription ».
+                </p>
+              </div>
+            )}
           </div>
 
           {/* ─── Payload schema ─────────────────────────────────── */}

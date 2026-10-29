@@ -272,10 +272,19 @@ export default function ValidationRequestDetail() {
   };
 
   // ─── Request data: the main form + each step form the requester sent ────
-  const payloadSchema = Array.isArray(request?.validationSchema?.payloadSchema)
-    ? request.validationSchema.payloadSchema
-    : [];
   const payload = request?.payload || {};
+  // The form the request was filled from: its signup page or the member
+  // area. A field of the other form only shows when it holds a value.
+  const requestEntry = request?.createdFrom === 'signup' ? 'signup' : 'member';
+  const payloadSchema = (
+    Array.isArray(request?.validationSchema?.payloadSchema) ? request.validationSchema.payloadSchema : []
+  ).filter(
+    (f) =>
+      !Array.isArray(f?.entries) ||
+      f.entries.length === 0 ||
+      f.entries.includes(requestEntry) ||
+      ![undefined, null, ''].includes(payload[f.name]),
+  );
 
   const dataSections = [
     {
@@ -1149,6 +1158,15 @@ export default function ValidationRequestDetail() {
                 <p className="text-xs text-[#64748B] uppercase tracking-wider">Statut</p>
                 <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStepStatusBadge(request.status)}`}>
                   {getStepStatusIcon(request.status)} {request.status}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400"><Info className="w-4 h-4" /></span>
+              <div>
+                <p className="text-xs text-[#64748B] uppercase tracking-wider">Origine</p>
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border bg-white/5 text-[#CBD5E1] border-white/10">
+                  {requestEntry === 'signup' ? "Page d'inscription" : 'Espace membre'}
                 </span>
               </div>
             </div>
