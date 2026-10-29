@@ -33,6 +33,9 @@ import {
   CalendarDays,
   Code,
   ArrowRight,
+  Globe,
+  Power,
+  ExternalLink,
 } from "lucide-react";
 
 const API_URL = import.meta.env.VITE_NEST_API_URL;
@@ -100,6 +103,21 @@ const FIELD_TYPE_META = {
   json:     { Icon: Code,        label: 'JSON' },
 };
 
+// Where a main-form field is asked (`entries`, both forms when absent).
+const ENTRY_LABELS = { signup: "Inscription", member: "Espace membre" };
+const fieldEntries = (field) =>
+  Array.isArray(field?.entries) && field.entries.length ? field.entries : ["signup", "member"];
+
+// Asked on every signup page before the schema's own fields.
+const SIGNUP_ACCOUNT_BLOCK = [
+  "CLOA d'inscription",
+  "Informations personnelles",
+  "Informations familiales",
+  "Contact",
+  "Diplômes universitaires",
+  "Mot de passe",
+];
+
 const STRATEGY_META = {
   immediate:    { label: 'Immédiat',        color: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
   on_step:      { label: 'À une étape',     color: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' },
@@ -111,12 +129,17 @@ const STRATEGY_META = {
 export default function ValidationSchemaDetails() {
   const { schemaId } = useParams();
   const navigate = useNavigate();
-  const { authData, setAuthData } = useContext(UserContext);
+  const { authData, setAuthData, canDo } = useContext(UserContext);
   const { confirm } = useModal();
   const [schema, setSchema] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState("steps");
+  // Payload tab: every field, or those of one form.
+  const [entryFilter, setEntryFilter] = useState("all");
+  const [toggling, setToggling] = useState(false);
+  const [toggleError, setToggleError] = useState("");
+  const canToggle = canDo("ValidationSchema", "toggle_schema");
 
   // ─── Fetch schema ────────────────────────────────────────────────────
   useEffect(() => {
@@ -187,6 +210,42 @@ export default function ValidationSchemaDetails() {
       if (body?.success) window.location.reload();
     } catch (err) {
       console.error("Reactivate error:", err);
+    }
+  };
+
+  // Deactivate the schema (its active version), or reactivate a deactivated
+  // schema with this version.
+  const handleToggleActive = async () => {
+    const activate = !schema.isActive;
+    const confirmed = await confirm({
+      title: activate ? "Réactiver le schéma" : "Désactiver le schéma",
+      message: activate
+        ? `Réactiver « ${schema.name} » avec la version ${schema.version} ? Les nouvelles demandes${schema.entryConfig?.signup?.enabled ? " et sa page d'inscription" : ""} seront de nouveau ouvertes.`
+        : `Désactiver « ${schema.name} » ? Plus aucune nouvelle demande${schema.entryConfig?.signup?.enabled ? ", et sa page d'inscription sera fermée" : ""}. Les demandes en cours continuent.`,
+    });
+    if (!confirmed) return;
+
+    setToggling(true);
+    setToggleError("");
+    try {
+      const res = await fetchWithRefresh(
+        `${API_URL}/validation/schemas/${schema.id}/${activate ? "activate" : "deactivate"}`,
+        { method: "PATCH" },
+        authData.token,
+        setAuthData
+      );
+      const body = await res.json();
+      if (res.ok && body?.success !== false) {
+        window.location.reload();
+        return;
+      }
+      const msg = body?.message;
+      setToggleError(Array.isArray(msg) ? msg.join(" · ") : msg || "Action impossible.");
+    } catch (err) {
+      console.error("Toggle schema error:", err);
+      setToggleError(err?.message || "Action impossible.");
+    } finally {
+      setToggling(false);
     }
   };
 
@@ -508,6 +567,42 @@ export default function ValidationSchemaDetails() {
           </p>
         )}
 
+        {/* ── Where it is asked / who fills it ────────────────────── */}
+        <div className="flex flex-wrap gap-1.5 mb-2 text-[11px]">
+          {field.filledBy === 'reviewer' ? (
+            <span className="px-2 py-0.5 rounded bg-purple-500/10 border border-purple-500/20 text-purple-300">
+              Rempli par l'administrateur
+            </span>
+          ) : (
+            fieldEntries(field).map((e) => (
+              <span
+                key={e}
+                className={`px-2 py-0.5 rounded border ${
+                  e === 'signup'
+                    ? 'bg-sky-500/10 border-sky-500/20 text-sky-300'
+                    : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300'
+                }`}
+              >
+                {ENTRY_LABELS[e] || e}
+              </span>
+            ))
+          )}
+          {field.ui?.multiple && (
+            <span className="px-2 py-0.5 rounded bg-[#0A0F1C] border border-[rgba(255,255,255,0.06)] text-[#94A3B8]">
+              plusieurs fichiers
+            </span>
+          )}
+        </div>
+        {field.ui?.help && (
+          <p className="text-xs text-[#94A3B8] mb-2 italic">{field.ui.help}</p>
+        )}
+        {Array.isArray(field.review?.reasons) && field.review.reasons.length > 0 && (
+          <p className="text-xs text-[#94A3B8] mb-2">
+            <span className="text-[#64748B]">Motifs de réserve : </span>
+            {field.review.reasons.map((x) => (typeof x === 'string' ? x : x?.label || x?.value)).join(' · ')}
+          </p>
+        )}
+
         {/* ── UI info ─────────────────────────────────────────────── */}
         {(field.ui?.group || field.ui?.colSpan || field.ui?.placeholder || field.ui?.widget) && (
           <div className="flex flex-wrap gap-1.5 mb-2 text-[11px]">
@@ -594,6 +689,19 @@ export default function ValidationSchemaDetails() {
   };
 
   const payloadFields = Array.isArray(schema.payloadSchema) ? schema.payloadSchema : [];
+  const entryConfig = schema.entryConfig || {};
+  const signup = entryConfig.signup?.enabled ? entryConfig.signup : null;
+  const memberEnabled = entryConfig.member?.enabled !== false;
+  // Fields asked in one form (fields left to the administrator aren't asked).
+  const formFields = (entry) =>
+    payloadFields.filter((fl) => fl.filledBy !== 'reviewer' && fieldEntries(fl).includes(entry));
+  const visiblePayloadFields =
+    entryFilter === 'all'
+      ? payloadFields
+      : entryFilter === 'reviewer'
+        ? payloadFields.filter((fl) => fl.filledBy === 'reviewer')
+        : formFields(entryFilter);
+  const signupFees = Array.isArray(schema.signupFees) ? schema.signupFees : [];
   const onApprovalList = asArray(schema.onApproval);
   const onRejectionList = asArray(schema.onRejection);
 
@@ -631,6 +739,17 @@ export default function ValidationSchemaDetails() {
                   <GitBranch className="w-3.5 h-3.5" />
                   Target: {schema.targetType}
                 </span>
+                {signup && (
+                  <a
+                    href={`/inscription/${signup.slug}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 text-sky-400 hover:underline"
+                  >
+                    <Globe className="w-3.5 h-3.5" />
+                    /inscription/{signup.slug}
+                  </a>
+                )}
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-3">
@@ -665,7 +784,22 @@ export default function ValidationSchemaDetails() {
           </div>
 
           <div className="flex flex-wrap gap-2 mt-6 pt-6 border-t border-[rgba(255,255,255,0.06)]">
-            {!schema.isActive && schema.status !== 'flawed' && (
+            {canToggle && (schema.isActive || (!schema.familyActive && schema.status !== 'flawed')) && (
+              <button
+                onClick={handleToggleActive}
+                disabled={toggling}
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg border transition-all text-sm font-medium disabled:opacity-50 ${
+                  schema.isActive
+                    ? 'bg-rose-500/10 text-rose-400 border-rose-500/20 hover:bg-rose-500/20'
+                    : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'
+                }`}
+              >
+                <Power className="w-4 h-4" />
+                {schema.isActive ? 'Désactiver le schéma' : 'Réactiver le schéma'}
+              </button>
+            )}
+            {/* Switching versions needs an active one: not on a deactivated schema. */}
+            {!schema.isActive && schema.familyActive && schema.status !== 'flawed' && (
               <>
                 <button
                   onClick={handleRollback}
@@ -691,6 +825,18 @@ export default function ValidationSchemaDetails() {
               Edit
             </button>
           </div>
+          {!schema.familyActive && (
+            <p className="mt-3 text-xs text-amber-300/90">
+              Schéma désactivé : plus de nouvelles demandes{signup ? ', page d’inscription fermée' : ''}.
+              Les demandes en cours continuent.
+            </p>
+          )}
+          {toggleError && (
+            <p className="mt-3 text-sm text-rose-400 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4" />
+              {toggleError}
+            </p>
+          )}
         </div>
 
         {/* Tabs */}
@@ -717,6 +863,17 @@ export default function ValidationSchemaDetails() {
             >
               <Paperclip className="w-4 h-4" />
               Payload ({payloadFields.length})
+            </button>
+            <button
+              onClick={() => setActiveTab("entries")}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg text-sm font-medium transition-all duration-200 ${
+                activeTab === "entries"
+                  ? "bg-[#111827] text-emerald-400 border-b-2 border-emerald-400"
+                  : "text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#1F2937]"
+              }`}
+            >
+              <Globe className="w-4 h-4" />
+              Entrées
             </button>
             <button
               onClick={() => setActiveTab("global")}
@@ -782,10 +939,138 @@ export default function ValidationSchemaDetails() {
                     Aucun schéma de payload défini pour cette version.
                   </p>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {payloadFields.map(renderPayloadField)}
-                  </div>
+                  <>
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      {[
+                        ['all', 'Tous', payloadFields.length],
+                        ['signup', 'Inscription', formFields('signup').length],
+                        ['member', 'Espace membre', formFields('member').length],
+                        ['reviewer', "Rempli par l'administrateur", payloadFields.filter((fl) => fl.filledBy === 'reviewer').length],
+                      ].map(([value, label, count]) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => setEntryFilter(value)}
+                          className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                            entryFilter === value
+                              ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                              : 'bg-[#0A0F1C] text-[#94A3B8] border-[rgba(255,255,255,0.06)] hover:text-[#F8FAFC]'
+                          }`}
+                        >
+                          {label} ({count})
+                        </button>
+                      ))}
+                    </div>
+                    {visiblePayloadFields.length === 0 ? (
+                      <p className="text-[#94A3B8] text-center py-8">Aucun champ.</p>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {visiblePayloadFields.map(renderPayloadField)}
+                      </div>
+                    )}
+                  </>
                 )}
+              </div>
+            )}
+
+            {activeTab === "entries" && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div className="bg-[#0A0F1C] p-4 rounded-xl border border-[rgba(255,255,255,0.06)]">
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <span className="text-[#F8FAFC] font-semibold flex items-center gap-2">
+                      <User className="w-4 h-4 text-emerald-400" />
+                      Espace membre
+                    </span>
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${
+                        memberEnabled
+                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                          : 'bg-gray-500/10 text-gray-400 border-gray-500/20'
+                      }`}
+                    >
+                      {memberEnabled ? 'Activé' : 'Désactivé'}
+                    </span>
+                  </div>
+                  <p className="text-[#94A3B8] text-xs mb-3">
+                    {memberEnabled
+                      ? 'Le membre connecté fait la demande depuis son profil.'
+                      : "Pas de demande depuis le profil : il sert seulement à suivre ou corriger une demande faite à l'inscription."}
+                  </p>
+                  {memberEnabled && (
+                    <>
+                      <span className="text-[#64748B] block mb-1">
+                        Champs demandés ({formFields('member').length})
+                      </span>
+                      <span className="text-[#F8FAFC]">
+                        {formFields('member').map((fl) => fl.label || fl.name).join(', ') || '—'}
+                      </span>
+                    </>
+                  )}
+                </div>
+
+                <div className="bg-[#0A0F1C] p-4 rounded-xl border border-[rgba(255,255,255,0.06)]">
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <span className="text-[#F8FAFC] font-semibold flex items-center gap-2">
+                      <Globe className="w-4 h-4 text-sky-400" />
+                      Page d'inscription
+                    </span>
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${
+                        !signup
+                          ? 'bg-gray-500/10 text-gray-400 border-gray-500/20'
+                          : schema.isActive
+                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                            : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                      }`}
+                    >
+                      {!signup ? 'Aucune' : schema.isActive ? 'Ouverte' : 'Fermée (schéma inactif)'}
+                    </span>
+                  </div>
+                  {!signup ? (
+                    <p className="text-[#94A3B8] text-xs">Ce schéma n'a pas de page d'inscription.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      <div>
+                        <span className="text-[#64748B]">Adresse : </span>
+                        <a
+                          href={`/inscription/${signup.slug}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-sky-400 hover:underline inline-flex items-center gap-1"
+                        >
+                          /inscription/{signup.slug}
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                      <div>
+                        <span className="text-[#64748B]">Rôle du nouveau compte : </span>
+                        <span className="text-[#F8FAFC]">{signup.role || '—'}</span>
+                      </div>
+                      <div>
+                        <span className="text-[#64748B]">Cotisations créées : </span>
+                        <span className="text-[#F8FAFC]">
+                          {signupFees.length
+                            ? signupFees
+                                .map((fee) => `${fee.title} — ${fee.amount} DA${fee.isActive === false ? ' (inactive)' : ''}`)
+                                .join(', ')
+                            : 'Aucune'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[#64748B] block">Toujours demandé :</span>
+                        <span className="text-[#F8FAFC]">{SIGNUP_ACCOUNT_BLOCK.join(' · ')}</span>
+                      </div>
+                      <div>
+                        <span className="text-[#64748B] block">
+                          Puis les champs du schéma ({formFields('signup').length}) :
+                        </span>
+                        <span className="text-[#F8FAFC]">
+                          {formFields('signup').map((fl) => fl.label || fl.name).join(', ') || '—'}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 

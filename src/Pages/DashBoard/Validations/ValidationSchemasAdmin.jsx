@@ -16,6 +16,7 @@ import {
   Loader2,
   ChevronRight,
   AlertTriangle,
+  Power,
 } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_NEST_API_URL;
@@ -26,7 +27,8 @@ const unwrap = (body) => (body && typeof body === 'object' && 'data' in body && 
   : body;
 
 export default function ValidationSchemasList() {
-  const { authData, setAuthData } = useContext(UserContext);
+  const { authData, setAuthData, canDo } = useContext(UserContext);
+  const canToggle = canDo('ValidationSchema', 'toggle_schema');
   const { confirm } = useModal();
   const navigate = useNavigate();
   const [schemas, setSchemas] = useState([]);
@@ -112,6 +114,40 @@ export default function ValidationSchemasList() {
       }
     } catch (err) {
       console.error('Rollback error:', err);
+    }
+  };
+
+  // A card is the family's active version, or its latest when deactivated:
+  // deactivate the first, reactivate the schema with the second.
+  const handleToggleActive = async (schema) => {
+    const activate = !schema.isActive;
+    const hasSignup = !!schema.entryConfig?.signup?.enabled;
+    const confirmed = await confirm({
+      title: activate ? 'Réactiver le schéma' : 'Désactiver le schéma',
+      message: activate
+        ? `Réactiver « ${schema.name} » (v${schema.version}) ? Les nouvelles demandes${hasSignup ? " et sa page d'inscription" : ''} seront de nouveau ouvertes.`
+        : `Désactiver « ${schema.name} » ? Plus aucune nouvelle demande${hasSignup ? ", et sa page d'inscription sera fermée" : ''}. Les demandes en cours continuent.`,
+    });
+    if (!confirmed) return;
+
+    setError(null);
+    try {
+      const res = await fetchWithRefresh(
+        `${API_URL}/validation/schemas/${schema.id}/${activate ? 'activate' : 'deactivate'}`,
+        { method: 'PATCH' },
+        authData.token,
+        setAuthData
+      );
+      const body = await res.json();
+      if (res.ok && body?.success !== false) {
+        await fetchSchemas();
+        return;
+      }
+      const msg = body?.message;
+      setError(Array.isArray(msg) ? msg.join(' · ') : msg || 'Action impossible.');
+    } catch (err) {
+      console.error('Toggle schema error:', err);
+      setError(err?.message || 'Action impossible.');
     }
   };
 
@@ -240,6 +276,19 @@ export default function ValidationSchemasList() {
                     )}
                   </div>
                   <div className="flex flex-wrap gap-2">
+                    {canToggle && (schema.isActive || schema.status !== 'flawed') && (
+                      <button
+                        onClick={() => handleToggleActive(schema)}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors text-sm font-medium ${
+                          schema.isActive
+                            ? 'bg-rose-500/10 text-rose-400 border-rose-500/20 hover:bg-rose-500/20'
+                            : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'
+                        }`}
+                      >
+                        <Power className="w-3.5 h-3.5" />
+                        {schema.isActive ? 'Désactiver' : 'Réactiver'}
+                      </button>
+                    )}
                     {schema.isActive && schema.status !== 'flawed' && (
                       <button
                         onClick={() => handleRollback(schema)}
