@@ -109,7 +109,8 @@ export default function App() {
       <Route path="/dash" element={<AdminRoute><DashLayout /></AdminRoute>}>
         <Route index element={<AdminDashboard />} />
         <Route path="allUsers" element={<GetUsers mode="users" />} />
-        <Route path="allMembers" element={<GetUsers mode="membres" />} />
+        <Route path="allMembers" element={<GetUsers key="membres" mode="membres" />} />
+        <Route path="allStagiaires" element={<GetUsers key="stagiaires" mode="stagiaires" />} />
         <Route path="allCotisations" element={<GetCotisations/>} />
         <Route path="createUser" element={<CreateUser/>} />
         <Route path="ajouterCotisation" element={<CreateBulkCotisation />} />

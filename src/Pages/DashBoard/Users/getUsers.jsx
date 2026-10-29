@@ -45,6 +45,25 @@ const PROFESSIONAL_MODE_OPTIONS = ['Libéral', 'Associé', 'Salarié'];
 const SERVICE_NATIONAL_OPTIONS = ['Ayant effectué', 'Exempté', 'En cours', 'Non concerné'];
 const STATUS_OPTIONS = ['pending', 'active', 'suspended', 'archived'];
 
+// One list per member role: architects (GET /users) and stagiaires
+// (GET /users/stagiaires, its own "Stagiaire" permissions). The stagiaires'
+// list has no export, no "Ajouter" (that creates an architect) and only the
+// filters that apply to them.
+const LIST_VARIANTS = {
+  membres: {
+    title: 'Architectes',
+    endpoint: '/users',
+    search: 'Rechercher un architecte par nom, prénom, email, N° inscription...',
+    stagiaire: false,
+  },
+  stagiaires: {
+    title: 'Stagiaires',
+    endpoint: '/users/stagiaires',
+    search: 'Rechercher un stagiaire par nom, prénom, email, téléphone...',
+    stagiaire: true,
+  },
+};
+
 export default function GetUsers({ mode }) {
   const { setData } = useContext(UserDataContext);
   const { authData, setAuthData } = useContext(UserContext);
@@ -98,13 +117,15 @@ export default function GetUsers({ mode }) {
 
   // Rows ticked for "export the selection" (kept across pages)
   const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const variant = LIST_VARIANTS[mode] || LIST_VARIANTS.membres;
+  const isStagiaires = variant.stagiaire;
   const { getReport } = useExportCatalog();
-  const canExportMembers = Boolean(getReport('members'));
+  const canExportMembers = !isStagiaires && Boolean(getReport('members'));
 
   // ─── Current filters: the list request and the export send the same ───
   const listFilters = () => {
     const f = { sortBy, sortOrder };
-    if (mode && mode !== 'all') f.mode = mode;
+    if (mode && mode !== 'all' && !isStagiaires) f.mode = mode;
     if (keyWord && keyWord.trim()) f.search = keyWord.trim();
     if (selectedSexe !== 'all') f.sexe = selectedSexe;
     if (selectedCivility !== 'all') f.civility = selectedCivility;
@@ -165,7 +186,7 @@ export default function GetUsers({ mode }) {
       for (const [key, value] of Object.entries(listFilters())) params.append(key, value);
 
       const response = await fetchWithRefresh(
-        `${NEST_API_URL}/users?${params.toString()}`,
+        `${NEST_API_URL}${variant.endpoint}?${params.toString()}`,
         { method: "GET" },
         authData.token,
         setAuthData
@@ -386,8 +407,8 @@ export default function GetUsers({ mode }) {
     }
   };
 
-  const searchPlaceholder = mode === "membres"
-    ? "Rechercher un membre par nom, prénom, email, N° inscription..."
+  const searchPlaceholder = mode === "membres" || isStagiaires
+    ? variant.search
     : "Rechercher un admin par nom, prénom, email...";
 
   const resetFilters = () => {
@@ -463,9 +484,14 @@ export default function GetUsers({ mode }) {
           </div>
         </div>
 
+        <div className="mt-6 flex items-baseline gap-3">
+          <h2 className="text-xl font-semibold text-[#F8FAFC] tracking-tight">{variant.title}</h2>
+          <span className="text-sm text-[#64748B]">{totalUsers} au total</span>
+        </div>
+
         {/* ===== QUICK ACTIONS ===== */}
-        <div className="mt-6 flex flex-wrap gap-3">
-          {canCreateUser && (
+        <div className="mt-4 flex flex-wrap gap-3">
+          {canCreateUser && !isStagiaires && (
             <button
               onClick={handleAddMember}
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-medium transition-all duration-200 shadow-lg shadow-emerald-500/20"
@@ -497,6 +523,7 @@ export default function GetUsers({ mode }) {
             <X className="w-4 h-4" />
             Réinitialiser
           </button>
+          {!isStagiaires && (
           <ExportButton
             reportKey="members"
             filters={listFilters()}
@@ -504,6 +531,7 @@ export default function GetUsers({ mode }) {
             totalCount={totalUsers}
             selectedIds={[...selectedIds]}
           />
+          )}
           {selectedIds.size > 0 && (
             <button
               onClick={() => setSelectedIds(new Set())}
@@ -559,7 +587,7 @@ export default function GetUsers({ mode }) {
                 </div>
               )}
 
-              {CIVILITY_OPTIONS.length > 0 && (
+              {!isStagiaires && CIVILITY_OPTIONS.length > 0 && (
                 <div>
                   <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Civilité</label>
                   <select
@@ -577,7 +605,7 @@ export default function GetUsers({ mode }) {
 
               {wilayasData && wilayasData.length > 0 && (
                 <div>
-                  <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">CLOA d'installation</label>
+                  <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">{isStagiaires ? "CLOA d'inscription" : "CLOA d'installation"}</label>
                   <select
                     value={selectedRegion}
                     onChange={(e) => { setSelectedRegion(e.target.value); setCurrentPage(1); }}
@@ -593,7 +621,7 @@ export default function GetUsers({ mode }) {
                 </div>
               )}
 
-              {MARITAL_STATUS_OPTIONS.length > 0 && (
+              {!isStagiaires && MARITAL_STATUS_OPTIONS.length > 0 && (
                 <div>
                   <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Situation Familiale</label>
                   <select
@@ -625,7 +653,7 @@ export default function GetUsers({ mode }) {
                 </div>
               )}
 
-              {REGISTRATION_STATUS_OPTIONS.length > 0 && (
+              {!isStagiaires && REGISTRATION_STATUS_OPTIONS.length > 0 && (
                 <div>
                   <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Statut d'inscription</label>
                   <select
@@ -641,7 +669,7 @@ export default function GetUsers({ mode }) {
                 </div>
               )}
 
-              {PROFESSIONAL_MODE_OPTIONS.length > 0 && (
+              {!isStagiaires && PROFESSIONAL_MODE_OPTIONS.length > 0 && (
                 <div>
                   <label className="block text-xs uppercase tracking-wider text-[#64748B] mb-1.5">Mode d'exercice</label>
                   <select
@@ -739,7 +767,16 @@ export default function GetUsers({ mode }) {
                           Prénom {sortBy === 'lastname' && (sortOrder === 'asc' ? '↑' : '↓')}
                         </th>
                         <th className="py-4 px-6 text-left text-xs uppercase tracking-wider text-[#64748B] font-semibold">Email</th>
+                        {isStagiaires && (
+                          <th className="py-4 px-6 text-left text-xs uppercase tracking-wider text-[#64748B] font-semibold">Téléphone</th>
+                        )}
                         <th className="py-4 px-6 text-left text-xs uppercase tracking-wider text-[#64748B] font-semibold">CLOA</th>
+                        {isStagiaires && (
+                          <>
+                            <th className="py-4 px-6 text-left text-xs uppercase tracking-wider text-[#64748B] font-semibold">Wilaya de résidence</th>
+                            <th className="py-4 px-6 text-left text-xs uppercase tracking-wider text-[#64748B] font-semibold">Diplôme</th>
+                          </>
+                        )}
                         {/* <th className="py-4 px-6 text-left text-xs uppercase tracking-wider text-[#64748B] font-semibold">Statut</th> */}
                         <th className="py-4 px-6 text-right text-xs uppercase tracking-wider text-[#64748B] font-semibold">Actions</th>
                       </tr>
@@ -769,7 +806,16 @@ export default function GetUsers({ mode }) {
                               <td className="py-3 px-6 text-[#F8FAFC] font-medium">{user.name || '-'}</td>
                               <td className="py-3 px-6 text-[#F8FAFC]">{user.lastname || '-'}</td>
                               <td className="py-3 px-6 text-[#94A3B8] truncate max-w-[150px]">{user.email || '-'}</td>
+                              {isStagiaires && (
+                                <td className="py-3 px-6 text-[#94A3B8] whitespace-nowrap">{user.phone || '-'}</td>
+                              )}
                               <td className="py-3 px-6 text-[#F8FAFC]">{wilayaLabel(user.region, '-')}</td>
+                              {isStagiaires && (
+                                <>
+                                  <td className="py-3 px-6 text-[#94A3B8]">{wilayaLabel(user.wilaya, '-')}</td>
+                                  <td className="py-3 px-6 text-[#94A3B8]">{user.diplomaType || '-'}</td>
+                                </>
+                              )}
                               {/* <td className="py-3 px-6">
                                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                                   user.status === 'active' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
@@ -793,7 +839,7 @@ export default function GetUsers({ mode }) {
                       ) : (
                         <tr>
                           <td colSpan="8" className="text-center py-12 text-[#64748B]">
-                            Aucun utilisateur trouvé avec ces critères
+                            {isStagiaires ? 'Aucun stagiaire trouvé avec ces critères' : 'Aucun utilisateur trouvé avec ces critères'}
                           </td>
                         </tr>
                       )}
@@ -889,6 +935,7 @@ export default function GetUsers({ mode }) {
                 Modifier
               </button>
             )}
+            {!isStagiaires && (<>
             <div className="border-t border-[rgba(255,255,255,0.06)] my-1"></div>
             <button
               onClick={() => { closeMenu(); handlePrintSituation(openMenu.user); }}
@@ -897,6 +944,7 @@ export default function GetUsers({ mode }) {
               <FileText className="w-4 h-4 text-[#64748B]" />
               Situation du membre
             </button>
+            </>)}
             <div className="border-t border-[rgba(255,255,255,0.06)] my-1"></div>
             <button
               onClick={() => {

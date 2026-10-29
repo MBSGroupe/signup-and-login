@@ -24,6 +24,7 @@ import {
   Database,
   Layers,
   Award,
+  GraduationCap,
   Download,
 } from "lucide-react";
 import useExportCatalog from "../../Hooks/useExportCatalog";
@@ -49,8 +50,9 @@ const PERMISSION_MAP = {
   adminsRead: { operation: "read_list", model: "Admin" },
   adminsCreate: { operation: "create", model: "Admin" },
 
-  // Membres
+  // Membres (architectes) and stagiaires — each list page calls read_list
   membersRead: { operation: "read", model: "User" },
+  stagiairesRead: { operation: "read_list", model: "Stagiaire" },
 
   // Cotisations
   cotisationsRead: { operation: "read", model: "Fee" },
@@ -395,13 +397,23 @@ export default function SideBar() {
             </div>
           )}
 
-          {/* ── Membres ─────────────────────────────────────────────── */}
+          {/* ── Architectes (membres) ───────────────────────────────── */}
           {permissions.membersRead && (
             <NavItem
               icon={User}
-              label="Membres"
+              label="Architectes"
               onClick={() => handleNavigation("/dash/allMembers")}
               active={isActive("/dash/allMembers")}
+            />
+          )}
+
+          {/* ── Stagiaires ──────────────────────────────────────────── */}
+          {permissions.stagiairesRead && (
+            <NavItem
+              icon={GraduationCap}
+              label="Stagiaires"
+              onClick={() => handleNavigation("/dash/allStagiaires")}
+              active={isActive("/dash/allStagiaires")}
             />
           )}
 
