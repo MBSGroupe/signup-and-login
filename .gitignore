@@ -38,3 +38,6 @@ e2e-report/
 e2e-results/
 playwright-report/
 test-results/
+
+# Coverage report (npm run test:cov)
+coverage/

@@ -20,6 +20,9 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   timeout: 60_000,
   expect: { timeout: 10_000 },
+  // Screenshots are taken on Windows (*-win32.png); Linux (CI) renders fonts
+  // differently. CI keeps the right-to-left checks, not the pixel comparison.
+  ignoreSnapshots: !!process.env.CI,
   // Reports and traces show real (anonymised) data of the copy: local only,
   // never committed (see .gitignore).
   reporter: [['list'], ['html', { open: 'never', outputFolder: 'e2e-report' }]],

@@ -1,0 +1,3 @@
+# Before each commit: the unit tests related to the staged files.
+# Lint is checked in CI (scripts/lint-ratchet.cjs). Skip once: git commit --no-verify
+npx lint-staged

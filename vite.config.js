@@ -16,6 +16,10 @@ export default defineConfig({
     coverage: {
       include: ['src/**/*.{js,jsx}'],
       exclude: ['src/test/**', 'src/**/*.test.{js,jsx}', 'src/main.jsx', 'src/assets/**'],
+      // Floors (npm run test:cov, CI): today's level, rounded down. Screens
+      // are mostly covered by the browser tests (e2e/), not by unit tests.
+      // Raise them when coverage goes up; never lower them.
+      thresholds: { lines: 4.5, statements: 4.5, branches: 75, functions: 63 },
     },
   },
 })

@@ -74,3 +74,21 @@ per platform (`*-chromium-win32.png`): after a deliberate design change,
 `npm run test:e2e -- --update-snapshots`. Reports and traces
 (`e2e-report/`, `e2e-results/`) show data of the copy: they are ignored by
 git and stay on this machine.
+
+## CI (`.github/workflows/ci.yml`)
+
+- **checks**, every push and pull request: lint may not get worse
+  (`npm run lint:ratchet`, counts per rule in `lint-baseline.json`; after
+  fixing some, `node scripts/lint-ratchet.cjs --update`), unit tests with
+  their coverage floors (`vite.config.js`, raise them, never lower them),
+  build.
+- **e2e**, nightly, on pull requests to `main` and on demand (Actions → CI →
+  Run workflow): the browser tests against the backend on a synthetic
+  database (no production data on GitHub). Needs, in the repo settings:
+  - secret `BACKEND_REPO_TOKEN`: a token that can read
+    `MBSGroupe/gest-org-backend`;
+  - variable `BACKEND_REF` (optional): the backend branch, `main` by default.
+  On CI the screenshots aren't compared (taken on Windows); the
+  right-to-left checks still run.
+- **Before each commit** (husky, after `npm install`): the unit tests related
+  to the staged files. `git commit --no-verify` skips it once.
