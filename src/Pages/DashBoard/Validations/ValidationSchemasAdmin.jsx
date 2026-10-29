@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from 'react';
+import { useContext, useEffect, useMemo, useState } from 'react';
 import { UserContext } from '../../../Context/dataCont';
 import { fetchWithRefresh } from '../../../Components/api';
 import { useNavigate } from 'react-router-dom';
@@ -32,13 +32,42 @@ export default function ValidationSchemasList() {
   const [schemas, setSchemas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  // 'all' | 'active' | 'inactive'
+  const [statusFilter, setStatusFilter] = useState('all');
+
+  // One card per schema family (same name): its active version, or — when
+  // the schema is deactivated — its latest version, so it can still be
+  // edited to tweak the requests opened from it. Older versions stay
+  // under "Versions".
+  const families = useMemo(() => {
+    const byFamily = new Map();
+    for (const s of schemas) {
+      const key = `${s.tenantId ?? ''}::${s.name}`;
+      const current = byFamily.get(key);
+      const better =
+        !current ||
+        (s.isActive && !current.isActive) ||
+        (s.isActive === current.isActive && s.version > current.version);
+      if (better) byFamily.set(key, s);
+    }
+    return [...byFamily.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [schemas]);
+
+  const visibleSchemas = families.filter((s) =>
+    statusFilter === 'all' ? true : statusFilter === 'active' ? s.isActive : !s.isActive,
+  );
+  const counts = {
+    all: families.length,
+    active: families.filter((s) => s.isActive).length,
+    inactive: families.filter((s) => !s.isActive).length,
+  };
 
   const fetchSchemas = async () => {
     setLoading(true);
     setError(null);
     try {
       const res = await fetchWithRefresh(
-        `${API_URL}/validation/schemas`,
+        `${API_URL}/validation/schemas?includeInactive=true`,
         { method: 'GET' },
         authData.token,
         setAuthData
@@ -131,16 +160,42 @@ export default function ValidationSchemasList() {
           </div>
         )}
 
+        {/* Status filter */}
+        <div className="flex flex-wrap gap-2 mb-5">
+          {[
+            ['all', 'Tous'],
+            ['active', 'Actifs'],
+            ['inactive', 'Inactifs'],
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setStatusFilter(value)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                statusFilter === value
+                  ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                  : 'bg-[#111827] text-[#94A3B8] border-[rgba(255,255,255,0.06)] hover:text-[#F8FAFC]'
+              }`}
+            >
+              {label} ({counts[value]})
+            </button>
+          ))}
+        </div>
+
         {/* Schema list */}
         <div className="space-y-4">
-          {schemas.length === 0 ? (
+          {visibleSchemas.length === 0 ? (
             <div className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] p-12 text-center">
               <FileText className="w-12 h-12 text-[#64748B] mx-auto mb-4" />
-              <p className="text-[#94A3B8]">No schemas found.</p>
-              <p className="text-[#64748B] text-sm mt-1">Create your first validation schema to get started.</p>
+              <p className="text-[#94A3B8]">
+                {schemas.length === 0 ? 'No schemas found.' : 'Aucun schéma pour ce filtre.'}
+              </p>
+              {schemas.length === 0 && (
+                <p className="text-[#64748B] text-sm mt-1">Create your first validation schema to get started.</p>
+              )}
             </div>
           ) : (
-            schemas.map((schema) => (
+            visibleSchemas.map((schema) => (
               <div
                 key={schema.id}
                 className="bg-[#111827] rounded-2xl border border-[rgba(255,255,255,0.06)] p-6 hover:border-[rgba(255,255,255,0.12)] transition-all duration-200 shadow-lg"
@@ -176,6 +231,12 @@ export default function ValidationSchemasList() {
                     </div>
                     {schema.description && (
                       <p className="mt-2 text-[#94A3B8] text-sm line-clamp-2">{schema.description}</p>
+                    )}
+                    {!schema.isActive && (
+                      <p className="mt-2 text-xs text-amber-300/90">
+                        Schéma désactivé : plus de nouvelles demandes. Ses modifications de libellés,
+                        motifs, instructions et actions de fin s'appliquent aux demandes encore ouvertes.
+                      </p>
                     )}
                   </div>
                   <div className="flex flex-wrap gap-2">
