@@ -214,7 +214,7 @@ export default function DeclarationModal({
       return;
     }
     if (!documents.cnrc) {
-      setErrorMessage("Veuillez joindre le document CNRC (Registre de Commerce).");
+      setErrorMessage("Veuillez joindre votre Carte Nationale d'Identité.");
       return;
     }
     if (!documents.paiement) {
@@ -546,8 +546,8 @@ export default function DeclarationModal({
                 </h3>
                 <div className="grid grid-cols-1 gap-3.5">
                   <DocumentUploadSlot
-                    title="CNRC"
-                    subtitle="Registre du Commerce"
+                    title="Carte Nationale d'Identité"
+                    subtitle="Pièce d'identité nationale"
                     icon={<Building2 className="w-5 h-5 text-emerald-400" />}
                     docKey="cnrc"
                     file={documents.cnrc}

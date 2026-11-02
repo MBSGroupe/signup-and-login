@@ -25,7 +25,7 @@ const BTN_CONFIRM_DELETE =
 
 const TYPE_LABELS = {
   photo: "Photo",
-  CNRC: "Carte Nationale",
+  CNRC: "Carte Nationale d'Identité",
   recu2026: "Reçu 2026",
   ACTENAISSANCE: "Acte de naissance",
   DIPLOMES: "Diplôme",

@@ -48,7 +48,7 @@ const NEST_API_URL = import.meta.env.VITE_NEST_API_URL;
 
 const BASE_FILE_TYPES = [
   { key: 'photo', label: 'Photo', required: true },
-  { key: 'CNRC', label: 'Carte Nationale', required: true },
+  { key: 'CNRC', label: "Carte Nationale d'Identité", required: true },
   { key: 'recu2026', label: 'Reçu 2027', required: true },
   { key: 'ACTENAISSANCE', label: 'Acte de naissance', required: true },
   { key: 'DIPLOMES', label: 'Diplôme(s)', required: true },
