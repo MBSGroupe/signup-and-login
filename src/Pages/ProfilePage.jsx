@@ -1747,12 +1747,12 @@ export default function ProfilePage({ user }) {
                         const requestName = getRequestName(req);
                         const displayStatus = mapApiStatusToDisplay(req);
 
-                        // "Corriger mon dossier" opens the form the request was filled
-                        // with (sent with the request, live labels), so it works even
+                        // "Corriger mon dossier" opens the latest version of the request's
+                        // schema, active or not (sent with the request), so it works even
                         // when the schema is closed to new requests. The open schemas
                         // are only a fallback for an answer without it.
-                        const matchingSchema = Array.isArray(req.validationSchema?.payloadSchema)
-                          ? req.validationSchema
+                        const matchingSchema = Array.isArray(req.correctionForm?.payloadSchema)
+                          ? req.correctionForm
                           : availableSchemas.find(
                               (s) =>
                                 (s.name || s.title || '').trim().toLowerCase() ===
