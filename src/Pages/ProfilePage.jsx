@@ -1747,14 +1747,17 @@ export default function ProfilePage({ user }) {
                         const requestName = getRequestName(req);
                         const displayStatus = mapApiStatusToDisplay(req);
 
-                        // Find the schema that matches this request (by name) so the
-                        // "Corriger mon dossier" button can hand the right schema to
-                        // the dynamic form modal.
-                        const matchingSchema = availableSchemas.find(
-                          (s) =>
-                            (s.name || s.title || '').trim().toLowerCase() ===
-                            (requestName || '').trim().toLowerCase(),
-                        );
+                        // "Corriger mon dossier" opens the form the request was filled
+                        // with (sent with the request, live labels), so it works even
+                        // when the schema is closed to new requests. The open schemas
+                        // are only a fallback for an answer without it.
+                        const matchingSchema = Array.isArray(req.validationSchema?.payloadSchema)
+                          ? req.validationSchema
+                          : availableSchemas.find(
+                              (s) =>
+                                (s.name || s.title || '').trim().toLowerCase() ===
+                                (requestName || '').trim().toLowerCase(),
+                            );
 
                         return (
                           <div key={req.id || reqIdx} className="bg-[#0A0F1C] rounded-xl border border-white/10 p-5 transition-all">
